@@ -1954,33 +1954,31 @@ function exportarExcelCompleto(res) {
     const X = window.XLSX;
     if (!X) { alert('SheetJS não disponível'); return; }
 
-    // ── Paleta de cores ──
+    // Paleta fiel ao INVENTARIO_RS_PROJ_2.xlsx
     const C = {
-        navy:'1F4E79', azul:'1D4ED8', verde:'15803D', red:'B91C1C',
-        amber:'B45309', bg1:'F8FAFC', bg2:'EFF6FF', white:'FFFFFF',
-        text:'1E293B', muted:'64748B', linha:'E2E8F0', linhaMed:'B0C4D8'
+        navy:    '0A2540',
+        teal:    '00B388',
+        red:     'C00000',
+        amber:   'C05700',
+        kpiBg:   'F8F9FA',
+        white:   'FFFFFF',
+        aprovBg: 'C6EFCE', aprovFg: '006100',
+        reprovBg:'FFC7CE', reprovFg:'9C0006',
+        warnBg:  'FFEB9C', warnFg:  '9C5700',
+        data:    '1E293B',
     };
 
-    // ── Helpers de estilo ──
-    const fnt = (bold, sz, rgb) => ({ bold, sz, name:'Calibri', color:{rgb} });
-    const fl  = (rgb) => ({ patternType:'solid', fgColor:{rgb} });
-    const bdr = () => ({ bottom:{style:'thin',color:{rgb:C.linha}} });
+    const FMT_BRL = 'R$ #,##0.00';
+    const FMT_N2  = '#,##0.00';
+    const FMT_N0  = '#,##0';
 
-    const sHdr = (bg=C.navy) => ({ font:fnt(true,10,C.white), fill:fl(bg), alignment:{horizontal:'center',vertical:'center'}, border:{bottom:{style:'medium',color:{rgb:C.linhaMed}}} });
-    const sTxt = (bg=C.white, bold=false, clr=C.text) => ({ font:fnt(bold,10,clr), fill:fl(bg), alignment:{horizontal:'left',vertical:'center'}, border:bdr() });
-    const sNum = (bg=C.white, clr=C.text) => ({ font:fnt(false,10,clr), fill:fl(bg), alignment:{horizontal:'right',vertical:'center'}, border:bdr() });
-    const sCtr = (bg=C.white, bold=false, clr=C.text) => ({ font:fnt(bold,10,clr), fill:fl(bg), alignment:{horizontal:'center',vertical:'center'}, border:bdr() });
+    // Row heights (pt) for the 9-header rows
+    const HDR_H = [20, 20, 16, 6, 16, 34, 6, 24, 26];
 
-    // ── Status → estilo ──
-    const aprovS = { 'APROVADO':[C.white,true,C.verde], 'REPROVADO':[C.white,true,C.red], 'SEM UC':[C.white,false,C.muted] };
-    const riscoS = { 'ALTO':[C.white,true,C.red], 'MEDIO':[C.white,true,C.amber], 'BAIXO':[C.white,true,C.azul], 'OK':[C.white,true,C.verde] };
-    const sitS   = (v) => v && v.includes('NÃO') ? [C.white,false,C.red] : v && v.includes('ADER') ? [C.white,false,C.verde] : [C.white,false,C.muted];
-    const comS   = { 'OK':[C.white,false,C.verde], 'ANCORA':[C.bg2,false,C.text], 'EXCESSO':[C.white,false,C.amber], 'EXCESSO EXAGERADO':[C.white,true,C.red], 'INSUFICIENTE':[C.white,false,C.red], 'SEM ANCORA':[C.white,false,C.red], 'QTD ZERO':[C.white,false,C.muted], 'ESTORNO SEM ENTRADA':[C.white,false,C.red], 'SEM REFERENCIA':[C.white,false,C.muted] };
-    const puS    = { 'DENTRO':[C.white,false,C.verde], 'ABAIXO DO MINIMO':[C.white,false,C.amber], 'ACIMA DO MAXIMO':[C.white,true,C.red], 'SEM REFERENCIA':[C.white,false,C.muted] };
+    const fl  = (rgb) => ({ patternType: 'solid', fgColor: { rgb } });
+    const fnt = (nm, sz, bold, rgb) => ({ name: nm, sz, bold, color: { rgb } });
+    const SEG = 'Segoe UI';
 
-    const FMT_BRL='R$ #,##0.00', FMT_N2='#,##0.00', FMT_N0='#,##0';
-
-    // ── Fábrica de célula ──
     function cv(v, s, z) {
         if (v === null || v === undefined) v = '';
         const t = typeof v === 'number' ? 'n' : 's';
@@ -1990,187 +1988,367 @@ function exportarExcelCompleto(res) {
         return cell;
     }
 
-    // ── Construtor de aba de dados ──
-    function addDataSheet(name, headers, colW, rows, styleRowFn) {
-        const ws = {};
-        // cabeçalho
-        headers.forEach((h, c) => { ws[X.utils.encode_cell({r:0,c})] = cv(h, sHdr()); });
-        // dados
-        rows.forEach((row, ri) => {
-            const bg = ri % 2 === 0 ? C.white : C.bg1;
-            row.forEach((v, ci) => {
-                const addr = X.utils.encode_cell({r:ri+1, c:ci});
-                ws[addr] = cv(v, typeof v === 'number' ? sNum(bg) : sTxt(bg));
-            });
-            if (styleRowFn) styleRowFn(ws, ri+1, row, ri % 2 === 0 ? C.white : C.bg1);
+    function sc(ws, r, c, cell) { ws[X.utils.encode_cell({ r, c })] = cell; }
+
+    // KPI positions: pairs at cols 0-1, 3-4, 6-7, 9-10 (gaps at 2,5,8,11)
+    const KPI_PAIRS = [[0,1],[3,4],[6,7],[9,10]];
+    const KPI_COLORS = [C.navy, C.teal, C.red, C.amber];
+
+    // Fills rows 0-7 of ws with the branded header block
+    // kpiDefs: [{label, value, fmt}] up to 4
+    // tabs: [{name}], activeIdx: which tab is highlighted teal
+    function buildHeader(ws, title, kpiDefs, tabs, activeIdx, numCols) {
+        // Rows 0-1: solid navy band
+        for (let r = 0; r <= 1; r++)
+            for (let c = 0; c < numCols; c++)
+                sc(ws, r, c, cv('', { fill: fl(C.navy) }));
+
+        // Row 2: teal title bar
+        sc(ws, 2, 0, cv(title, {
+            font: fnt(SEG, 11, true, C.white),
+            fill: fl(C.teal),
+            alignment: { horizontal: 'left', vertical: 'center', indent: 1 }
+        }));
+        for (let c = 1; c < numCols; c++) sc(ws, 2, c, cv('', { fill: fl(C.teal) }));
+
+        // Row 3: navy gap
+        for (let c = 0; c < numCols; c++) sc(ws, 3, c, cv('', { fill: fl(C.navy) }));
+
+        // Row 4: KPI labels; Row 5: KPI values; gaps at cols 2,5,8,11
+        for (let c = 0; c < numCols; c++) {
+            sc(ws, 4, c, cv('', { fill: fl(C.navy) }));
+            sc(ws, 5, c, cv('', { fill: fl(C.kpiBg) }));
+        }
+        kpiDefs.forEach((kpi, i) => {
+            if (i >= 4) return;
+            const [c1, c2] = KPI_PAIRS[i];
+            if (c1 >= numCols) return;
+            const clr = KPI_COLORS[i];
+            sc(ws, 4, c1, cv(kpi.label, {
+                font: fnt(SEG, 9, true, C.white),
+                fill: fl(clr),
+                alignment: { horizontal: 'center', vertical: 'center' }
+            }));
+            if (c2 < numCols) sc(ws, 4, c2, cv('', { fill: fl(clr) }));
+
+            const isNum = typeof kpi.value === 'number';
+            sc(ws, 5, c1, cv(isNum ? kpi.value : (kpi.value != null ? String(kpi.value) : '—'), {
+                font: fnt(SEG, 18, true, clr),
+                fill: fl(C.kpiBg),
+                alignment: { horizontal: 'center', vertical: 'center' }
+            }, isNum ? kpi.fmt : null));
+            if (c2 < numCols) sc(ws, 5, c2, cv('', { fill: fl(C.kpiBg) }));
         });
-        const lastR = rows.length, lastC = headers.length - 1;
-        ws['!ref']        = X.utils.encode_range({s:{r:0,c:0}, e:{r:lastR,c:lastC}});
-        ws['!sheetViews'] = [{ state:'frozen', ySplit:1, topLeftCell:'A2' }];
-        ws['!autofilter'] = { ref: X.utils.encode_range({s:{r:0,c:0}, e:{r:0,c:lastC}}) };
-        ws['!cols']       = colW.map(w => ({ wch: w }));
-        X.utils.book_append_sheet(wb, ws, name);
+
+        // Row 6: navy gap
+        for (let c = 0; c < numCols; c++) sc(ws, 6, c, cv('', { fill: fl(C.navy) }));
+
+        // Row 7: section tabs distributed evenly
+        const tabW = Math.floor(numCols / tabs.length);
+        tabs.forEach((tab, t) => {
+            const c1 = t * tabW;
+            const c2 = t === tabs.length - 1 ? numCols - 1 : c1 + tabW - 1;
+            const active = t === activeIdx;
+            sc(ws, 7, c1, cv(tab.name, {
+                font: fnt(SEG, 10, active, C.white),
+                fill: fl(active ? C.teal : C.navy),
+                alignment: { horizontal: 'center', vertical: 'center' }
+            }));
+            for (let c = c1 + 1; c <= c2 && c < numCols; c++)
+                sc(ws, 7, c, cv('', { fill: fl(active ? C.teal : C.navy) }));
+        });
     }
 
-    const wb  = X.utils.book_new();
-    const pu  = res.resultPU || { nDiverg:0, sobreprecoTotal:0, linhas:[] };
-    const nPep3 = res.resultSAP.nAprov + res.resultSAP.nReprov;
-    const pct   = nPep3 > 0 ? Math.round(res.resultSAP.nAprov / nPep3 * 100) : 0;
+    // Fills row 8 (column headers)
+    function buildColHeaders(ws, headers) {
+        headers.forEach((h, c) => sc(ws, 8, c, cv(h, {
+            font: fnt(SEG, 10, true, C.white),
+            fill: fl(C.navy),
+            alignment: { horizontal: 'center', vertical: 'center', wrapText: true }
+        })));
+    }
 
-    // ── ABA 1: RESUMO ─────────────────────────────────────────
-    {
-        const ws = {};
-        const hoje = new Date().toLocaleDateString('pt-BR');
-
-        const sc = (r, c, cell) => { ws[X.utils.encode_cell({r,c})] = cell; };
-        const sEmpty = (bg) => cv('', sTxt(bg));
-
-        // Título
-        sc(0,0, cv('INVENTÁRIO INTELIGENTE 15kV — RELATÓRIO EXECUTIVO', { font:fnt(true,14,C.white), fill:fl(C.navy), alignment:{horizontal:'left',vertical:'center'} }));
-        for(let c=1;c<=7;c++) sc(0,c, cv('', { fill:fl(C.navy), border:bdr() }));
-        sc(1,0, cv(`Gerado em ${hoje}`, { font:fnt(false,10,C.muted), fill:fl(C.bg1), alignment:{horizontal:'left',vertical:'center'}, border:bdr() }));
-        for(let c=1;c<=7;c++) sc(1,c, sEmpty(C.bg1));
-        sc(2,0, cv(''));
-
-        // KPI — cabeçalho
-        [0,1,2,3,4,5,6,7].forEach(c => sc(3,c, cv(['INDICADOR','','VALOR','','INDICADOR','','VALOR',''][c]||'', sHdr(C.azul))));
-
-        // KPI — linhas
-        const kpis = [
-            ['Valor Total da Obra',   res.resultSAP.sumValor,       FMT_BRL,  'Alertas Críticos',        res.resultAlertas.alertas.length, FMT_N0],
-            ['PEPs Analisados',       nPep3,                         FMT_N0,   'Divergências de Preço',   res.temPrecos ? pu.nDiverg : null, FMT_N0],
-            ['PEPs Aprovados',        res.resultSAP.nAprov,          FMT_N0,   'Sobrepreço Potencial',    res.temPrecos ? pu.sobreprecoTotal : null, FMT_BRL],
-            ['PEPs Reprovados',       res.resultSAP.nReprov,         FMT_N0,   'Valor em Risco (não ader.)', res.resultSAP.sumNaoAder, FMT_BRL],
+    // Compute !merges for header block
+    function headerMerges(kpiDefs, tabs, numCols) {
+        const m = [
+            { s:{r:0,c:0}, e:{r:1,c:numCols-1} },   // navy band
+            { s:{r:2,c:0}, e:{r:2,c:numCols-1} },   // title
+            { s:{r:3,c:0}, e:{r:3,c:numCols-1} },   // gap
+            { s:{r:6,c:0}, e:{r:6,c:numCols-1} },   // gap
         ];
-        kpis.forEach(([l1,v1,z1,l2,v2,z2], ri) => {
-            const r = 4+ri, bg = ri%2===0 ? C.white : C.bg1;
-            const colorV1 = [C.azul, C.text, C.verde, C.red][ri];
-            const colorV2 = [C.amber, C.amber, C.red, C.red][ri];
-            sc(r,0, cv(l1, sTxt(bg,true)));
-            sc(r,1, sEmpty(bg));
-            sc(r,2, cv(v1!==null?v1:'—', v1!==null?{...sNum(bg,colorV1)}:sTxt(bg,false,C.muted), v1!==null?z1:null));
-            sc(r,3, sEmpty(bg));
-            sc(r,4, cv(l2, sTxt(bg,true)));
-            sc(r,5, sEmpty(bg));
-            sc(r,6, cv(v2!==null?v2:'—', v2!==null?{...sNum(bg,colorV2)}:sTxt(bg,false,C.muted), v2!==null?z2:null));
-            sc(r,7, sEmpty(bg));
+        kpiDefs.forEach((_, i) => {
+            if (i >= 4) return;
+            const [c1, c2] = KPI_PAIRS[i];
+            if (c2 < numCols) {
+                m.push({ s:{r:4,c:c1}, e:{r:4,c:c2} });
+                m.push({ s:{r:5,c:c1}, e:{r:5,c:c2} });
+            }
+        });
+        const tabW = Math.floor(numCols / tabs.length);
+        tabs.forEach((_, t) => {
+            const c1 = t * tabW;
+            const c2 = t === tabs.length - 1 ? numCols - 1 : c1 + tabW - 1;
+            if (c2 > c1) m.push({ s:{r:7,c:c1}, e:{r:7,c:c2} });
+        });
+        return m;
+    }
+
+    // Full sheet builder: header (9 rows) + data starting at row 9
+    function makeSheet(activeTabIdx, colHdrs, colWidths, dataRows, styleFn) {
+        const ws = {};
+        const numCols = colHdrs.length;
+        const nPep3 = res.resultSAP.nAprov + res.resultSAP.nReprov;
+        const kpis = [
+            { label: 'VALOR TOTAL',    value: res.resultSAP.sumValor,            fmt: FMT_BRL },
+            { label: 'APROVADOS',      value: res.resultSAP.nAprov,              fmt: FMT_N0  },
+            { label: 'ALERTAS',        value: res.resultAlertas.alertas.length,  fmt: FMT_N0  },
+            { label: 'REPROVADOS',     value: res.resultSAP.nReprov,             fmt: FMT_N0  },
+        ];
+
+        buildHeader(ws, TITLE, kpis, TABS, activeTabIdx, numCols);
+        buildColHeaders(ws, colHdrs);
+
+        dataRows.forEach((row, ri) => {
+            const r = 9 + ri;
+            row.forEach((v, c) => {
+                const isNum = typeof v === 'number';
+                sc(ws, r, c, cv(v !== null ? v : '', {
+                    font: fnt(SEG, 9, false, C.data),
+                    fill: fl(C.white),
+                    alignment: { horizontal: isNum ? 'right' : 'left', vertical: 'center' }
+                }));
+            });
+            if (styleFn) styleFn(ws, r, row);
         });
 
-        // Alertas por tipo
-        const tiposCont = {};
-        for (const al of res.resultAlertas.alertas) tiposCont[al.tipo]=(tiposCont[al.tipo]||0)+1;
-        const tipos = Object.entries(tiposCont).sort((a,b)=>b[1]-a[1]);
+        const lastR = Math.max(9, 9 + dataRows.length - 1);
+        ws['!ref']        = X.utils.encode_range({ s:{r:0,c:0}, e:{r:lastR,c:numCols-1} });
+        ws['!cols']       = colWidths.map(w => ({ wch: w }));
+        ws['!rows']       = [...HDR_H.map(h => ({ hpt: h })), ...dataRows.map(() => ({ hpt: 15 }))];
+        ws['!sheetViews'] = [{ state:'frozen', ySplit:9, topLeftCell:'A10' }];
+        ws['!autofilter'] = { ref: X.utils.encode_range({ s:{r:8,c:0}, e:{r:8,c:numCols-1} }) };
+        ws['!merges']     = headerMerges(kpis, TABS, numCols);
+        return ws;
+    }
 
-        const alStart = 4 + kpis.length + 1;
-        sc(alStart-1, 0, cv(''));
-        [['TIPO DE ALERTA', sHdr(C.amber)], ['', sHdr(C.amber)], ['OCORRÊNCIAS', sHdr(C.amber)], ['% DO TOTAL', sHdr(C.amber)]].forEach(([t,s],c) => sc(alStart,c,cv(t,s)));
+    // Status cell helpers
+    function sAprov(v) {
+        const u = String(v||'').toUpperCase();
+        if (u === 'APROVADO')  return { fill:fl(C.aprovBg),  font:fnt(SEG,9,true, C.aprovFg),  alignment:{horizontal:'center',vertical:'center'} };
+        if (u === 'REPROVADO') return { fill:fl(C.reprovBg), font:fnt(SEG,9,true, C.reprovFg), alignment:{horizontal:'center',vertical:'center'} };
+        return null;
+    }
+    function sSit(v) {
+        const u = String(v||'').toUpperCase();
+        if (u.includes('NÃO') || u.includes('NAO')) return { fill:fl(C.reprovBg), font:fnt(SEG,9,false,C.reprovFg), alignment:{horizontal:'left',vertical:'center'} };
+        if (u.includes('ADER'))                     return { fill:fl(C.aprovBg),  font:fnt(SEG,9,false,C.aprovFg),  alignment:{horizontal:'left',vertical:'center'} };
+        return null;
+    }
+    function sRisco(v) {
+        const u = String(v||'').toUpperCase();
+        if (u === 'ALTO')              return { fill:fl(C.reprovBg), font:fnt(SEG,9,true, C.reprovFg), alignment:{horizontal:'center',vertical:'center'} };
+        if (u === 'MEDIO'||u==='MÉDIO') return { fill:fl(C.warnBg),  font:fnt(SEG,9,false,C.warnFg),  alignment:{horizontal:'center',vertical:'center'} };
+        if (u === 'BAIXO')             return { fill:fl(C.aprovBg),  font:fnt(SEG,9,false,C.aprovFg),  alignment:{horizontal:'center',vertical:'center'} };
+        return null;
+    }
+    function sCom(v) {
+        const u = String(v||'').toUpperCase();
+        if (u === 'OK')                               return { fill:fl(C.aprovBg), font:fnt(SEG,9,false,C.aprovFg), alignment:{horizontal:'center',vertical:'center'} };
+        if (u.includes('EXCESSO')||u==='INSUFICIENTE'||u.includes('SEM')||u==='ESTORNO SEM ENTRADA') return { fill:fl(C.warnBg), font:fnt(SEG,9,false,C.warnFg), alignment:{horizontal:'center',vertical:'center'} };
+        return null;
+    }
+    function sPU(v) {
+        const u = String(v||'').toUpperCase();
+        if (u === 'DENTRO')           return { fill:fl(C.aprovBg),  font:fnt(SEG,9,false,C.aprovFg),  alignment:{horizontal:'center',vertical:'center'} };
+        if (u === 'ABAIXO DO MINIMO') return { fill:fl(C.warnBg),   font:fnt(SEG,9,false,C.warnFg),   alignment:{horizontal:'center',vertical:'center'} };
+        if (u === 'ACIMA DO MAXIMO')  return { fill:fl(C.reprovBg), font:fnt(SEG,9,true, C.reprovFg), alignment:{horizontal:'center',vertical:'center'} };
+        return null;
+    }
+
+    // ── Setup ──────────────────────────────────────────────────────────────
+    const wb    = X.utils.book_new();
+    const pu    = res.resultPU || { nDiverg:0, sobreprecoTotal:0, linhas:[] };
+    const hoje  = new Date().toLocaleDateString('pt-BR');
+    const hojeF = hoje.replace(/\//g,'-');
+    const TITLE = `INVENTÁRIO INTELIGENTE 15kV  |  Atualização: ${hoje}`;
+    const TABS  = [
+        { name:'RESUMO' }, { name:'SAP × PRJ' }, { name:'RACIONALIZAÇÃO' },
+        { name:'ALERTAS' }, { name:'RISCO' },
+        ...(res.temPrecos ? [{ name:'PREÇO UNIT.' }] : []),
+    ];
+
+    // ── ABA 1: RESUMO ──────────────────────────────────────────────────────
+    {
+        const numCols = 8;
+        const ws = {};
+        const nPep3 = res.resultSAP.nAprov + res.resultSAP.nReprov;
+        const kpis = [
+            { label:'VALOR TOTAL',   value:res.resultSAP.sumValor,           fmt:FMT_BRL },
+            { label:'APROVADOS',     value:res.resultSAP.nAprov,             fmt:FMT_N0  },
+            { label:'ALERTAS',       value:res.resultAlertas.alertas.length, fmt:FMT_N0  },
+            { label:'REPROVADOS',    value:res.resultSAP.nReprov,            fmt:FMT_N0  },
+        ];
+        buildHeader(ws, TITLE, kpis, TABS, 0, numCols);
+
+        // Row 8: table column headers
+        ['INDICADOR','','VALOR','','INDICADOR','','VALOR',''].forEach((h,c) =>
+            sc(ws, 8, c, cv(h, {
+                font: fnt(SEG,10,true,C.white), fill:fl(C.navy),
+                alignment:{ horizontal:'center', vertical:'center' }
+            }))
+        );
+
+        // KPI comparison rows (9-12)
+        const rows = [
+            ['Valor Total da Obra',    res.resultSAP.sumValor,       FMT_BRL,  'Alertas Críticos',        res.resultAlertas.alertas.length, FMT_N0],
+            ['PEPs Analisados',        nPep3,                         FMT_N0,   'Divergências de Preço',   res.temPrecos ? pu.nDiverg : null, FMT_N0],
+            ['PEPs Aprovados',         res.resultSAP.nAprov,          FMT_N0,   'Sobrepreço Potencial',    res.temPrecos ? pu.sobreprecoTotal : null, FMT_BRL],
+            ['PEPs Reprovados',        res.resultSAP.nReprov,         FMT_N0,   'Valor em Risco',          res.resultSAP.sumNaoAder, FMT_BRL],
+        ];
+        rows.forEach(([l1,v1,z1,l2,v2,z2], ri) => {
+            const r = 9 + ri;
+            const sL = { font:fnt(SEG,9,true,C.data),  fill:fl(C.white), alignment:{horizontal:'left',vertical:'center'} };
+            const sV = (clr) => ({ font:fnt(SEG,9,true,clr), fill:fl(C.white), alignment:{horizontal:'right',vertical:'center'} });
+            const sG = { fill:fl(C.white) };
+            sc(ws,r,0, cv(l1, sL)); sc(ws,r,1, cv('',sG));
+            sc(ws,r,2, cv(v1!==null?v1:'—', sV(KPI_COLORS[0]), v1!==null?z1:null));
+            sc(ws,r,3, cv('',sG));
+            sc(ws,r,4, cv(l2, sL)); sc(ws,r,5, cv('',sG));
+            sc(ws,r,6, cv(v2!==null?v2:'—', sV(KPI_COLORS[3]), v2!==null?z2:null));
+            sc(ws,r,7, cv('',sG));
+        });
+
+        // Alert breakdown sub-table
+        const tiposCont = {};
+        for (const al of res.resultAlertas.alertas) tiposCont[al.tipo] = (tiposCont[al.tipo]||0)+1;
+        const tipos = Object.entries(tiposCont).sort((a,b) => b[1]-a[1]);
+        const alStart = 9 + rows.length + 1;
+
+        // gap row
+        for (let c=0;c<numCols;c++) sc(ws, alStart-1, c, cv('', {fill:fl(C.white)}));
+
+        // sub-header
+        ['TIPO DE ALERTA','','OCORRÊNCIAS','% DO TOTAL','','','',''].forEach((h,c) =>
+            sc(ws, alStart, c, cv(h, {
+                font:fnt(SEG,10,true,C.white), fill:fl(C.amber),
+                alignment:{horizontal:'center',vertical:'center'}
+            }))
+        );
 
         const totAl = res.resultAlertas.alertas.length || 1;
-        tipos.forEach(([tipo,cnt],ri) => {
-            const r=alStart+1+ri, bg=ri%2===0?C.white:C.bg1;
-            sc(r,0, cv(tipo, sTxt(bg)));
-            sc(r,1, sEmpty(bg));
-            sc(r,2, cv(cnt, sNum(bg)));
-            sc(r,3, cv(Math.round(cnt/totAl*100)/100, {...sNum(bg), z:'0%'}));
+        tipos.forEach(([tipo,cnt], ri) => {
+            const r = alStart+1+ri;
+            sc(ws,r,0, cv(tipo, {font:fnt(SEG,9,false,C.data), fill:fl(C.white), alignment:{horizontal:'left',vertical:'center'}}));
+            sc(ws,r,1, cv('', {fill:fl(C.white)}));
+            sc(ws,r,2, cv(cnt, {font:fnt(SEG,9,false,C.data), fill:fl(C.white), alignment:{horizontal:'right',vertical:'center'}}));
+            sc(ws,r,3, cv(cnt/totAl, {font:fnt(SEG,9,false,C.data), fill:fl(C.white), alignment:{horizontal:'right',vertical:'center'}}, '0.0%'));
+            for(let c=4;c<numCols;c++) sc(ws,r,c,cv('',{fill:fl(C.white)}));
         });
 
-        const lastR = alStart+1+tipos.length;
-        ws['!ref']    = X.utils.encode_range({s:{r:0,c:0}, e:{r:lastR,c:7}});
-        ws['!cols']   = [32,3,16,3,32,3,16,3].map(w=>({wch:w}));
-        ws['!merges'] = [
-            {s:{r:0,c:0},e:{r:0,c:7}},
-            {s:{r:1,c:0},e:{r:1,c:7}},
-            {s:{r:3,c:0},e:{r:3,c:1}},
-            {s:{r:3,c:2},e:{r:3,c:3}},
-            {s:{r:3,c:4},e:{r:3,c:5}},
-            {s:{r:3,c:6},e:{r:3,c:7}},
+        const lastR = alStart + tipos.length;
+        ws['!ref']        = X.utils.encode_range({s:{r:0,c:0},e:{r:lastR,c:numCols-1}});
+        ws['!cols']       = [30,3,16,3,30,3,16,3].map(w=>({wch:w}));
+        ws['!rows']       = [...HDR_H.map(h=>({hpt:h})), ...Array(lastR-8).fill({hpt:15})];
+        ws['!sheetViews'] = [{state:'frozen',ySplit:9,topLeftCell:'A10'}];
+        ws['!autofilter'] = {ref:X.utils.encode_range({s:{r:8,c:0},e:{r:8,c:numCols-1}})};
+        ws['!merges']     = [
+            ...headerMerges(kpis, TABS, numCols),
+            {s:{r:8,c:0},e:{r:8,c:1}}, {s:{r:8,c:4},e:{r:8,c:5}},
+            {s:{r:alStart,c:0},e:{r:alStart,c:numCols-1}},
         ];
         X.utils.book_append_sheet(wb, ws, 'Resumo');
     }
 
-    // ── ABA 2: ANÁLISE SAP × PRJ ─────────────────────────────
-    addDataSheet(
-        'Análise SAP×PRJ',
-        ['PEP3','PEP4','Cód Material','Família','Tipo','Descrição','SAP','PRJ','Valor R$','Situação','Aprovação','Motivo'],
-        [28,28,14,14,8,40,8,8,14,20,12,36],
-        res.resultSAP.linhas.map(r => [
-            r.pep3, r.pep4, r.cod, r.familia, r.tipo, r.desc,
-            r.libSAP!==''&&r.libSAP!=null ? toNum(r.libSAP) : null,
-            r.prjCAD!==''&&r.prjCAD!=null ? toNum(r.prjCAD) : null,
-            r.valor ? toNum(r.valor) : null,
-            r.sitText, r.aprovacao, r.motivo
-        ]),
-        (ws, ri, row, bg) => {
-            const vA = X.utils.encode_cell({r:ri,c:8});
-            if (ws[vA]?.t==='n') ws[vA].z = FMT_BRL;
-            [6,7].forEach(ci => { const a=X.utils.encode_cell({r:ri,c:ci}); if(ws[a]?.t==='n') ws[a].z=FMT_N2; });
-            const sit=row[9], sitA=X.utils.encode_cell({r:ri,c:9});
-            if (ws[sitA]) { const [bg2,bold,clr]=sitS(sit); ws[sitA].s=sTxt(bg2,bold,clr); }
-            const ap=row[10], apA=X.utils.encode_cell({r:ri,c:10});
-            if (ws[apA]&&aprovS[ap]) { const [bg2,bold,clr]=aprovS[ap]; ws[apA].s=sCtr(bg2,bold,clr); }
-        }
-    );
+    // ── ABA 2: ANÁLISE SAP × PRJ ───────────────────────────────────────────
+    {
+        const ws = makeSheet(
+            1,
+            ['PEP3','PEP4','Cód Material','Família','Tipo','Descrição','SAP','PRJ','Valor R$','Situação','Aprovação','Motivo'],
+            [28,28,14,14,8,40,8,8,14,20,12,36],
+            res.resultSAP.linhas.map(r => [
+                r.pep3, r.pep4, r.cod, r.familia, r.tipo, r.desc,
+                r.libSAP!==''&&r.libSAP!=null ? toNum(r.libSAP) : null,
+                r.prjCAD!==''&&r.prjCAD!=null ? toNum(r.prjCAD) : null,
+                r.valor ? toNum(r.valor) : null,
+                r.sitText, r.aprovacao, r.motivo
+            ]),
+            (ws, r, row) => {
+                const a8=X.utils.encode_cell({r,c:8}); if(ws[a8]?.t==='n') ws[a8].z=FMT_BRL;
+                [6,7].forEach(c=>{const a=X.utils.encode_cell({r,c});if(ws[a]?.t==='n') ws[a].z=FMT_N2;});
+                const s9=sSit(row[9]);  if(s9) ws[X.utils.encode_cell({r,c:9})].s=s9;
+                const s10=sAprov(row[10]); if(s10) ws[X.utils.encode_cell({r,c:10})].s=s10;
+            }
+        );
+        X.utils.book_append_sheet(wb, ws, 'Análise SAP×PRJ');
+    }
 
-    // ── ABA 3: RACIONALIZAÇÃO COM ─────────────────────────────
-    addDataSheet(
-        'Racionalização COM',
-        ['PEP4','PEP3','Cód','Descrição','Família','NT.006','Ligado a','Qtd Veio','Previsto','Status','Observação'],
-        [28,28,12,40,14,12,28,10,12,18,36],
-        res.resultCOM.linhas.map(r => [
-            r.pep4, r.pep3, r.cod, r.desc, r.familia, r.nt006, r.ligadoA,
-            typeof r.qtd==='number' ? r.qtd : null,
-            r.previsto, r.status, r.obs
-        ]),
-        (ws, ri, row, bg) => {
-            const qA=X.utils.encode_cell({r:ri,c:7}); if(ws[qA]?.t==='n') ws[qA].z=FMT_N2;
-            const st=row[9], stA=X.utils.encode_cell({r:ri,c:9});
-            if (ws[stA]&&comS[st]) { const [bg2,bold,clr]=comS[st]; ws[stA].s=sCtr(bg2,bold,clr); }
-        }
-    );
+    // ── ABA 3: RACIONALIZAÇÃO COM ──────────────────────────────────────────
+    {
+        const ws = makeSheet(
+            2,
+            ['PEP4','PEP3','Cód','Descrição','Família','NT.006','Ligado a','Qtd Veio','Previsto','Status','Observação'],
+            [28,28,12,40,14,12,28,10,12,18,36],
+            res.resultCOM.linhas.map(r => [
+                r.pep4, r.pep3, r.cod, r.desc, r.familia, r.nt006, r.ligadoA,
+                typeof r.qtd==='number' ? r.qtd : null,
+                r.previsto, r.status, r.obs
+            ]),
+            (ws, r, row) => {
+                const a7=X.utils.encode_cell({r,c:7}); if(ws[a7]?.t==='n') ws[a7].z=FMT_N2;
+                const s=sCom(row[9]); if(s) ws[X.utils.encode_cell({r,c:9})].s=s;
+            }
+        );
+        X.utils.book_append_sheet(wb, ws, 'Racionalização COM');
+    }
 
-    // ── ABA 4: ALERTAS CRÍTICOS ───────────────────────────────
-    addDataSheet(
-        'Alertas Críticos',
-        ['Tipo de Alerta','PEP3','PEP4','Cód Material','Descrição','Família','Valor R$','Qtd','Motivo'],
-        [24,28,28,14,40,14,14,8,44],
-        res.resultAlertas.alertas.map(a => [
-            a.tipo, a.pep3, a.pep4, a.cod, a.desc, a.familia,
-            a.valor ? toNum(a.valor) : null,
-            a.qtd!==undefined&&a.qtd!=='' ? a.qtd : null,
-            a.motivo
-        ]),
-        (ws, ri, row, bg) => {
-            const tA=X.utils.encode_cell({r:ri,c:0}); if(ws[tA]) ws[tA].s=sTxt(bg,true,C.amber);
-            const vA=X.utils.encode_cell({r:ri,c:6}); if(ws[vA]?.t==='n'){ws[vA].s=sNum(bg);ws[vA].z=FMT_BRL;}
-        }
-    );
+    // ── ABA 4: ALERTAS CRÍTICOS ────────────────────────────────────────────
+    {
+        const ws = makeSheet(
+            3,
+            ['Tipo de Alerta','PEP3','PEP4','Cód Material','Descrição','Família','Valor R$','Qtd','Motivo'],
+            [24,28,28,14,40,14,14,8,44],
+            res.resultAlertas.alertas.map(a => [
+                a.tipo, a.pep3, a.pep4, a.cod, a.desc, a.familia,
+                a.valor ? toNum(a.valor) : null,
+                a.qtd!==undefined&&a.qtd!=='' ? a.qtd : null,
+                a.motivo
+            ]),
+            (ws, r, row) => {
+                const a0=X.utils.encode_cell({r,c:0});
+                if(ws[a0]) ws[a0].s={ font:fnt(SEG,9,true,C.amber), fill:fl('FFF8E1'), alignment:{horizontal:'left',vertical:'center'} };
+                const a6=X.utils.encode_cell({r,c:6}); if(ws[a6]?.t==='n') ws[a6].z=FMT_BRL;
+            }
+        );
+        X.utils.book_append_sheet(wb, ws, 'Alertas Críticos');
+    }
 
-    // ── ABA 5: RANKING DE RISCO ───────────────────────────────
-    addDataSheet(
-        'Ranking de Risco',
-        ['#','PEP3','Valor Obra R$','Situação','Alertas','Diverg. Preço','Sobrepreço R$','COM Fora','Score','Risco','Diagnóstico'],
-        [5,28,14,12,8,13,14,10,8,10,52],
-        res.resultRanking.obras.map((o,i) => [
-            i+1, o.pep3,
-            typeof o.valor==='number'?o.valor:null,
-            o.situacao, o.alertas, o.divergPU,
-            typeof o.sobrepreco==='number'?o.sobrepreco:null,
-            o.comFora, o.score, o.risco, o.diagnostico
-        ]),
-        (ws, ri, row, bg) => {
-            const vA=X.utils.encode_cell({r:ri,c:2}); if(ws[vA]?.t==='n'){ws[vA].s=sNum(bg);ws[vA].z=FMT_BRL;}
-            const spA=X.utils.encode_cell({r:ri,c:6}); if(ws[spA]?.t==='n'){ws[spA].s=sNum(bg);ws[spA].z=FMT_BRL;}
-            const sit=row[3], sA=X.utils.encode_cell({r:ri,c:3});
-            if (ws[sA]&&aprovS[sit]){const[bg2,bold,clr]=aprovS[sit];ws[sA].s=sCtr(bg2,bold,clr);}
-            const risco=row[9], rA=X.utils.encode_cell({r:ri,c:9});
-            if (ws[rA]&&riscoS[risco]){const[bg2,bold,clr]=riscoS[risco];ws[rA].s=sCtr(bg2,bold,clr);}
-        }
-    );
+    // ── ABA 5: RANKING DE RISCO ────────────────────────────────────────────
+    {
+        const ws = makeSheet(
+            4,
+            ['#','PEP3','Valor Obra R$','Situação','Alertas','Diverg. Preço','Sobrepreço R$','COM Fora','Score','Risco','Diagnóstico'],
+            [5,28,14,12,8,13,14,10,8,10,52],
+            res.resultRanking.obras.map((o,i) => [
+                i+1, o.pep3,
+                typeof o.valor==='number'?o.valor:null,
+                o.situacao, o.alertas, o.divergPU,
+                typeof o.sobrepreco==='number'?o.sobrepreco:null,
+                o.comFora, o.score, o.risco, o.diagnostico
+            ]),
+            (ws, r, row) => {
+                const a2=X.utils.encode_cell({r,c:2}); if(ws[a2]?.t==='n') ws[a2].z=FMT_BRL;
+                const a6=X.utils.encode_cell({r,c:6}); if(ws[a6]?.t==='n') ws[a6].z=FMT_BRL;
+                const s3=sAprov(row[3]);  if(s3)  ws[X.utils.encode_cell({r,c:3})].s=s3;
+                const s9=sRisco(row[9]);  if(s9)  ws[X.utils.encode_cell({r,c:9})].s=s9;
+            }
+        );
+        X.utils.book_append_sheet(wb, ws, 'Ranking de Risco');
+    }
 
-    // ── ABA 6: PREÇO UNITÁRIO (se disponível) ─────────────────
+    // ── ABA 6: PREÇO UNITÁRIO (se disponível) ──────────────────────────────
     if (res.temPrecos && pu.linhas.length) {
-        addDataSheet(
-            'Preço Unitário',
+        const ws = makeSheet(
+            5,
             ['PEP3','PEP4','OD','Cód','Descrição','Und','Qtd','Valor R$','PU','Min PU','Max PU','Status','Observação'],
             [28,28,8,12,40,6,10,14,12,10,10,18,36],
             pu.linhas.map(l => [
@@ -2182,18 +2360,16 @@ function exportarExcelCompleto(res) {
                 l.max!==''&&l.max!=null?Number(l.max):null,
                 l.status, l.obs
             ]),
-            (ws, ri, row, bg) => {
-                const vA=X.utils.encode_cell({r:ri,c:7}); if(ws[vA]?.t==='n'){ws[vA].s=sNum(bg);ws[vA].z=FMT_BRL;}
-                [8,9,10].forEach(ci=>{const a=X.utils.encode_cell({r:ri,c:ci});if(ws[a]?.t==='n'){ws[a].s=sNum(bg);ws[a].z=FMT_N2;}});
-                const st=row[11], stA=X.utils.encode_cell({r:ri,c:11});
-                if(ws[stA]&&puS[st]){const[bg2,bold,clr]=puS[st];ws[stA].s=sCtr(bg2,bold,clr);}
+            (ws, r, row) => {
+                const a7=X.utils.encode_cell({r,c:7}); if(ws[a7]?.t==='n') ws[a7].z=FMT_BRL;
+                [8,9,10].forEach(c=>{const a=X.utils.encode_cell({r,c});if(ws[a]?.t==='n') ws[a].z=FMT_N2;});
+                const s=sPU(row[11]); if(s) ws[X.utils.encode_cell({r,c:11})].s=s;
             }
         );
+        X.utils.book_append_sheet(wb, ws, 'Preço Unitário');
     }
 
-    // ── Salvar ────────────────────────────────────────────────
-    const hoje = new Date().toLocaleDateString('pt-BR').replace(/\//g,'-');
-    X.writeFile(wb, `Inventario_15kV_${hoje}.xlsx`, { cellStyles:true, bookType:'xlsx' });
+    X.writeFile(wb, `Inventario_15kV_${hojeF}.xlsx`, { cellStyles:true, bookType:'xlsx' });
 }
 
 // ── PAINEL DO GESTOR ──────────────────────────────────────────
