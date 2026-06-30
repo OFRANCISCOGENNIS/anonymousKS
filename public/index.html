@@ -1,737 +1,750 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Consultor Nutricional IA</title>
-  <style>
-    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Consultor Nutricional</title>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --p:#1B5E42;--pm:#2D6A4F;--s:#40916C;--acc:#F4A261;
+  --bg:#EEF5F1;--sur:#fff;--bdr:#C8DDD4;
+  --tx:#17201B;--mu:#6B7A72;
+  --sh:0 2px 8px rgba(0,0,0,.08);
+}
+html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:var(--bg);color:var(--tx)}
+#root{min-height:100dvh;display:flex;flex-direction:column}
 
-    :root {
-      --primary:       #1B5E42;
-      --primary-mid:   #2D6A4F;
-      --secondary:     #40916C;
-      --accent:        #F4A261;
-      --bg:            #EEF5F1;
-      --surface:       #FFFFFF;
-      --border:        #C8DDD4;
-      --text:          #17201B;
-      --muted:         #6B7A72;
-      --user-bg:       #2D6A4F;
-      --user-text:     #FFFFFF;
-      --bot-bg:        #FFFFFF;
-      --bot-text:      #17201B;
-      --radius-lg:     20px;
-      --radius-sm:     10px;
-      --shadow-sm:     0 1px 3px rgba(0,0,0,.07);
-      --shadow-md:     0 4px 14px rgba(0,0,0,.09);
-    }
+/* HEADER */
+.hdr{background:var(--p);color:#fff;padding:13px 18px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:10;box-shadow:0 2px 6px rgba(0,0,0,.2)}
+.hdr-brand{display:flex;align-items:center;gap:10px;font-weight:700;font-size:15px}
+.hdr-icon{width:34px;height:34px;background:rgba(255,255,255,.15);border-radius:9px;display:flex;align-items:center;justify-content:center;font-size:18px}
+.btn-sm{background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.25);color:#fff;padding:5px 13px;border-radius:18px;font-size:12px;cursor:pointer;font-family:inherit}
+.btn-sm:hover{background:rgba(255,255,255,.25)}
 
-    html, body {
-      height: 100%;
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-      background: var(--bg);
-      color: var(--text);
-    }
+/* PROGRESS */
+.prog-wrap{background:var(--p);padding:0 18px 12px}
+.steps{display:flex;align-items:center;gap:0;justify-content:center;margin-bottom:10px}
+.sdot{width:28px;height:28px;border-radius:50%;border:2px solid rgba(255,255,255,.35);color:rgba(255,255,255,.5);font-size:12px;font-weight:700;display:flex;align-items:center;justify-content:center;transition:all .2s}
+.sdot.active{border-color:#fff;color:#fff;background:rgba(255,255,255,.2)}
+.sdot.done{border-color:var(--acc);background:var(--acc);color:#fff}
+.sline{flex:1;height:2px;background:rgba(255,255,255,.2);max-width:48px}
+.prog-bar{height:4px;background:rgba(255,255,255,.15);border-radius:2px;overflow:hidden}
+.prog-fill{height:100%;background:var(--acc);border-radius:2px;transition:width .3s}
 
-    body {
-      display: flex;
-      flex-direction: column;
-      height: 100dvh;
-      overflow: hidden;
-    }
+/* MAIN */
+.main{flex:1;padding:20px 14px 40px;max-width:620px;margin:0 auto;width:100%}
 
-    /* ── HEADER ── */
-    .header {
-      background: var(--primary);
-      color: #fff;
-      padding: 13px 18px;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 12px;
-      box-shadow: var(--shadow-md);
-      flex-shrink: 0;
-      z-index: 10;
-    }
+/* CARD */
+.card{background:var(--sur);border-radius:18px;padding:24px;box-shadow:var(--sh);margin-bottom:16px}
+.step-title{font-size:20px;font-weight:700;margin-bottom:6px;color:var(--p)}
+.step-sub{font-size:13px;color:var(--mu);margin-bottom:20px;line-height:1.5}
 
-    .header-brand {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-    }
+/* OPTION GRID (goals) */
+.opt-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:20px}
+.opt-card{background:var(--bg);border:2px solid var(--bdr);border-radius:14px;padding:14px 12px;text-align:left;cursor:pointer;transition:all .18s;font-family:inherit;display:flex;flex-direction:column;gap:3px}
+.opt-card:hover{border-color:var(--s);box-shadow:var(--sh)}
+.opt-card.sel{border-color:var(--s);background:#E8F5EE}
+.opt-icon{font-size:24px}
+.opt-label{font-size:13px;font-weight:700;color:var(--tx)}
+.opt-desc{font-size:11px;color:var(--mu)}
 
-    .header-icon {
-      width: 38px;
-      height: 38px;
-      background: rgba(255,255,255,.14);
-      border-radius: 11px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 21px;
-      flex-shrink: 0;
-    }
+/* FORM */
+.form-row{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px}
+.field{display:flex;flex-direction:column;gap:6px}
+.field label{font-size:13px;font-weight:600;color:var(--tx)}
+.inp-wrap{position:relative;display:flex;align-items:center}
+.inp-wrap input{width:100%;padding:10px 40px 10px 14px;border:1.5px solid var(--bdr);border-radius:10px;font-size:15px;font-family:inherit;background:var(--bg);color:var(--tx);outline:none;transition:border .2s}
+.inp-wrap input:focus{border-color:var(--s);background:#fff}
+.inp-wrap .unit{position:absolute;right:12px;font-size:12px;color:var(--mu);pointer-events:none}
+.sex-row{display:flex;gap:8px}
+.sex-btn{flex:1;padding:10px;border:1.5px solid var(--bdr);border-radius:10px;cursor:pointer;font-size:13px;font-weight:600;background:var(--bg);color:var(--mu);font-family:inherit;transition:all .18s}
+.sex-btn.sel{border-color:var(--s);background:#E8F5EE;color:var(--p)}
+.act-list{display:flex;flex-direction:column;gap:7px}
+.act-item{border:1.5px solid var(--bdr);border-radius:10px;padding:10px 14px;cursor:pointer;text-align:left;font-family:inherit;background:var(--bg);transition:all .18s;display:flex;justify-content:space-between;align-items:center}
+.act-item:hover{border-color:var(--s)}
+.act-item.sel{border-color:var(--s);background:#E8F5EE}
+.act-label{font-size:13px;font-weight:600;color:var(--tx)}
+.act-desc{font-size:11px;color:var(--mu)}
+.field-full{margin-bottom:14px}
 
-    .header-info h1 {
-      font-size: 15px;
-      font-weight: 700;
-      letter-spacing: -.2px;
-    }
+/* CONDITIONS */
+.cond-list{display:flex;flex-direction:column;gap:8px;margin-bottom:12px}
+.cond-item{display:flex;align-items:flex-start;gap:10px;padding:10px 12px;border:1.5px solid var(--bdr);border-radius:10px;cursor:pointer;background:var(--bg);transition:all .18s}
+.cond-item.checked{border-color:var(--s);background:#E8F5EE}
+.cond-item input{width:16px;height:16px;margin-top:1px;accent-color:var(--s);flex-shrink:0;cursor:pointer}
+.cond-item span{font-size:13px;color:var(--tx);line-height:1.4}
+.cond-none{border-style:dashed}
+.divider{height:1px;background:var(--bdr);margin:8px 0}
+.text-inp{width:100%;padding:9px 12px;border:1.5px solid var(--bdr);border-radius:8px;font-size:13px;font-family:inherit;background:#fff;outline:none;margin-top:6px}
+.text-inp:focus{border-color:var(--s)}
 
-    .header-info p {
-      font-size: 11px;
-      opacity: .65;
-      margin-top: 1px;
-    }
+/* PREFERENCES */
+.diet-row{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:14px}
+.diet-card{border:1.5px solid var(--bdr);border-radius:12px;padding:12px 8px;cursor:pointer;font-family:inherit;background:var(--bg);text-align:center;display:flex;flex-direction:column;gap:3px;transition:all .18s}
+.diet-card:hover{border-color:var(--s)}
+.diet-card.sel{border-color:var(--s);background:#E8F5EE}
+.diet-icon{font-size:22px}
+.diet-label{font-size:13px;font-weight:700}
+.diet-desc{font-size:11px;color:var(--mu)}
+.intol-row{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px}
+.intol-chip{display:flex;align-items:center;gap:6px;padding:7px 12px;border:1.5px solid var(--bdr);border-radius:20px;cursor:pointer;font-size:12px;font-weight:600;background:var(--bg);transition:all .18s}
+.intol-chip.sel{border-color:var(--s);background:#E8F5EE;color:var(--p)}
+.intol-chip input{width:13px;height:13px;accent-color:var(--s);cursor:pointer}
+.pref-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px}
+.radio-list{display:flex;flex-direction:column;gap:7px}
+.radio-item{border:1.5px solid var(--bdr);border-radius:10px;padding:9px 12px;cursor:pointer;font-family:inherit;background:var(--bg);text-align:left;transition:all .18s}
+.radio-item:hover{border-color:var(--s)}
+.radio-item.sel{border-color:var(--s);background:#E8F5EE}
+.radio-item span{display:block;font-size:13px;font-weight:600;color:var(--tx)}
+.radio-item small{font-size:11px;color:var(--mu)}
 
-    .btn-reset {
-      background: rgba(255,255,255,.13);
-      border: 1px solid rgba(255,255,255,.22);
-      color: #fff;
-      padding: 6px 15px;
-      border-radius: 20px;
-      font-size: 13px;
-      font-weight: 500;
-      cursor: pointer;
-      white-space: nowrap;
-      transition: background .18s;
-    }
-    .btn-reset:hover { background: rgba(255,255,255,.24); }
+/* NAV */
+.nav-row{display:flex;align-items:center;justify-content:space-between;margin-top:20px;gap:10px}
+.btn-primary{background:var(--p);color:#fff;border:none;padding:11px 22px;border-radius:24px;font-size:14px;font-weight:600;cursor:pointer;font-family:inherit;transition:all .18s}
+.btn-primary:hover:not(:disabled){background:var(--pm);transform:translateY(-1px)}
+.btn-primary:disabled{background:var(--bdr);cursor:not-allowed}
+.btn-back{background:transparent;border:1.5px solid var(--bdr);color:var(--mu);padding:10px 18px;border-radius:24px;font-size:14px;cursor:pointer;font-family:inherit;transition:all .18s}
+.btn-back:hover{border-color:var(--s);color:var(--p)}
+.err-msg{color:#DC2626;font-size:12px;margin-top:6px}
 
-    /* ── CHAT AREA ── */
-    .chat-area {
-      flex: 1;
-      overflow-y: auto;
-      padding: 20px 14px 12px;
-      display: flex;
-      flex-direction: column;
-      gap: 14px;
-      scroll-behavior: smooth;
-    }
+/* RESULTS */
+.res-main{padding:16px 14px 40px}
+.res-header{background:var(--p);color:#fff;padding:20px;border-radius:16px;margin-bottom:14px;display:flex;gap:14px;align-items:flex-start}
+.res-hicon{font-size:32px}
+.res-header h2{font-size:18px;font-weight:700;margin-bottom:4px}
+.res-header p{font-size:12px;opacity:.8;line-height:1.5}
+.disc{background:#FFF8E7;border:1px solid #F4A261;border-radius:12px;padding:12px 14px;font-size:13px;color:#7C4700;margin-bottom:14px;line-height:1.5}
 
-    .chat-area::-webkit-scrollbar { width: 5px; }
-    .chat-area::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+.sec{background:var(--sur);border-radius:16px;padding:18px;box-shadow:var(--sh);margin-bottom:14px}
+.sec-title{font-size:15px;font-weight:700;color:var(--p);margin-bottom:12px;display:flex;align-items:center;gap:6px}
 
-    /* ── EMPTY STATE ── */
-    .empty-state {
-      flex: 1;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      gap: 18px;
-      padding: 24px;
-      text-align: center;
-      animation: fadeUp .4s ease;
-    }
+/* Calories */
+.cal-row{display:flex;justify-content:space-between;align-items:baseline;padding:6px 0;border-bottom:1px solid var(--bg);font-size:13px;gap:8px}
+.cal-row:last-child{border-bottom:none}
+.cal-row span{color:var(--mu);flex:1}
+.cal-row strong{font-size:14px;white-space:nowrap}
+.cal-row.hl{background:var(--bg);border-radius:8px;padding:10px;margin-top:4px;border-bottom:none}
+.cal-row.hl strong{font-size:18px;color:var(--p)}
 
-    .empty-icon {
-      width: 70px;
-      height: 70px;
-      background: var(--primary);
-      border-radius: 20px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 34px;
-      box-shadow: var(--shadow-md);
-    }
+/* Macros */
+.macro-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:12px}
+.mc{border-radius:12px;padding:14px 10px;text-align:center}
+.mc.prot{background:#E8F5EE;border:1px solid #A7D9BA}
+.mc.carb{background:#FFF4ED;border:1px solid #F4C89A}
+.mc.fat {background:#EEF2FF;border:1px solid #C7D2FE}
+.mc-val{font-size:22px;font-weight:800;color:var(--p)}
+.mc.carb .mc-val{color:#C2410C}
+.mc.fat  .mc-val{color:#3730A3}
+.mc-lbl{font-size:12px;font-weight:700;margin:2px 0;color:var(--tx)}
+.mc-sub{font-size:11px;color:var(--mu)}
+.mbar{height:10px;border-radius:5px;overflow:hidden;display:flex;gap:2px;margin-top:4px}
+.mbar-p{background:#40916C}
+.mbar-c{background:#F4A261}
+.mbar-f{background:#818CF8}
+.mbar-legend{display:flex;gap:14px;margin-top:6px;font-size:11px;color:var(--mu)}
+.mbar-legend span{display:flex;align-items:center;gap:4px}
+.mbar-dot{width:8px;height:8px;border-radius:50%;display:inline-block}
 
-    .empty-state h2 {
-      font-size: 20px;
-      font-weight: 700;
-      color: var(--primary);
-    }
+/* Meals */
+.meal-item{margin-bottom:14px}
+.meal-title{font-size:13px;font-weight:700;color:var(--pm);margin-bottom:6px}
+.meal-item ul{padding-left:18px}
+.meal-item li{font-size:13px;color:var(--tx);margin-bottom:3px;line-height:1.4}
+.subs-box{background:var(--bg);border-radius:10px;padding:12px;margin-top:10px;font-size:12px}
+.subs-box strong{display:block;margin-bottom:5px;color:var(--mu)}
+.subs-box li{margin-bottom:3px;color:var(--mu)}
 
-    .empty-state p {
-      color: var(--muted);
-      font-size: 14px;
-      max-width: 320px;
-      line-height: 1.55;
-    }
+/* Tips */
+.tip{border-radius:10px;padding:11px 13px;font-size:12px;line-height:1.5;margin-top:8px}
+.tip.warn{background:#FEF9C3;border:1px solid #FDE047;color:#713F12}
+.tip.info{background:#EFF6FF;border:1px solid #BFDBFE;color:#1E40AF}
+.tip.eco {background:#F0FDF4;border:1px solid #86EFAC;color:#14532D}
+.tip.alert{background:#FEF2F2;border:1px solid #FCA5A5;color:#7F1D1D}
 
-    .suggestion-grid {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 10px;
-      max-width: 380px;
-      width: 100%;
-    }
+/* Shopping */
+.shop-cat{font-size:12px;font-weight:700;color:var(--mu);text-transform:uppercase;letter-spacing:.5px;margin-bottom:5px;margin-top:10px}
+.shop-cat:first-child{margin-top:0}
+.shop-list{display:flex;flex-wrap:wrap;gap:6px}
+.shop-tag{background:var(--bg);border:1px solid var(--bdr);border-radius:20px;padding:4px 11px;font-size:12px;color:var(--tx)}
 
-    .suggestion-btn {
-      background: var(--surface);
-      border: 1.5px solid var(--border);
-      border-radius: 14px;
-      padding: 13px 12px;
-      text-align: left;
-      cursor: pointer;
-      transition: all .18s;
-      font-family: inherit;
-    }
+/* STOP PAGE */
+.stop-card{text-align:center}
+.stop-icon{font-size:52px;margin-bottom:12px}
+.stop-card h2{font-size:20px;font-weight:700;color:var(--p);margin-bottom:8px}
+.stop-card p{font-size:14px;color:var(--mu);margin-bottom:10px;line-height:1.5}
+.stop-why{background:var(--bg);border-radius:12px;padding:14px;text-align:left;font-size:13px;margin:14px 0}
+.stop-why strong{display:block;margin-bottom:8px;color:var(--tx)}
+.stop-why li{margin-bottom:6px;color:var(--mu);line-height:1.45;margin-left:16px}
+.stop-where{background:#EFF6FF;border:1px solid #BFDBFE;border-radius:12px;padding:14px;text-align:left;font-size:13px}
+.stop-where strong{display:block;margin-bottom:8px;color:#1E40AF}
+.stop-where li{margin-bottom:5px;color:#1E40AF;margin-left:16px}
 
-    .suggestion-btn:hover {
-      border-color: var(--secondary);
-      box-shadow: var(--shadow-sm);
-      transform: translateY(-2px);
-    }
-
-    .suggestion-btn .s-icon { font-size: 20px; margin-bottom: 5px; display: block; }
-    .suggestion-btn .s-text { font-size: 12px; font-weight: 600; color: var(--text); line-height: 1.35; }
-
-    /* ── MESSAGES ── */
-    .msg {
-      display: flex;
-      gap: 9px;
-      max-width: 86%;
-      animation: fadeUp .3s ease;
-    }
-
-    @keyframes fadeUp {
-      from { opacity: 0; transform: translateY(7px); }
-      to   { opacity: 1; transform: translateY(0); }
-    }
-
-    .msg.user { align-self: flex-end; flex-direction: row-reverse; }
-    .msg.bot  { align-self: flex-start; }
-
-    .avatar {
-      width: 30px;
-      height: 30px;
-      border-radius: 9px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 15px;
-      flex-shrink: 0;
-      margin-top: 3px;
-    }
-
-    .msg.bot  .avatar { background: var(--primary); }
-    .msg.user .avatar { background: var(--secondary); }
-
-    .bubble {
-      padding: 11px 15px;
-      border-radius: 18px;
-      font-size: 14px;
-      line-height: 1.55;
-      box-shadow: var(--shadow-sm);
-      word-break: break-word;
-    }
-
-    .msg.user .bubble {
-      background: var(--user-bg);
-      color: var(--user-text);
-      border-bottom-right-radius: 4px;
-    }
-
-    .msg.bot .bubble {
-      background: var(--bot-bg);
-      color: var(--bot-text);
-      border-bottom-left-radius: 4px;
-      border: 1px solid var(--border);
-    }
-
-    /* Markdown inside bot bubble */
-    .bubble h2 { font-size: 14px; font-weight: 700; color: var(--primary); margin: 12px 0 4px; }
-    .bubble h3 { font-size: 14px; font-weight: 700; color: var(--primary-mid); margin: 10px 0 4px; }
-    .bubble h4 { font-size: 13px; font-weight: 700; margin: 8px 0 3px; }
-    .bubble h2:first-child,
-    .bubble h3:first-child,
-    .bubble h4:first-child { margin-top: 0; }
-    .bubble p { margin: 5px 0; }
-    .bubble p:first-child { margin-top: 0; }
-    .bubble p:last-child  { margin-bottom: 0; }
-    .bubble ul, .bubble ol { padding-left: 18px; margin: 6px 0; }
-    .bubble li { margin: 3px 0; }
-    .bubble strong { font-weight: 700; }
-    .bubble em     { font-style: italic; }
-    .bubble code   { background: rgba(0,0,0,.06); padding: 1px 5px; border-radius: 5px; font-family: 'SF Mono', monospace; font-size: 12px; }
-    .bubble hr     { border: none; border-top: 1px solid var(--border); margin: 10px 0; }
-
-    /* ── TYPING INDICATOR ── */
-    .typing {
-      display: flex;
-      gap: 9px;
-      align-items: center;
-      align-self: flex-start;
-      animation: fadeUp .3s ease;
-    }
-
-    .typing-dots {
-      background: var(--bot-bg);
-      border: 1px solid var(--border);
-      border-radius: 18px;
-      border-bottom-left-radius: 4px;
-      padding: 13px 16px;
-      display: flex;
-      gap: 5px;
-      box-shadow: var(--shadow-sm);
-    }
-
-    .dot {
-      width: 6px; height: 6px;
-      background: var(--muted);
-      border-radius: 50%;
-      animation: blink 1.2s ease-in-out infinite;
-    }
-    .dot:nth-child(2) { animation-delay: .2s; }
-    .dot:nth-child(3) { animation-delay: .4s; }
-
-    @keyframes blink {
-      0%, 60%, 100% { transform: translateY(0); opacity: .5; }
-      30%            { transform: translateY(-5px); opacity: 1; }
-    }
-
-    /* ── ERROR BANNER ── */
-    .error-banner {
-      background: #FEF2F2;
-      border: 1px solid #FECACA;
-      border-radius: 12px;
-      padding: 11px 14px;
-      font-size: 13px;
-      color: #B91C1C;
-      display: flex;
-      align-items: flex-start;
-      gap: 8px;
-    }
-
-    /* ── INPUT AREA ── */
-    .input-area {
-      background: var(--surface);
-      border-top: 1px solid var(--border);
-      padding: 11px 14px 14px;
-      flex-shrink: 0;
-    }
-
-    .input-row {
-      display: flex;
-      gap: 8px;
-      align-items: flex-end;
-      background: var(--bg);
-      border: 1.5px solid var(--border);
-      border-radius: 24px;
-      padding: 9px 9px 9px 15px;
-      transition: border-color .2s, box-shadow .2s;
-    }
-
-    .input-row:focus-within {
-      border-color: var(--secondary);
-      box-shadow: 0 0 0 3px rgba(64,145,108,.12);
-    }
-
-    .input-row textarea {
-      flex: 1;
-      border: none;
-      background: transparent;
-      resize: none;
-      font-family: inherit;
-      font-size: 14px;
-      color: var(--text);
-      outline: none;
-      max-height: 120px;
-      min-height: 22px;
-      line-height: 1.5;
-    }
-
-    .input-row textarea::placeholder { color: var(--muted); }
-
-    .send-btn {
-      width: 35px;
-      height: 35px;
-      border-radius: 50%;
-      background: var(--primary);
-      color: #fff;
-      border: none;
-      cursor: pointer;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      transition: all .18s;
-      flex-shrink: 0;
-    }
-
-    .send-btn:hover:not(:disabled) { background: var(--primary-mid); transform: scale(1.07); }
-    .send-btn:disabled { background: var(--border); cursor: not-allowed; }
-    .send-btn svg { width: 15px; height: 15px; }
-
-    .spinner {
-      width: 15px; height: 15px;
-      border: 2px solid rgba(255,255,255,.3);
-      border-top-color: #fff;
-      border-radius: 50%;
-      animation: spin .75s linear infinite;
-    }
-
-    @keyframes spin { to { transform: rotate(360deg); } }
-
-    .disclaimer {
-      text-align: center;
-      font-size: 11px;
-      color: var(--muted);
-      margin-top: 8px;
-    }
-
-    @media (max-width: 480px) {
-      .msg { max-width: 93%; }
-      .suggestion-grid { grid-template-columns: 1fr 1fr; }
-    }
-  </style>
+/* Print */
+.print-btn{background:var(--bg);border:1.5px solid var(--bdr);color:var(--mu);padding:9px 18px;border-radius:20px;font-size:13px;cursor:pointer;font-family:inherit}
+.print-btn:hover{border-color:var(--s);color:var(--p)}
+.center-row{text-align:center;display:flex;gap:10px;justify-content:center;margin-top:16px;flex-wrap:wrap}
+@media(max-width:480px){
+  .opt-grid{grid-template-columns:1fr 1fr}
+  .form-row{grid-template-columns:1fr}
+  .pref-grid{grid-template-columns:1fr}
+  .macro-grid{grid-template-columns:repeat(3,1fr)}
+  .diet-row{grid-template-columns:repeat(3,1fr)}
+}
+@media print{.hdr,.prog-wrap,.nav-row,.center-row{display:none}.sec{box-shadow:none;border:1px solid #ddd}}
+</style>
 </head>
 <body>
+<div id="root"></div>
+<script>
+/* ── STATE ── */
+const S = {
+  step:1,
+  goal:null,
+  age:'', weight:'', height:'', sex:null, activity:null,
+  conditions:[], meds:'', allergies:'',
+  diet:null, intolerances:[], budget:null, time:null,
+};
 
-  <header class="header">
-    <div class="header-brand">
-      <div class="header-icon">🥗</div>
-      <div class="header-info">
-        <h1>Consultor Nutricional</h1>
-        <p>Baseado em evidência · IA</p>
+/* ── SAVE TEXT FIELDS before re-render ── */
+function saveFields() {
+  ['f-age','f-weight','f-height','f-meds'].forEach(id => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    if (id==='f-age')    S.age    = el.value;
+    if (id==='f-weight') S.weight = el.value;
+    if (id==='f-height') S.height = el.value;
+    if (id==='f-meds')   S.meds   = el.value;
+  });
+}
+
+function render() {
+  saveFields();
+  const el = document.getElementById('root');
+  el.innerHTML = page();
+  window.scrollTo(0,0);
+}
+
+/* ── PAGE DISPATCH ── */
+function page() {
+  if (S.step === 'stop')    return hdr(false) + buildStop();
+  if (S.step === 'results') return hdr(false) + buildResults();
+  return hdr(true) + body();
+}
+
+function hdr(withSteps) {
+  if (!withSteps) return `
+    <header class="hdr">
+      <div class="hdr-brand"><div class="hdr-icon">🥗</div>Consultor Nutricional</div>
+      <button class="btn-sm" onclick="restart()">↩ Recomeçar</button>
+    </header>`;
+  const labels=['Objetivo','Perfil','Saúde','Preferências'];
+  const dots = labels.map((l,i)=>{
+    const cls = i+1<S.step?'done':i+1===S.step?'active':'';
+    const inner = i+1<S.step?'✓':(i+1);
+    return `<div class="sdot ${cls}" title="${l}">${inner}</div>` +
+           (i<3?'<div class="sline"></div>':'');
+  }).join('');
+  const pct = ((S.step-1)/4*100).toFixed(0);
+  return `
+    <header class="hdr">
+      <div class="hdr-brand"><div class="hdr-icon">🥗</div>Consultor Nutricional</div>
+    </header>
+    <div class="prog-wrap">
+      <div class="steps">${dots}</div>
+      <div class="prog-bar"><div class="prog-fill" style="width:${pct}%"></div></div>
+    </div>`;
+}
+
+function body() {
+  switch(S.step) {
+    case 1: return buildStep1();
+    case 2: return buildStep2();
+    case 3: return buildStep3();
+    case 4: return buildStep4();
+  }
+}
+
+/* ── STEP 1: GOAL ── */
+const GOALS=[
+  {k:'loss',        icon:'⚖️', label:'Perder peso',       desc:'Reduzir gordura corporal'},
+  {k:'gain',        icon:'💪', label:'Ganhar massa',      desc:'Hipertrofia muscular'},
+  {k:'maintain',    icon:'⚡', label:'Manter peso',       desc:'Equilíbrio calórico'},
+  {k:'performance', icon:'🏃', label:'Performance',       desc:'Melhorar rendimento'},
+  {k:'health',      icon:'🫀', label:'Saúde geral',       desc:'Qualidade de vida'},
+];
+function buildStep1() {
+  const cards = GOALS.map(g=>`
+    <button class="opt-card ${S.goal===g.k?'sel':''}" onclick="S.goal='${g.k}';render()">
+      <span class="opt-icon">${g.icon}</span>
+      <span class="opt-label">${g.label}</span>
+      <span class="opt-desc">${g.desc}</span>
+    </button>`).join('');
+  return `<div class="main"><div class="card">
+    <h2 class="step-title">Qual é seu objetivo?</h2>
+    <p class="step-sub">Escolha o que melhor descreve o que você busca agora.</p>
+    <div class="opt-grid">${cards}</div>
+    <div class="nav-row">
+      <span></span>
+      <button class="btn-primary" onclick="if(S.goal){S.step=2;render()}else{document.getElementById('g-err').textContent='Selecione um objetivo.'}" ${!S.goal?'':''}">Continuar →</button>
+    </div>
+    <p id="g-err" class="err-msg"></p>
+  </div></div>`;
+}
+
+/* ── STEP 2: PROFILE ── */
+const ACTS=[
+  {k:'sed',     label:'Sedentário',           desc:'Mesa, sem exercício'},
+  {k:'light',   label:'Levemente ativo',      desc:'Exercício 1–3 dias/sem'},
+  {k:'mod',     label:'Moderadamente ativo',  desc:'Exercício 3–5 dias/sem'},
+  {k:'active',  label:'Muito ativo',          desc:'Exercício 6–7 dias/sem'},
+  {k:'vactive', label:'Extremamente ativo',   desc:'Atleta / trabalho físico pesado'},
+];
+function buildStep2() {
+  const acts = ACTS.map(a=>`
+    <button class="act-item ${S.activity===a.k?'sel':''}" onclick="S.activity='${a.k}';render()">
+      <span class="act-label">${a.label}</span>
+      <span class="act-desc">${a.desc}</span>
+    </button>`).join('');
+  return `<div class="main"><div class="card">
+    <h2 class="step-title">Seu perfil</h2>
+    <p class="step-sub">Calcula seu metabolismo pela fórmula Mifflin-St Jeor.</p>
+    <div class="form-row">
+      <div class="field">
+        <label>Idade</label>
+        <div class="inp-wrap"><input id="f-age" type="number" min="10" max="100" value="${S.age}" placeholder="anos"></div>
+      </div>
+      <div class="field">
+        <label>Sexo</label>
+        <div class="sex-row">
+          <button class="sex-btn ${S.sex==='M'?'sel':''}" onclick="S.sex='M';render()">♂ Masculino</button>
+          <button class="sex-btn ${S.sex==='F'?'sel':''}" onclick="S.sex='F';render()">♀ Feminino</button>
+        </div>
       </div>
     </div>
-    <button class="btn-reset" onclick="resetChat()">Nova Consulta</button>
-  </header>
-
-  <div class="chat-area" id="chatArea">
-    <div class="empty-state" id="emptyState">
-      <div class="empty-icon">🥗</div>
-      <h2>Consultor Nutricional</h2>
-      <p>Faço triagem do seu perfil e entrego orientações baseadas em evidência. Não substituo nutricionista — indico quando encaminhar.</p>
-      <div class="suggestion-grid">
-        <button class="suggestion-btn" onclick="quickSend('Quero perder peso com saúde')">
-          <span class="s-icon">⚖️</span>
-          <span class="s-text">Perder peso com saúde</span>
-        </button>
-        <button class="suggestion-btn" onclick="quickSend('Quero ganhar massa muscular')">
-          <span class="s-icon">💪</span>
-          <span class="s-text">Ganhar massa muscular</span>
-        </button>
-        <button class="suggestion-btn" onclick="quickSend('Quero melhorar minha energia e disposição')">
-          <span class="s-icon">⚡</span>
-          <span class="s-text">Melhorar energia</span>
-        </button>
-        <button class="suggestion-btn" onclick="quickSend('Quero adotar uma alimentação plant-based')">
-          <span class="s-icon">🌱</span>
-          <span class="s-text">Alimentação plant-based</span>
-        </button>
+    <div class="form-row">
+      <div class="field">
+        <label>Peso</label>
+        <div class="inp-wrap"><input id="f-weight" type="number" min="30" max="300" value="${S.weight}" placeholder="kg"><span class="unit">kg</span></div>
+      </div>
+      <div class="field">
+        <label>Altura</label>
+        <div class="inp-wrap"><input id="f-height" type="number" min="100" max="250" value="${S.height}" placeholder="cm"><span class="unit">cm</span></div>
       </div>
     </div>
-  </div>
-
-  <div class="input-area">
-    <div class="input-row">
-      <textarea
-        id="userInput"
-        placeholder="Descreva seu objetivo ou tire uma dúvida..."
-        rows="1"
-        oninput="autoResize(this)"
-        onkeydown="handleKey(event)"
-      ></textarea>
-      <button class="send-btn" id="sendBtn" onclick="sendMessage()" title="Enviar">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-          <line x1="22" y1="2" x2="11" y2="13"/>
-          <polygon points="22 2 15 22 11 13 2 9 22 2"/>
-        </svg>
-      </button>
+    <div class="field-full">
+      <div class="field"><label>Nível de atividade</label><div class="act-list">${acts}</div></div>
     </div>
-    <p class="disclaimer">⚠️ Não substitui nutricionista ou médico. Consulte um profissional de saúde.</p>
-  </div>
+    <div class="nav-row">
+      <button class="btn-back" onclick="S.step=1;render()">← Voltar</button>
+      <button class="btn-primary" onclick="nextStep2()">Continuar →</button>
+    </div>
+    <p id="p-err" class="err-msg"></p>
+  </div></div>`;
+}
+function nextStep2() {
+  saveFields();
+  const a=+S.age,w=+S.weight,h=+S.height;
+  if (!a||!w||!h||!S.sex||!S.activity||a<10||a>100||w<30||w>300||h<100||h>250) {
+    document.getElementById('p-err').textContent='Preencha todos os campos com valores válidos.';
+    return;
+  }
+  S.step=3; render();
+}
 
-  <script>
-    // ── State ──
-    let apiMessages = [];   // conversation sent to the API
-    let isLoading   = false;
+/* ── STEP 3: HEALTH ── */
+const CONDS=[
+  {k:'diabetes',        label:'Diabetes (tipo 1 ou 2)'},
+  {k:'renal',           label:'Doença renal'},
+  {k:'cardiac',         label:'Doença cardiovascular'},
+  {k:'thyroid',         label:'Disfunção tireoidiana (hipo/hipertireoidismo)'},
+  {k:'pregnancy',       label:'Gestação ou lactação'},
+  {k:'eating_disorder', label:'Histórico de transtorno alimentar (anorexia, bulimia, compulsão)'},
+  {k:'meds',            label:'Uso de medicamentos que afetam metabolismo ou peso'},
+];
+const STOP_KEYS=new Set(['diabetes','renal','cardiac','thyroid','pregnancy','eating_disorder','meds']);
 
-    // Hidden init message that opens the conversation correctly
-    const INIT_USER_MSG = 'Olá! Quero começar minha consulta nutricional.';
+function buildStep3() {
+  const hasMeds = S.conditions.includes('meds');
+  const isNone  = S.conditions.length===0;
+  const items = CONDS.map(c=>`
+    <label class="cond-item ${S.conditions.includes(c.k)?'checked':''}">
+      <input type="checkbox" ${S.conditions.includes(c.k)?'checked':''} onchange="toggleCond('${c.k}',this.checked)">
+      <span>${c.label}</span>
+    </label>`).join('');
+  return `<div class="main"><div class="card">
+    <h2 class="step-title">Condições de saúde</h2>
+    <p class="step-sub">Marque tudo que se aplica. Garante que as orientações sejam seguras.</p>
+    <div class="cond-list">
+      ${items}
+      ${hasMeds?`<input id="f-meds" type="text" class="text-inp" value="${S.meds}" placeholder="Quais medicamentos? (opcional)">` :''}
+      <div class="divider"></div>
+      <label class="cond-item cond-none ${isNone?'checked':''}">
+        <input type="checkbox" ${isNone?'checked':''} onchange="if(this.checked){S.conditions=[];render()}">
+        <span><strong>Nenhuma das anteriores</strong></span>
+      </label>
+    </div>
+    <div class="nav-row">
+      <button class="btn-back" onclick="S.step=2;render()">← Voltar</button>
+      <button class="btn-primary" onclick="nextStep3()">Continuar →</button>
+    </div>
+  </div></div>`;
+}
+function toggleCond(k,v) {
+  saveFields();
+  if (v) { if (!S.conditions.includes(k)) S.conditions.push(k); }
+  else     S.conditions = S.conditions.filter(c=>c!==k);
+  render();
+}
+function nextStep3() {
+  if (S.conditions.some(c=>STOP_KEYS.has(c))) { S.step='stop'; render(); return; }
+  S.step=4; render();
+}
 
-    // ── Startup ──
-    document.addEventListener('DOMContentLoaded', startChat);
+/* ── STEP 4: PREFERENCES ── */
+const DIETS=[
+  {k:'omni', icon:'🥩', label:'Onívoro',    desc:'Como tudo'},
+  {k:'veg',  icon:'🥚', label:'Vegetariano',desc:'Sem carnes'},
+  {k:'vegan',icon:'🌱', label:'Vegano',      desc:'Sem produtos animais'},
+];
+const INTOLS=[
+  {k:'lactose',label:'Lactose'},
+  {k:'gluten', label:'Glúten'},
+  {k:'seafood',label:'Frutos do mar'},
+  {k:'nuts',   label:'Oleaginosas'},
+];
+const BUDGETS=[
+  {k:'eco', label:'💸 Econômico',    desc:'Foco em custo-benefício'},
+  {k:'mid', label:'💰 Moderado',     desc:'Equilíbrio custo/variedade'},
+  {k:'free',label:'🛒 Sem restrição',desc:'Foco em qualidade'},
+];
+const TIMES=[
+  {k:'fast',label:'⚡ Rápido',    desc:'< 30 min por refeição'},
+  {k:'mid', label:'🍳 Moderado',  desc:'30–60 min'},
+  {k:'slow',label:'👨‍🍳 Tranquilo', desc:'> 60 min'},
+];
+function buildStep4() {
+  const dCards = DIETS.map(d=>`
+    <button class="diet-card ${S.diet===d.k?'sel':''}" onclick="S.diet='${d.k}';render()">
+      <span class="diet-icon">${d.icon}</span>
+      <span class="diet-label">${d.label}</span>
+      <span class="diet-desc">${d.desc}</span>
+    </button>`).join('');
+  const iChips = INTOLS.map(i=>`
+    <label class="intol-chip ${S.intolerances.includes(i.k)?'sel':''}">
+      <input type="checkbox" ${S.intolerances.includes(i.k)?'checked':''} onchange="toggleIntol('${i.k}',this.checked)">
+      ${i.label}
+    </label>`).join('');
+  const bList = BUDGETS.map(b=>`
+    <button class="radio-item ${S.budget===b.k?'sel':''}" onclick="S.budget='${b.k}';render()">
+      <span>${b.label}</span><small>${b.desc}</small>
+    </button>`).join('');
+  const tList = TIMES.map(t=>`
+    <button class="radio-item ${S.time===t.k?'sel':''}" onclick="S.time='${t.k}';render()">
+      <span>${t.label}</span><small>${t.desc}</small>
+    </button>`).join('');
+  return `<div class="main"><div class="card">
+    <h2 class="step-title">Preferências alimentares</h2>
+    <p class="step-sub">Personaliza o cardápio e a lista de compras.</p>
+    <div class="field-full">
+      <div class="field"><label>Tipo de dieta</label><div class="diet-row">${dCards}</div></div>
+    </div>
+    <div class="field-full">
+      <div class="field"><label>Intolerâncias / alergias <span style="font-weight:400;color:var(--mu)">(opcional)</span></label>
+        <div class="intol-row">${iChips}</div>
+      </div>
+    </div>
+    <div class="pref-grid">
+      <div class="field"><label>Orçamento</label><div class="radio-list">${bList}</div></div>
+      <div class="field"><label>Tempo para cozinhar</label><div class="radio-list">${tList}</div></div>
+    </div>
+    <div class="nav-row">
+      <button class="btn-back" onclick="S.step=3;render()">← Voltar</button>
+      <button class="btn-primary" onclick="goResults()">Ver plano →</button>
+    </div>
+    <p id="r-err" class="err-msg"></p>
+  </div></div>`;
+}
+function toggleIntol(k,v) {
+  if (v) { if (!S.intolerances.includes(k)) S.intolerances.push(k); }
+  else     S.intolerances = S.intolerances.filter(i=>i!==k);
+  const lbl = document.querySelector(`.intol-chip input[onchange*="${k}"]`)?.closest('.intol-chip');
+  if (lbl) lbl.classList.toggle('sel',v);
+}
+function goResults() {
+  if (!S.diet||!S.budget||!S.time) {
+    document.getElementById('r-err').textContent='Selecione dieta, orçamento e tempo disponível.';
+    return;
+  }
+  S.step='results'; render();
+}
 
-    async function startChat() {
-      setSendLoading(true);
-      showTyping();
+/* ── CALCULATIONS ── */
+const PAL   ={sed:1.2,light:1.375,mod:1.55,active:1.725,vactive:1.9};
+const GFAC  ={loss:.80,gain:1.10,maintain:1.0,performance:1.05,health:1.0};
+const PROT  ={loss:2.0,gain:1.8,maintain:1.6,performance:2.0,health:1.4};
 
-      // Pre-load: trigger the greeting from the API
-      apiMessages = [{ role: 'user', content: INIT_USER_MSG }];
+function tmb(){
+  const w=+S.weight,h=+S.height,a=+S.age;
+  return S.sex==='M' ? 10*w+6.25*h-5*a+5 : 10*w+6.25*h-5*a-161;
+}
+function tdee(){ return tmb()*PAL[S.activity]; }
+function goalCal(){
+  const min = S.sex==='F'?1200:1500;
+  return Math.max(Math.round(tdee()*GFAC[S.goal]), min);
+}
+function macros(){
+  const kcal=goalCal(), w=+S.weight;
+  const prot = Math.round(w*PROT[S.goal]);
+  const pKcal= prot*4;
+  const fKcal= Math.round(kcal*.27);
+  const fat  = Math.round(fKcal/9);
+  const cKcal= Math.max(0,kcal-pKcal-fKcal);
+  const carbs= Math.round(cKcal/4);
+  return {prot,fat,carbs,pKcal,fKcal,cKcal};
+}
 
-      try {
-        const text = await streamBotMessage();
-        apiMessages.push({ role: 'assistant', content: text });
-      } catch (err) {
-        hideTyping();
-        showError('Não foi possível conectar. Verifique se o servidor está rodando e se a ANTHROPIC_API_KEY está configurada no arquivo .env');
-      } finally {
-        setSendLoading(false);
-      }
-    }
+/* ── MEAL PLAN DATA ── */
+const PLANS={
+  omni:{
+    bf:['3 ovos mexidos ou cozidos','2 fatias de pão integral','1 fruta (banana, maçã ou laranja)','Café ou chá sem açúcar'],
+    al:['150–200g frango grelhado, carne magra ou atum','4–5 col. sopa de arroz integral','1 concha de feijão ou lentilha','Salada verde à vontade','1 col. sopa de azeite'],
+    sn:['Iogurte grego natural (170g)','20g de castanhas ou amêndoas'],
+    jt:['150g de peixe assado (tilápia, salmão ou merluza)','Legumes refogados (brócolis, abobrinha, cenoura)','2–3 col. sopa de arroz integral (opcional)'],
+    sb:['Frango ↔ atum em lata, ovos, carne magra (patinho)','Arroz integral ↔ batata doce, macarrão integral, quinoa','Iogurte grego ↔ cottage, ricota','Peixe ↔ frango, omelete'],
+  },
+  veg:{
+    bf:['Omelete de 3 ovos com espinafre e queijo branco','2 fatias de pão integral','1 fruta','Café ou chá'],
+    al:['Grão-de-bico refogado com alho e azeite (100g cozido)','4 col. sopa de arroz integral','1 concha de feijão','Salada verde à vontade'],
+    sn:['Iogurte grego natural (170g) com frutas e granola (20g)','ou 2 ovos cozidos + 1 fruta'],
+    jt:['Omelete de 3 ovos com legumes variados','Salada farta com azeite','1 fatia de pão integral (opcional)'],
+    sb:['Grão-de-bico ↔ lentilha, tofu firme, feijão branco','Queijo branco ↔ cottage, ricota','Ovo ↔ tofu mexido com cúrcuma'],
+  },
+  vegan:{
+    bf:['Aveia (50g) com leite vegetal (300ml)','1 banana amassada + 20g pasta de amendoim','1 col. sopa de chia ou linhaça moída'],
+    al:['4–5 col. sopa de arroz integral + 2 conchas de feijão','100–150g de tofu grelhado ou tempeh','Salada verde à vontade com azeite'],
+    sn:['Smoothie: leite vegetal (300ml) + banana + proteína vegetal opcional','ou frutas + 30g oleaginosas (castanhas, nozes, amêndoas)'],
+    jt:['Grão-de-bico ensopado com legumes (tomate, abobrinha, pimentão)','Quinoa cozida (3–4 col. sopa) ou pão integral (s/ leite)'],
+    sb:['Tofu ↔ tempeh, grão-de-bico, lentilha','Aveia ↔ quinoa em flocos','Leite vegetal ↔ qualquer alternativa (soja, aveia, amêndoa)'],
+    note:'⚠️ Vitamina B12: suplementação é necessária para veganos (evidência forte). Monitore também ferro, zinco, cálcio e ômega-3 (DHA/EPA). Faça exames a cada 6–12 meses.',
+  },
+};
+const SHOP={
+  omni:{
+    'Proteínas':['Frango (filé) — 1 kg','Ovos — 1 dúzia','Peixe (tilápia ou salmão) — 500 g','Atum em lata — 3 und.','Iogurte grego — 4 potes'],
+    'Carboidratos':['Arroz integral — 1 kg','Pão integral — 1 pacote','Batata doce — 1 kg','Frutas variadas — 2 kg'],
+    'Gorduras':['Azeite extra virgem — 500 ml','Castanhas / amêndoas — 200 g'],
+    'Vegetais':['Brócolis — 1 cabeça','Espinafre — 1 maço','Tomate — 500 g','Pepino — 3 und.','Abobrinha — 2 und.'],
+    'Leguminosas':['Feijão — 500 g','Lentilha — 500 g'],
+  },
+  veg:{
+    'Proteínas':['Ovos — 2 dúzias','Iogurte grego — 4 potes','Queijo branco / cottage — 2 potes','Grão-de-bico — 500 g'],
+    'Carboidratos':['Arroz integral — 1 kg','Pão integral — 1 pacote','Frutas variadas — 2 kg','Batata doce — 1 kg'],
+    'Gorduras':['Azeite extra virgem — 500 ml','Mix de oleaginosas — 200 g'],
+    'Vegetais':['Espinafre — 1 maço','Brócolis — 1 cabeça','Tomate — 500 g','Legumes variados — 1 kg'],
+    'Leguminosas':['Feijão — 500 g','Lentilha — 500 g','Grão-de-bico — 500 g'],
+  },
+  vegan:{
+    'Proteínas vegetais':['Tofu firme — 400 g','Tempeh — 200 g','Pasta de amendoim — 1 pote'],
+    'Carboidratos':['Aveia em flocos — 500 g','Arroz integral — 1 kg','Pão integral (s/ leite) — 1 pac.','Bananas — 2 pencas','Frutas variadas — 2 kg'],
+    'Gorduras':['Azeite extra virgem — 500 ml','Mix de oleaginosas — 300 g','Chia / linhaça — 200 g'],
+    'Vegetais':['Espinafre — 1 maço','Brócolis — 1 cabeça','Tomate — 500 g','Pimentão — 4 und.','Legumes variados — 1 kg'],
+    'Leguminosas':['Feijão — 1 kg','Lentilha — 500 g','Grão-de-bico — 500 g'],
+    'Leite vegetal':['Leite vegetal (soja ou aveia) — 2 L'],
+  },
+};
 
-    function resetChat() {
-      apiMessages = [];
-      document.getElementById('chatArea').innerHTML = '';
+/* ── RESULTS ── */
+const GLABEL={loss:'⚖️ Perda de peso',gain:'💪 Ganho de massa',maintain:'⚡ Manutenção',performance:'🏃 Performance',health:'🫀 Saúde geral'};
+const ALABEL={sed:'Sedentário',light:'Levemente ativo',mod:'Moderadamente ativo',active:'Muito ativo',vactive:'Extremamente ativo'};
 
-      // Re-add the empty state
-      const empty = document.createElement('div');
-      empty.className = 'empty-state';
-      empty.id = 'emptyState';
-      empty.innerHTML = `
-        <div class="empty-icon">🥗</div>
-        <h2>Consultor Nutricional</h2>
-        <p>Faço triagem do seu perfil e entrego orientações baseadas em evidência. Não substituo nutricionista — indico quando encaminhar.</p>
-        <div class="suggestion-grid">
-          <button class="suggestion-btn" onclick="quickSend('Quero perder peso com saúde')">
-            <span class="s-icon">⚖️</span>
-            <span class="s-text">Perder peso com saúde</span>
-          </button>
-          <button class="suggestion-btn" onclick="quickSend('Quero ganhar massa muscular')">
-            <span class="s-icon">💪</span>
-            <span class="s-text">Ganhar massa muscular</span>
-          </button>
-          <button class="suggestion-btn" onclick="quickSend('Quero melhorar minha energia e disposição')">
-            <span class="s-icon">⚡</span>
-            <span class="s-text">Melhorar energia</span>
-          </button>
-          <button class="suggestion-btn" onclick="quickSend('Quero adotar uma alimentação plant-based')">
-            <span class="s-icon">🌱</span>
-            <span class="s-text">Alimentação plant-based</span>
-          </button>
-        </div>`;
-      document.getElementById('chatArea').appendChild(empty);
-    }
+function goalAdj(){
+  const m={
+    loss:'Reduza as porções de arroz e grãos em ~30%. Priorize proteínas e vegetais.',
+    gain:'Aumente as porções. Adicione lanche pós-treino: batata doce + frango/tofu.',
+    performance:'Carboidratos 1–2h antes do treino. Proteína dentro de 1h após.',
+    maintain:'Mantenha as porções estáveis ao longo da semana.',
+    health:'Busque variedade e vegetais em todas as refeições.',
+  };
+  return m[S.goal];
+}
+function budgetTip(){
+  if (S.budget==='eco') return '💸 Econômico: ovo é a melhor proteína pelo custo. Coxa de frango, atum em lata e feijão são aliados do bolso.';
+  if (S.budget==='free') return '';
+  return '';
+}
+function timeTip(){
+  if (S.time==='fast') return '⚡ Tempo curto: ovo cozido leva 10 min, frango na frigideira 15 min. Batch cooking no fim de semana poupa muito tempo.';
+  return '';
+}
+function intolTip(){
+  if (!S.intolerances.length) return '';
+  const lb={lactose:'lactose',gluten:'glúten',seafood:'frutos do mar',nuts:'oleaginosas/amendoim'};
+  return 'Você indicou intolerância a: '+S.intolerances.map(i=>lb[i]).join(', ')+'. Remova ou substitua esses itens no cardápio.';
+}
+function safetyAlert(){
+  const kcal=goalCal();
+  const minKcal = S.sex==='F'?1200:1500;
+  const raw = Math.round(tdee()*GFAC[S.goal]);
+  if (raw<minKcal) return `Meta calculada (${raw} kcal) ficou abaixo do mínimo seguro (${minKcal} kcal) — ajustada automaticamente. Considere consultar um nutricionista para avaliação individualizada.`;
+  if (S.goal==='loss') return 'Déficit de 20% representa perda estimada de 0,5–0,8 kg/semana. Perdas maiores aumentam risco de perda muscular.';
+  if (S.goal==='gain') return 'Superávit de 10% minimiza acúmulo de gordura. Se ganhar > 1 kg/mês, reduza ligeiramente as calorias.';
+  if (S.diet==='vegan') return 'Dieta vegana: monitore vitamina B12 (suplementação obrigatória), ferro e zinco. Faça exames a cada 6–12 meses.';
+  return 'Este plano é uma estimativa. Ajuste conforme sua resposta nas primeiras 2–4 semanas.';
+}
 
-    // ── Send ──
-    async function sendMessage() {
-      if (isLoading) return;
-      const input = document.getElementById('userInput');
-      const text  = input.value.trim();
-      if (!text) return;
+function buildResults(){
+  const t=Math.round(tmb()), d=Math.round(tdee()), g=goalCal();
+  const m=macros();
+  const pp=Math.round(m.pKcal/g*100), cp=Math.round(m.cKcal/g*100), fp=Math.round(m.fKcal/g*100);
+  const plan=PLANS[S.diet], sh=SHOP[S.diet];
+  const tmb_f = S.sex==='M'
+    ? `10×${S.weight} + 6.25×${S.height} − 5×${S.age} + 5`
+    : `10×${S.weight} + 6.25×${S.height} − 5×${S.age} − 161`;
 
-      input.value = '';
-      autoResize(input);
-      hideEmptyState();
+  const shopHtml = Object.entries(sh).map(([cat,items])=>`
+    <div class="shop-cat">${cat}</div>
+    <div class="shop-list">${items.map(i=>`<span class="shop-tag">${i}</span>`).join('')}</div>
+  `).join('');
 
-      appendUserBubble(text);
-      apiMessages.push({ role: 'user', content: text });
+  const bTip=budgetTip(), tTip=timeTip(), iTip=intolTip();
 
-      setSendLoading(true);
-      showTyping();
+  return `<div class="res-main" style="max-width:620px;margin:0 auto;padding:16px 14px 40px">
 
-      try {
-        const reply = await streamBotMessage();
-        apiMessages.push({ role: 'assistant', content: reply });
-      } catch (err) {
-        hideTyping();
-        showError(err.message || 'Erro ao conectar com o servidor.');
-      } finally {
-        setSendLoading(false);
-        input.focus();
-      }
-    }
+    <div class="res-header">
+      <div class="res-hicon">🥗</div>
+      <div>
+        <h2>Seu plano nutricional</h2>
+        <p>${GLABEL[S.goal]} · ${S.weight} kg · ${S.height} cm · ${S.age} anos · ${ALABEL[S.activity]}</p>
+      </div>
+    </div>
 
-    function quickSend(text) {
-      document.getElementById('userInput').value = text;
-      sendMessage();
-    }
+    <div class="disc">⚕️ <strong>Lembrete:</strong> Este plano é educacional e não substitui um nutricionista ou médico. Use-o como ponto de partida.</div>
 
-    // ── Streaming ──
-    async function streamBotMessage() {
-      const response = await fetch('/api/chat', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messages: apiMessages })
-      });
+    <!-- CALORIAS -->
+    <div class="sec">
+      <div class="sec-title">📊 Calorias diárias</div>
+      <div class="cal-row"><span>TMB — Mifflin-St Jeor (${S.sex==='M'?'♂':'♀'})</span><strong>${tmb_f} = <span style="color:var(--p)">${t} kcal</span></strong></div>
+      <div class="cal-row"><span>TDEE (TMB × ${PAL[S.activity]} — ${ALABEL[S.activity]})</span><strong>= ${d} kcal</strong></div>
+      <div class="cal-row hl"><span>${GLABEL[S.goal]} (× ${GFAC[S.goal]}):</span><strong>${g} kcal / dia</strong></div>
+    </div>
 
-      if (!response.ok) {
-        const data = await response.json().catch(() => ({}));
-        throw new Error(data.error || 'Erro no servidor');
-      }
+    <!-- MACROS -->
+    <div class="sec">
+      <div class="sec-title">🥩 Distribuição de macros</div>
+      <div class="macro-grid">
+        <div class="mc prot">
+          <div class="mc-val">${m.prot}g</div>
+          <div class="mc-lbl">Proteína</div>
+          <div class="mc-sub">${m.pKcal} kcal · ${pp}%</div>
+          <div class="mc-sub">${PROT[S.goal]}g/kg</div>
+        </div>
+        <div class="mc carb">
+          <div class="mc-val">${m.carbs}g</div>
+          <div class="mc-lbl">Carboidratos</div>
+          <div class="mc-sub">${m.cKcal} kcal · ${cp}%</div>
+        </div>
+        <div class="mc fat">
+          <div class="mc-val">${m.fat}g</div>
+          <div class="mc-lbl">Gorduras</div>
+          <div class="mc-sub">${m.fKcal} kcal · ${fp}%</div>
+        </div>
+      </div>
+      <div class="mbar">
+        <div class="mbar-p" style="width:${pp}%"></div>
+        <div class="mbar-c" style="width:${cp}%"></div>
+        <div class="mbar-f" style="width:${fp}%"></div>
+      </div>
+      <div class="mbar-legend">
+        <span><span class="mbar-dot" style="background:#40916C"></span>Proteína ${pp}%</span>
+        <span><span class="mbar-dot" style="background:#F4A261"></span>Carbs ${cp}%</span>
+        <span><span class="mbar-dot" style="background:#818CF8"></span>Gordura ${fp}%</span>
+      </div>
+      <p style="font-size:11px;color:var(--mu);margin-top:8px">Faixa de proteína baseada em ISSN (2017) e Morton et al. (2018). Evidência: forte.</p>
+    </div>
 
-      const reader  = response.body.getReader();
-      const decoder = new TextDecoder();
+    <!-- CARDÁPIO -->
+    <div class="sec">
+      <div class="sec-title">🍽️ Cardápio — 1 dia base</div>
+      <p style="font-size:12px;color:var(--mu);margin-bottom:12px">Ajuste as porções para atingir ${g} kcal. ${goalAdj()}</p>
+      <div class="meal-item"><div class="meal-title">☀️ Café da manhã</div><ul>${plan.bf.map(i=>`<li>${i}</li>`).join('')}</ul></div>
+      <div class="meal-item"><div class="meal-title">🌿 Almoço</div><ul>${plan.al.map(i=>`<li>${i}</li>`).join('')}</ul></div>
+      <div class="meal-item"><div class="meal-title">🍎 Lanche</div><ul>${plan.sn.map(i=>`<li>${i}</li>`).join('')}</ul></div>
+      <div class="meal-item"><div class="meal-title">🌙 Jantar</div><ul>${plan.jt.map(i=>`<li>${i}</li>`).join('')}</ul></div>
+      <div class="subs-box"><strong>Substituições:</strong><ul>${plan.sb.map(s=>`<li>${s}</li>`).join('')}</ul></div>
+      ${plan.note?`<div class="tip warn" style="margin-top:10px">${plan.note}</div>`:''}
+      ${bTip?`<div class="tip eco" style="margin-top:8px">${bTip}</div>`:''}
+      ${tTip?`<div class="tip info" style="margin-top:8px">${tTip}</div>`:''}
+      ${iTip?`<div class="tip info" style="margin-top:8px">ℹ️ ${iTip}</div>`:''}
+    </div>
 
-      // Create bot bubble that will fill progressively
-      hideTyping();
-      const { bubble, container } = createBotBubble();
-      document.getElementById('chatArea').appendChild(container);
+    <!-- LISTA DE COMPRAS -->
+    <div class="sec">
+      <div class="sec-title">🛒 Lista de compras — 1 semana</div>
+      ${shopHtml}
+    </div>
 
-      let fullText = '';
-      let buffer   = '';
+    <!-- ALERTA -->
+    <div class="tip alert" style="margin-bottom:16px">⚠️ ${safetyAlert()}</div>
 
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
+    <div class="center-row">
+      <button class="btn-primary" onclick="restart()">↩ Nova consulta</button>
+      <button class="print-btn" onclick="window.print()">🖨️ Imprimir</button>
+    </div>
+  </div>`;
+}
 
-        buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split('\n');
-        buffer = lines.pop(); // keep incomplete line
+/* ── STOP PAGE ── */
+const COND_LABELS={
+  diabetes:'Diabetes',renal:'Doença renal',cardiac:'Doença cardiovascular',
+  thyroid:'Disfunção tireoidiana',pregnancy:'Gestação / lactação',
+  eating_disorder:'Transtorno alimentar',meds:'Uso de medicamentos',
+};
+const COND_WHY={
+  diabetes:'A distribuição de carboidratos e o timing das refeições afetam diretamente a glicemia e podem interagir com insulina ou hipoglicemiantes.',
+  renal:'Proteína, fósforo, potássio e sódio precisam ser controlados conforme a taxa de filtração glomerular (TFG).',
+  cardiac:'Sódio, gorduras saturadas e trans exigem manejo específico e individualizado.',
+  thyroid:'O metabolismo basal fica alterado; alguns alimentos (brassicas, soja) podem interferir na absorção de levotiroxina.',
+  pregnancy:'Demandas de folato, ferro, iodo e DHA são elevadas e críticas para o desenvolvimento do bebê.',
+  eating_disorder:'Foco em calorias e restrições pode ser gatilho. O suporte deve ser multidisciplinar (nutricionista + psicólogo).',
+  meds:'Medicamentos podem alterar absorção de nutrientes, apetite, metabolismo ou interagir com alimentos específicos.',
+};
+function buildStop(){
+  const found = S.conditions.filter(c=>STOP_KEYS.has(c));
+  const whyList = found.map(c=>`<li><strong>${COND_LABELS[c]}:</strong> ${COND_WHY[c]}</li>`).join('');
+  return `<div class="main"><div class="card stop-card">
+    <div class="stop-icon">🩺</div>
+    <h2>Encaminhamento necessário</h2>
+    <p>Você indicou: <strong>${found.map(c=>COND_LABELS[c]).join(', ')}</strong>.</p>
+    <p>Para essas condições, o plano nutricional precisa ser individualizado por um <strong>nutricionista</strong> — e em alguns casos com médico.</p>
+    <div class="stop-why">
+      <strong>Por que não consigo prescrever dieta aqui?</strong>
+      <ul>${whyList}</ul>
+    </div>
+    <div class="stop-where">
+      <strong>Como encontrar um nutricionista no Brasil:</strong>
+      <ul>
+        <li>CFN (Conselho Federal de Nutricionistas) — cfn.org.br</li>
+        <li>UBS / SUAS — nutricionistas do SUS via encaminhamento médico</li>
+        <li>Plano de saúde — verifique cobertura de consulta nutricional</li>
+      </ul>
+    </div>
+    <div class="nav-row" style="justify-content:center;gap:12px;margin-top:20px">
+      <button class="btn-back" onclick="S.step=3;render()">← Revisar dados</button>
+      <button class="btn-primary" onclick="restart()">↩ Recomeçar</button>
+    </div>
+  </div></div>`;
+}
 
-        for (const line of lines) {
-          if (!line.startsWith('data: ')) continue;
-          const raw = line.slice(6).trim();
-          if (!raw || raw === '[DONE]') continue;
+/* ── HELPERS ── */
+function restart(){
+  Object.assign(S,{step:1,goal:null,age:'',weight:'',height:'',sex:null,activity:null,
+    conditions:[],meds:'',allergies:'',diet:null,intolerances:[],budget:null,time:null});
+  render();
+}
 
-          try {
-            const parsed = JSON.parse(raw);
-            if (parsed.error) throw new Error(parsed.error);
-            if (parsed.text) {
-              fullText += parsed.text;
-              bubble.innerHTML = renderMarkdown(fullText) || '&nbsp;';
-              scrollBottom();
-            }
-          } catch (e) {
-            if (e.message && !e.message.includes('JSON')) throw e;
-          }
-        }
-      }
-
-      return fullText;
-    }
-
-    // ── DOM helpers ──
-    function hideEmptyState() {
-      const el = document.getElementById('emptyState');
-      if (el) el.remove();
-    }
-
-    function appendUserBubble(text) {
-      const area = document.getElementById('chatArea');
-      const wrap = document.createElement('div');
-      wrap.className = 'msg user';
-      wrap.innerHTML = `
-        <div class="avatar">👤</div>
-        <div class="bubble">${escHtml(text)}</div>`;
-      area.appendChild(wrap);
-      scrollBottom();
-    }
-
-    function createBotBubble() {
-      const container = document.createElement('div');
-      container.className = 'msg bot';
-
-      const bubble = document.createElement('div');
-      bubble.className = 'bubble';
-
-      container.innerHTML = '<div class="avatar">🥗</div>';
-      container.appendChild(bubble);
-      return { bubble, container };
-    }
-
-    function showTyping() {
-      if (document.getElementById('typingEl')) return;
-      const area = document.getElementById('chatArea');
-      const el   = document.createElement('div');
-      el.id        = 'typingEl';
-      el.className = 'typing';
-      el.innerHTML = `
-        <div class="avatar" style="background:var(--primary)">🥗</div>
-        <div class="typing-dots">
-          <div class="dot"></div><div class="dot"></div><div class="dot"></div>
-        </div>`;
-      area.appendChild(el);
-      scrollBottom();
-    }
-
-    function hideTyping() {
-      const el = document.getElementById('typingEl');
-      if (el) el.remove();
-    }
-
-    function showError(msg) {
-      const area = document.getElementById('chatArea');
-      const el   = document.createElement('div');
-      el.className = 'error-banner';
-      el.innerHTML = `<span>⚠️</span><span>${escHtml(msg)}</span>`;
-      area.appendChild(el);
-      scrollBottom();
-    }
-
-    function setSendLoading(on) {
-      isLoading = on;
-      const btn = document.getElementById('sendBtn');
-      btn.disabled = on;
-      btn.innerHTML = on
-        ? '<div class="spinner"></div>'
-        : `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-             <line x1="22" y1="2" x2="11" y2="13"/>
-             <polygon points="22 2 15 22 11 13 2 9 22 2"/>
-           </svg>`;
-    }
-
-    function scrollBottom() {
-      const area = document.getElementById('chatArea');
-      area.scrollTop = area.scrollHeight;
-    }
-
-    // ── Input auto-resize ──
-    function autoResize(el) {
-      el.style.height = 'auto';
-      el.style.height = Math.min(el.scrollHeight, 120) + 'px';
-    }
-
-    function handleKey(e) {
-      if (e.key === 'Enter' && !e.shiftKey) {
-        e.preventDefault();
-        sendMessage();
-      }
-    }
-
-    // ── Markdown renderer ──
-    function renderMarkdown(src) {
-      const lines  = src.split('\n');
-      let html     = '';
-      let inUl     = false;
-      let inOl     = false;
-
-      const closeLists = () => {
-        if (inUl) { html += '</ul>'; inUl = false; }
-        if (inOl) { html += '</ol>'; inOl = false; }
-      };
-
-      for (const line of lines) {
-        if (/^[\s]*[-*•]\s+/.test(line)) {
-          if (inOl) { html += '</ol>'; inOl = false; }
-          if (!inUl) { html += '<ul>'; inUl = true; }
-          html += `<li>${inl(line.replace(/^[\s]*[-*•]\s+/, ''))}</li>`;
-          continue;
-        }
-        if (/^\s*\d+\.\s+/.test(line)) {
-          if (inUl) { html += '</ul>'; inUl = false; }
-          if (!inOl) { html += '<ol>'; inOl = true; }
-          html += `<li>${inl(line.replace(/^\s*\d+\.\s+/, ''))}</li>`;
-          continue;
-        }
-        closeLists();
-
-        if      (line.startsWith('#### ')) html += `<h4>${inl(line.slice(5))}</h4>`;
-        else if (line.startsWith('### '))  html += `<h4>${inl(line.slice(4))}</h4>`;
-        else if (line.startsWith('## '))   html += `<h3>${inl(line.slice(3))}</h3>`;
-        else if (line.startsWith('# '))    html += `<h2>${inl(line.slice(2))}</h2>`;
-        else if (/^---+$/.test(line.trim())) html += '<hr>';
-        else if (line.trim() === '')       html += '<br>';
-        else                               html += `<p>${inl(line)}</p>`;
-      }
-      closeLists();
-      return html;
-    }
-
-    // Inline formatting (bold, italic, code)
-    function inl(t) {
-      return esc(t)
-        .replace(/\*\*\*(.*?)\*\*\*/g, '<strong><em>$1</em></strong>')
-        .replace(/\*\*(.*?)\*\*/g,     '<strong>$1</strong>')
-        .replace(/__(.*?)__/g,         '<strong>$1</strong>')
-        .replace(/\*(.*?)\*/g,         '<em>$1</em>')
-        .replace(/_(.*?)_/g,           '<em>$1</em>')
-        .replace(/`(.*?)`/g,           '<code>$1</code>');
-    }
-
-    // Escape HTML (applied before inline markdown to avoid XSS)
-    function esc(t) {
-      return t.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-    }
-
-    function escHtml(t) {
-      return esc(t).replace(/\n/g, '<br>');
-    }
-  </script>
+/* ── INIT ── */
+render();
+</script>
 </body>
 </html>
