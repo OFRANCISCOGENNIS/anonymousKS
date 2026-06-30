@@ -1,0 +1,2214 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Inventário Inteligente 15kV</title>
+  <style>
+/* ============================================================
+   style.css — Inventário Inteligente 15kV
+   ============================================================ */
+
+:root {
+  --navy:    #111827;
+  --azul:    #1F4E79;
+  --indigo:  #5E549E;
+  --petro:   #156082;
+  --red:     #B00000;
+  --amber:   #B07C00;
+  --green:   #15734A;
+  --bg:      #F8F9FB;
+  --surface: #FFFFFF;
+  --border:  #E2E6EA;
+  --text:    #2D3440;
+  --muted:   #6C7280;
+  --font:    'Segoe UI', system-ui, -apple-system, sans-serif;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: var(--font);
+  background: var(--bg);
+  color: var(--text);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+/* ── UPLOAD ───────────────────────────────────────────────── */
+
+#upload-section {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 40px 20px;
+  background: linear-gradient(135deg, var(--navy) 0%, var(--azul) 100%);
+}
+
+.upload-logo {
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 3px;
+  color: rgba(255,255,255,.45);
+  text-transform: uppercase;
+  margin-bottom: 36px;
+}
+
+.upload-card {
+  background: var(--surface);
+  border-radius: 16px;
+  padding: 48px 56px;
+  max-width: 540px;
+  width: 100%;
+  box-shadow: 0 24px 64px rgba(0,0,0,.35);
+  text-align: center;
+}
+
+.upload-card h1 {
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--navy);
+  margin-bottom: 8px;
+}
+
+.upload-card p {
+  color: var(--muted);
+  font-size: 13px;
+  margin-bottom: 32px;
+}
+
+.drop-zone {
+  border: 2px dashed var(--border);
+  border-radius: 12px;
+  padding: 40px 24px;
+  cursor: pointer;
+  transition: border-color .2s, background .2s;
+  margin-bottom: 20px;
+}
+
+.drop-zone:hover,
+.drop-zone.dragover {
+  border-color: var(--azul);
+  background: #EEF4FB;
+}
+
+.drop-icon { font-size: 36px; margin-bottom: 12px; }
+.drop-zone h3 { font-size: 15px; font-weight: 600; color: var(--navy); margin-bottom: 4px; }
+.drop-zone span { font-size: 12px; color: var(--muted); }
+
+#file-input { display: none; }
+
+.btn-upload {
+  display: inline-block;
+  margin-top: 16px;
+  padding: 11px 28px;
+  background: var(--azul);
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background .15s;
+}
+.btn-upload:hover { background: #174070; }
+
+.upload-note {
+  font-size: 11px;
+  color: var(--muted);
+  margin-top: 20px;
+}
+
+.upload-error {
+  background: #FEE2E2;
+  color: #991B1B;
+  border-radius: 8px;
+  padding: 12px 16px;
+  font-size: 13px;
+  margin-top: 16px;
+  display: none;
+}
+
+/* ── LOADING ──────────────────────────────────────────────── */
+
+#loading-overlay {
+  position: fixed; inset: 0;
+  background: rgba(17,24,39,.85);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  z-index: 999;
+  display: none;
+}
+
+.spinner {
+  width: 44px; height: 44px;
+  border: 4px solid rgba(255,255,255,.2);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: spin .8s linear infinite;
+  margin-bottom: 16px;
+}
+
+@keyframes spin { to { transform: rotate(360deg); } }
+
+#loading-overlay p { color: #fff; font-size: 14px; font-weight: 500; }
+
+/* ── APP SHELL ────────────────────────────────────────────── */
+
+#app { display: none; min-height: 100vh; }
+
+.app-header {
+  background: var(--navy);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 24px;
+  height: 52px;
+  position: sticky; top: 0; z-index: 100;
+  box-shadow: 0 2px 8px rgba(0,0,0,.3);
+}
+
+.app-header .brand { font-size: 13px; font-weight: 700; letter-spacing: 1px; opacity: .7; }
+.app-header .file-name { font-size: 12px; opacity: .55; }
+.btn-reset { background: rgba(255,255,255,.12); border: none; color: #fff;
+  padding: 6px 14px; border-radius: 6px; font-size: 12px; cursor: pointer;
+  transition: background .15s; font-family: var(--font); }
+.btn-reset:hover { background: rgba(255,255,255,.22); }
+
+/* ── TABS ─────────────────────────────────────────────────── */
+
+.tab-nav {
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  padding: 0 24px;
+  gap: 4px;
+  overflow-x: auto;
+}
+
+.tab-btn {
+  padding: 14px 20px;
+  border: none;
+  background: transparent;
+  font-family: var(--font);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: .6px;
+  color: var(--muted);
+  cursor: pointer;
+  border-bottom: 3px solid transparent;
+  white-space: nowrap;
+  transition: color .15s, border-color .15s;
+}
+
+.tab-btn:hover { color: var(--text); }
+.tab-btn.active { color: var(--navy); border-bottom-color: var(--azul); }
+
+.tab-pane { display: none; padding: 28px 24px; }
+.tab-pane.active { display: block; }
+
+/* ── CARDS ────────────────────────────────────────────────── */
+
+.cards-row {
+  display: grid;
+  gap: 16px;
+  margin-bottom: 28px;
+}
+
+.cards-4 { grid-template-columns: repeat(4, 1fr); }
+.cards-3 { grid-template-columns: repeat(3, 1fr); }
+.cards-2 { grid-template-columns: repeat(2, 1fr); }
+
+@media (max-width: 1100px) { .cards-4 { grid-template-columns: repeat(2,1fr); } }
+@media (max-width: 680px)  { .cards-4, .cards-3, .cards-2 { grid-template-columns: 1fr; } }
+
+.kpi-card {
+  background: var(--surface);
+  border-radius: 12px;
+  padding: 20px 22px;
+  border: 1px solid var(--border);
+  box-shadow: 0 1px 4px rgba(0,0,0,.05);
+}
+
+.kpi-label {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .8px;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-bottom: 8px;
+}
+
+.kpi-value {
+  font-size: 28px;
+  font-weight: 800;
+  line-height: 1;
+  color: var(--navy);
+}
+
+.kpi-value.green  { color: var(--green); }
+.kpi-value.red    { color: var(--red); }
+.kpi-value.amber  { color: var(--amber); }
+.kpi-value.azul   { color: var(--azul); }
+.kpi-value.indigo { color: var(--indigo); }
+
+.kpi-sub { font-size: 11px; color: var(--muted); margin-top: 6px; }
+
+/* ── SECTION TITLES ───────────────────────────────────────── */
+
+.section-title {
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: .5px;
+  color: var(--navy);
+  text-transform: uppercase;
+  border-left: 3px solid var(--azul);
+  padding-left: 10px;
+  margin-bottom: 16px;
+}
+
+/* ── TABLES ───────────────────────────────────────────────── */
+
+.table-wrap {
+  background: var(--surface);
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  overflow: hidden;
+  box-shadow: 0 1px 4px rgba(0,0,0,.05);
+}
+
+.table-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border);
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.search-box {
+  padding: 7px 12px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  font-size: 13px;
+  font-family: var(--font);
+  outline: none;
+  width: 240px;
+  transition: border-color .15s;
+}
+.search-box:focus { border-color: var(--azul); }
+
+.filter-select {
+  padding: 7px 10px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  font-size: 12px;
+  font-family: var(--font);
+  outline: none;
+  cursor: pointer;
+  background: #fff;
+}
+.filter-select:focus { border-color: var(--azul); }
+
+.table-count { font-size: 12px; color: var(--muted); }
+
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.data-table th {
+  background: #F1F4F7;
+  text-align: left;
+  padding: 10px 14px;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--muted);
+  letter-spacing: .5px;
+  text-transform: uppercase;
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+  cursor: pointer;
+  user-select: none;
+}
+
+.data-table th:hover { background: #E8ECF0; }
+.data-table th .sort-icon { opacity: .35; margin-left: 4px; }
+.data-table th.asc  .sort-icon::after { content: ' ↑'; opacity: 1; }
+.data-table th.desc .sort-icon::after { content: ' ↓'; opacity: 1; }
+
+.data-table td {
+  padding: 9px 14px;
+  border-bottom: 1px solid #F0F2F5;
+  vertical-align: middle;
+  max-width: 320px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.data-table tr:last-child td { border-bottom: none; }
+.data-table tr:nth-child(even) td { background: #FAFBFC; }
+.data-table tr:hover td { background: #EEF4FB; }
+
+.table-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 12px 16px;
+  border-top: 1px solid var(--border);
+  font-size: 12px;
+}
+
+.page-btn {
+  padding: 5px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface);
+  cursor: pointer;
+  font-size: 12px;
+  font-family: var(--font);
+  transition: background .15s;
+}
+.page-btn:hover:not(:disabled) { background: #EEF4FB; }
+.page-btn:disabled { opacity: .35; cursor: default; }
+.page-btn.active { background: var(--azul); color: #fff; border-color: var(--azul); }
+
+/* ── CHIPS / STATUS ───────────────────────────────────────── */
+
+.chip {
+  display: inline-block;
+  padding: 3px 10px;
+  border-radius: 20px;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .4px;
+  white-space: nowrap;
+}
+
+.chip-aprovado      { background: #D1FAE5; color: #065F46; }
+.chip-reprovado     { background: #FEE2E2; color: #991B1B; }
+.chip-semuc         { background: #E5E7EB; color: #374151; }
+.chip-aderente      { background: #D1FAE5; color: #065F46; }
+.chip-naoaderente   { background: #FEE2E2; color: #991B1B; }
+.chip-nulo          { background: #FEF3C7; color: #92400E; }
+.chip-ok            { background: #D1FAE5; color: #065F46; }
+.chip-ancora        { background: #DBEAFE; color: #1E40AF; }
+.chip-excesso       { background: #FEF3C7; color: #92400E; }
+.chip-exagerado     { background: #FEE2E2; color: #991B1B; }
+.chip-insuficiente  { background: #FEE2E2; color: #991B1B; }
+.chip-semancora     { background: #FEF9C3; color: #713F12; }
+.chip-qdtzero       { background: #E5E7EB; color: #374151; }
+.chip-estorno       { background: #E5E7EB; color: #374151; }
+.chip-semreferencia { background: #E5E7EB; color: #374151; }
+.chip-alto          { background: #FEE2E2; color: #991B1B; }
+.chip-medio         { background: #FEF3C7; color: #92400E; }
+.chip-baixo         { background: #DBEAFE; color: #1E40AF; }
+.chip-semrisco      { background: #D1FAE5; color: #065F46; }
+
+.chip-alerta { font-size: 11px; font-weight: 700; color: #fff; padding: 3px 10px; border-radius: 20px; white-space: nowrap; }
+
+/* ── CHARTS ───────────────────────────────────────────────── */
+
+.charts-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+  margin-bottom: 28px;
+}
+
+@media (max-width: 860px) { .charts-row { grid-template-columns: 1fr; } }
+
+.chart-card {
+  background: var(--surface);
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  padding: 20px;
+  box-shadow: 0 1px 4px rgba(0,0,0,.05);
+}
+
+.chart-card h3 {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: .6px;
+  margin-bottom: 16px;
+}
+
+.chart-container { position: relative; height: 220px; }
+
+/* ── ALERT ROWS ───────────────────────────────────────────── */
+
+.alert-type-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 0;
+  border-bottom: 1px solid #F0F2F5;
+}
+.alert-type-bar:last-child { border-bottom: none; }
+.alert-type-name { flex: 0 0 220px; font-size: 12px; font-weight: 600; color: var(--text); }
+.alert-type-bar-fill { flex: 1; height: 10px; border-radius: 5px; background: var(--red); opacity: .75; }
+.alert-type-count { flex: 0 0 40px; text-align: right; font-size: 13px; font-weight: 700; color: var(--red); }
+.alert-type-pct   { flex: 0 0 36px; text-align: right; font-size: 11px; color: var(--muted); }
+
+/* ── EMPTY STATE ──────────────────────────────────────────── */
+
+.empty-state {
+  text-align: center;
+  padding: 64px 24px;
+  color: var(--muted);
+}
+.empty-state .icon { font-size: 40px; margin-bottom: 12px; }
+.empty-state p { font-size: 14px; }
+
+/* ── MISC ─────────────────────────────────────────────────── */
+
+.text-right { text-align: right; }
+.text-center { text-align: center; }
+.mono { font-family: 'Consolas', monospace; }
+
+.badge-dot {
+  display: inline-block;
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  margin-right: 5px;
+}
+
+.export-btn {
+  padding: 7px 16px;
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  font-size: 12px;
+  font-family: var(--font);
+  cursor: pointer;
+  color: var(--text);
+  transition: background .15s;
+}
+.export-btn:hover { background: #EEF4FB; border-color: var(--azul); color: var(--azul); }
+
+</style>
+  <!-- SheetJS para leitura de Excel no browser -->
+  <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
+  <!-- Chart.js para gráficos -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+</head>
+<body>
+
+<!-- ── LOADING OVERLAY ─────────────────────────────────────── -->
+<div id="loading-overlay">
+  <div class="spinner"></div>
+  <p>Processando inventário...</p>
+</div>
+
+<!-- ── UPLOAD SCREEN ───────────────────────────────────────── -->
+<div id="upload-section">
+  <div class="upload-logo">⚡ Equatorial Energia · NT.006 / NT.018</div>
+
+  <div class="upload-card">
+    <h1>Inventário Inteligente 15kV</h1>
+    <p>Carregue sua planilha de inventário e obtenha análise completa SAP × Projeto, racionalização COM, alertas e ranking de risco — tudo no navegador, sem instalação.</p>
+
+    <div class="drop-zone" id="drop-zone">
+      <div class="drop-icon">📊</div>
+      <h3>Arraste o arquivo aqui</h3>
+      <span>ou clique para selecionar</span>
+      <br>
+      <button class="btn-upload" onclick="document.getElementById('file-input').click()">Selecionar arquivo Excel</button>
+    </div>
+
+    <input type="file" id="file-input" accept=".xlsx,.xlsm,.xls">
+
+    <div class="upload-error" id="upload-error"></div>
+
+    <p class="upload-note">
+      ✅ Processamento 100% no browser — nenhum dado é enviado a servidores.<br>
+      Formatos aceitos: .xlsx · .xlsm · .xls<br>
+      A planilha precisa ter as colunas <b>MAT LIB SAP</b> e <b>MAT PRJ CAD</b>.
+    </p>
+  </div>
+</div>
+
+<!-- ── APP ─────────────────────────────────────────────────── -->
+<div id="app">
+
+  <header class="app-header">
+    <span class="brand">⚡ Inventário Inteligente 15kV</span>
+    <span class="file-name" id="app-filename"></span>
+    <button class="btn-reset" id="btn-reset">↩ Nova análise</button>
+  </header>
+
+  <nav class="tab-nav">
+    <button class="tab-btn active" data-tab="painel">📊 Painel do Gestor</button>
+    <button class="tab-btn" data-tab="analise">⚡ Análise SAP × PRJ</button>
+    <button class="tab-btn" data-tab="com">🔧 Racionalização COM</button>
+    <button class="tab-btn" data-tab="preco">💰 Preço Unitário</button>
+    <button class="tab-btn" data-tab="alertas">🚨 Alertas Críticos</button>
+    <button class="tab-btn" data-tab="ranking">📈 Ranking de Risco</button>
+  </nav>
+
+  <!-- PAINEL DO GESTOR -->
+  <div class="tab-pane active" id="pane-painel">
+    <div id="painel-content"></div>
+  </div>
+
+  <!-- ANÁLISE SAP × PRJ -->
+  <div class="tab-pane" id="pane-analise">
+    <div style="margin-bottom:20px">
+      <div class="section-title">Análise SAP × Projeto — item a item</div>
+      <p style="font-size:12px;color:var(--muted)">
+        Comparação entre material liberado (SAP) e material projetado (CAD). Um único item não aderente reprova o PEP3 inteiro.
+      </p>
+    </div>
+    <div id="analise-content"></div>
+  </div>
+
+  <!-- RACIONALIZAÇÃO COM -->
+  <div class="tab-pane" id="pane-com">
+    <div style="margin-bottom:20px">
+      <div class="section-title">Racionalização COM — NT.006 / NT.018</div>
+      <p style="font-size:12px;color:var(--muted)">
+        Materiais TIPO=COM comparados com a faixa prevista pela NT.006, usando âncoras (cruzetas, hastes, suportes) como referência.
+      </p>
+    </div>
+    <div id="com-content"></div>
+  </div>
+
+  <!-- PREÇO UNITÁRIO -->
+  <div class="tab-pane" id="pane-preco">
+    <div style="margin-bottom:20px">
+      <div class="section-title">Análise de Preço Unitário</div>
+      <p style="font-size:12px;color:var(--muted)">
+        PU = VALOR ÷ QTD comparado com a faixa MIN/MAX da base de preços. Requer o arquivo
+        <b>BASE DE PREÇOS.xlsx</b> (colunas <b>MATERIAL</b>, <b>MIN PU</b>, <b>MAX PU</b>) — ou uma aba
+        <b>BASE PRECOS</b> dentro da própria planilha.
+      </p>
+    </div>
+    <div id="preco-content"></div>
+  </div>
+
+  <!-- ALERTAS CRÍTICOS -->
+  <div class="tab-pane" id="pane-alertas">
+    <div style="margin-bottom:20px">
+      <div class="section-title">Painel de Alertas Críticos</div>
+      <p style="font-size:12px;color:var(--muted)">
+        ODI sem UC, materiais com sinal invertido, lacre × medidor fora de proporção, postagem em PEP incorreto e outros apontamentos críticos.
+      </p>
+    </div>
+    <div id="alertas-content"></div>
+  </div>
+
+  <!-- RANKING DE RISCO -->
+  <div class="tab-pane" id="pane-ranking">
+    <div style="margin-bottom:20px">
+      <div class="section-title">Ranking de Risco por Obra (PEP3)</div>
+      <p style="font-size:12px;color:var(--muted)">
+        Score 0–100 calculado por reprovação (40 pts) + alertas críticos (até 24 pts) + divergências de preço (até 18 pts) + COM fora do NT.006 (até 18 pts).
+        Ordenado do maior para o menor risco.
+      </p>
+    </div>
+    <div id="ranking-content"></div>
+  </div>
+
+</div>
+
+<script>
+'use strict';
+
+// ============================================================
+// inventario.js — lógica de análise portada do módulo VBA
+// ============================================================
+
+const TOL_SUBVAL    = 0.9;
+const MIN_DIVERG_RS = 100;
+const PESO_REPROV   = 40;
+const PESO_ALERTA   = 4;  const CAP_ALERTA = 24;
+const PESO_PU       = 3;  const CAP_PU     = 18;
+const PESO_COM      = 2;  const CAP_COM    = 18;
+
+// ── helpers ──────────────────────────────────────────────────
+
+function normStr(s) {
+    if (s === null || s === undefined) return '';
+    let r = String(s).toUpperCase().trim();
+    r = r.normalize('NFD').replace(/[̀-ͯ]/g, '');
+    r = r.replace(/[.\/\-_]/g, '').replace(/\s+/g, ' ').trim();
+    return r;
+}
+
+function normCod(v) {
+    if (v === null || v === undefined || v === '') return '';
+    let s = String(v).trim();
+    if (s.endsWith('.0')) s = s.slice(0, -2);
+    if (/[eE][+]/.test(s)) { try { s = Math.round(parseFloat(s)).toString(); } catch(e){} }
+    return s;
+}
+
+function toNum(v) {
+    if (v === null || v === undefined || v === '') return 0;
+    const n = parseFloat(v);
+    return isNaN(n) ? 0 : n;
+}
+
+function temPalavra(descNorm, termo) {
+    const s = ' ' + descNorm.replace(/[^A-Z0-9]/g, ' ') + ' ';
+    return s.includes(' ' + termo + ' ');
+}
+
+function fmt2(v) {
+    return Number(v).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+// ── mapa NT.006 ───────────────────────────────────────────────
+
+function criarMapaNT006() {
+    const mk = (familia, nt006, descr, ehAncora, ancoraDep, razaoMin, razaoMax, regra) =>
+        ({ familia, nt006, descr, ehAncora, ancoraDep, razaoMin, razaoMax, regra });
+
+    const m = new Map();
+    const a = (cod, ...args) => m.set(cod, mk(...args));
+
+    // CRUZETAS (âncora)
+    a('133100007','CRUZETA','R-02','Cruzeta concreto T 1900mm',true,'',0,0,'');
+    a('133100001','CRUZETA','R-02','Cruzeta concreto L 1700mm',true,'',0,0,'');
+    a('133100006','CRUZETA','R-02','Cruzeta concreto T 2200mm',true,'',0,0,'');
+    a('133400012','CRUZETA','R-02','Cruzeta PRFV 90x112,5 2,4m',true,'',0,0,'');
+    a('133400003','CRUZETA','R-02','Cruzeta PRFV',true,'',0,0,'');
+    a('133400004','CRUZETA','R-02','Cruzeta PRFV',true,'',0,0,'');
+
+    // ISOLADOR PILAR
+    a('123140003','ISOLADOR PILAR','I-05','Isolador pilar 15kV M16',false,'CRUZETA',2,3.5,'2-3 iso. pilar por cruzeta');
+    a('123140016','ISOLADOR PILAR','I-05','Isolador pilar 24,2kV M16',false,'CRUZETA',2,3.5,'2-3 iso. pilar por cruzeta');
+    a('123140015','ISOLADOR PILAR','I-05','Isolador pilar polim. 25kV',false,'CRUZETA',2,3.5,'2-3 iso. pilar por cruzeta');
+    a('123140014','ISOLADOR PILAR','I-05','Isolador pilar',false,'CRUZETA',2,3.5,'2-3 iso. pilar por cruzeta');
+
+    // ISOL SUSPENSAO (âncora)
+    a('123230001','ISOL SUSPENSAO','I-06','Isolador suspensao polim. 15kV',true,'',0,0,'');
+    a('123230002','ISOL SUSPENSAO','I-06','Isolador suspensao',true,'',0,0,'');
+
+    // ARRUELAS
+    a('134830013','ARRUELA','A-02','Arruela quad. 38x38x3mm F18',false,'CRUZETA',2,9,'2-8 arruelas por cruzeta');
+    a('134830014','ARRUELA','A-02','Arruela quad. lis 18x50x3mm',false,'CRUZETA',2,9,'2-8 arruelas por cruzeta');
+    a('134830051','ARRUELA','A-02','Arruela red pres M18',false,'CRUZETA',2,9,'2-8 arruelas por cruzeta');
+
+    // PARAFUSOS
+    a('134700040','PARAFUSO','F-30','Parafuso cab qd 125mm M16x2',false,'CRUZETA',1,8,'1-8 parafusos por cruzeta');
+    a('134700043','PARAFUSO','F-30','Parafuso cab qd 200mm M16x2',false,'CRUZETA',1,8,'1-8 parafusos por cruzeta');
+    a('134700046','PARAFUSO','F-30','Parafuso cab qd 250mm M16x2',false,'CRUZETA',1,8,'1-8 parafusos por cruzeta');
+    a('134700047','PARAFUSO','F-30','Parafuso cab qd 300mm M16x2',false,'CRUZETA',1,8,'1-8 parafusos por cruzeta');
+    a('134700049','PARAFUSO','F-30','Parafuso cab qd 400mm M16x2',false,'CRUZETA',1,8,'1-8 parafusos por cruzeta');
+    a('134700028','PARAFUSO','F-30','Parafuso cab abaul 16x45mm',false,'CRUZETA',1,8,'1-8 parafusos por cruzeta');
+    a('134700030','PARAFUSO','F-30','Parafuso cab abaul 16x150mm',false,'CRUZETA',1,8,'1-8 parafusos por cruzeta');
+    a('134700082','PARAFUSO','F-30','Parafuso rosca dupla 16x500',false,'CRUZETA',1,8,'1-8 parafusos por cruzeta');
+
+    // PINOS
+    a('134280005','PINO','F-36','Pino iso pilar autotrav M16x2',false,'CRUZETA',2,3.5,'~3 pinos por cruzeta');
+    a('134280002','PINO','F-37','Pino curto suporte topo',false,'CRUZETA',1,2.5,'1-2 pinos curtos por cruzeta');
+
+    // PORCA
+    a('134800002','PORCA','A-21','Porca quad. M16x2',false,'CRUZETA',2,6.5,'2-6 porcas por cruzeta');
+
+    // SELA CRUZETA
+    a('134380004','SELA CRUZETA','-','Sela cruzeta 110x116mm',false,'CRUZETA',2,4,'2-3 selas por cruzeta trifasica');
+    a('134380005','SELA CRUZETA','-','Sela cruzeta',false,'CRUZETA',2,4,'2-3 selas por cruzeta');
+
+    // MAO FRANCESA
+    a('134100006','MAO FRANCESA','-','Mao francesa plana 726x38x5mm',false,'CRUZETA',0.5,2.5,'1-2 maos-francesas por cruzeta');
+
+    // GANCHO OLHAL (âncora)
+    a('134250015','GANCHO OLHAL','F-13','Gancho olhal 5000daN',true,'',0,0,'');
+
+    // MANILHA / OLHAL
+    a('134200006','MANILHA','F-22','Manilha sapatilha 5000daN',false,'GANCHO OLHAL',0.8,1.2,'1 manilha por ponto de suspensao');
+    a('134250023','OLHAL PARAFUSO','-','Olhal parafuso M16 5000daN',false,'GANCHO OLHAL',0.8,1.2,'1 olhal por ponto de suspensao');
+    a('134740023','PARAFUSO OLHAL','F-34','Parafuso olhal M16x250mm',false,'GANCHO OLHAL',0.8,1.2,'1 parafuso olhal por ponto de suspensao');
+
+    // HASTE DE ATERRAMENTO (âncora)
+    a('134600010','HASTE TERRA','F-17','Haste aco-cobreado 14,3mm 2,4m',true,'',0,0,'');
+    a('134600004','HASTE TERRA','F-17','Haste aco-cobreado 12,7mm 2,4m',true,'',0,0,'');
+
+    // CONECTOR HASTE
+    a('124140026','CONEC HASTE','M-10','Conector cunha haste 6-16mm',false,'HASTE TERRA',0.8,1.2,'1 conector por haste');
+    a('124140078','CONEC HASTE','M-10','Conector aterramento p/haste',false,'HASTE TERRA',0.8,1.2,'1 conector por haste');
+    a('124140011','CONEC HASTE','M-10','Conector cunha haste',false,'HASTE TERRA',0.8,1.2,'1 conector por haste');
+
+    // SUP PARA-RAIOS (âncora)
+    a('134190064','SUP PARA-RAIO','F-47','Suporte L para-raios 38x205',true,'',0,0,'');
+
+    // PARA-RAIOS
+    a('104010001','PARA-RAIO','E-29','Para-raios ZnO 12kV 10kA',false,'SUP PARA-RAIO',0.8,1.2,'1 para-raios por suporte');
+    a('104010004','PARA-RAIO','E-29','Para-raios ZnO 15kV',false,'SUP PARA-RAIO',0.8,1.2,'1 para-raios por suporte');
+
+    // CHAVE FUSIVEL (âncora)
+    a('105300003','CHAVE FUSIVEL','E-09','Chave fusivel 15kV 100A base C',true,'',0,0,'');
+
+    // TRAFO (âncora)
+    a('102100035','TRAFO','E-45','Trafo trifasico 13,8kV 500kVA',true,'',0,0,'');
+    a('102100036','TRAFO','E-45','Trafo trifasico 13,8kV',true,'',0,0,'');
+    a('102100030','TRAFO','E-45','Trafo monofasico',true,'',0,0,'');
+
+    // CONEC RAMAL
+    a('124010010','CONEC RAMAL','O-02','Conector cunha CuEst tipo II',true,'',0,0,'');
+    a('124010012','CONEC RAMAL','O-02','Conector cunha CuEst tipo III',true,'',0,0,'');
+
+    return m;
+}
+
+// ── classificação por descrição (fallback) ───────────────────
+
+function classificarDesc(descNorm) {
+    const mk = (familia, nt006, ehAncora, ancoraDep, razaoMin, razaoMax, regra) =>
+        ({ familia, nt006, ehAncora, ancoraDep, razaoMin, razaoMax, regra, isDesc: true });
+
+    if (descNorm.includes('CRUZETA'))
+        return mk('CRUZETA','R-02',true,'',0,0,'');
+    if (descNorm.includes('ISOLADOR') && (descNorm.includes('DISCO') || descNorm.includes('SUSPENS')))
+        return mk('ISOL SUSPENSAO','I-06',true,'',0,0,'');
+    if (descNorm.includes('HASTE') && (descNorm.includes('TERRA') || descNorm.includes('ATERR') || descNorm.includes('COBRE')))
+        return mk('HASTE TERRA','F-17',true,'',0,0,'');
+    if (descNorm.includes('CHAVE') && descNorm.includes('FUS'))
+        return mk('CHAVE FUSIVEL','E-09',true,'',0,0,'');
+    if (descNorm.includes('CHAVE'))
+        return mk('CHAVE FACA/SECC','E-10',true,'',0,0,'Chave faca/seccionadora');
+    if (descNorm.includes('TRAFO') || descNorm.includes('TRANSFORMADOR'))
+        return mk('TRAFO','E-45',true,'',0,0,'');
+    if (descNorm.includes('GANCHO') && descNorm.includes('OLHAL'))
+        return mk('GANCHO OLHAL','F-13',true,'',0,0,'');
+    if (descNorm.includes('SUPORTE') && (descNorm.includes('PARARAIO') || descNorm.includes('PARA RAIO')))
+        return mk('SUP PARA-RAIO','F-47',true,'',0,0,'');
+
+    if (descNorm.includes('ISOLADOR') && descNorm.includes('PILAR'))
+        return mk('ISOLADOR PILAR','I-05',false,'CRUZETA',2,3.5,'2-3 por cruzeta');
+    if (descNorm.includes('MAO FRANCESA'))
+        return mk('MAO FRANCESA','-',false,'CRUZETA',0.5,2.5,'1-2 por cruzeta');
+    if (temPalavra(descNorm,'SELA'))
+        return mk('SELA CRUZETA','-',false,'CRUZETA',2,4,'2-4 por cruzeta');
+    if (descNorm.includes('ARRUELA'))
+        return mk('ARRUELA','A-02',false,'CRUZETA',2,9,'2-8 por cruzeta');
+    if (descNorm.includes('PORCA'))
+        return mk('PORCA','A-21',false,'CRUZETA',2,6.5,'2-6 por cruzeta');
+    if (temPalavra(descNorm,'PINO'))
+        return mk('PINO','-',false,'CRUZETA',1,3.5,'1-3 por cruzeta');
+    if (descNorm.includes('PARAFUSO') && descNorm.includes('OLHAL'))
+        return mk('PARAFUSO OLHAL','F-34',false,'GANCHO OLHAL',0.8,1.2,'1 por ponto de suspensao');
+    if (descNorm.includes('PARAFUSO'))
+        return mk('PARAFUSO','F-30',false,'CRUZETA',1,8,'1-8 por cruzeta');
+
+    if (descNorm.includes('PARARAIO') || descNorm.includes('PARA RAIO'))
+        return mk('PARA-RAIO','E-29',false,'SUP PARA-RAIO',0.8,1.2,'1 por suporte');
+    if (descNorm.includes('MANILHA'))
+        return mk('MANILHA','F-22',false,'GANCHO OLHAL',0.8,1.2,'1 por ponto de suspensao');
+    if (descNorm.includes('OLHAL'))
+        return mk('OLHAL','-',false,'GANCHO OLHAL',0.8,1.2,'1 por ponto de suspensao');
+    if (descNorm.includes('CONECTOR') && (descNorm.includes('HASTE') || descNorm.includes('ATERR') || descNorm.includes('CUNHA')))
+        return mk('CONEC HASTE','M-10',false,'HASTE TERRA',0.8,1.2,'1 por haste');
+
+    if (descNorm.includes('CORDOALHA') || descNorm.includes('ESTICADOR') || descNorm.includes('SAPATA') ||
+        (descNorm.includes('HASTE') && descNorm.includes('ANCORA')))
+        return mk('ESTAI','ES',true,'',0,0,'Conjunto de estai');
+    if (temPalavra(descNorm,'DPS') || (descNorm.includes('PROTETOR') && descNorm.includes('SURTO')))
+        return mk('DPS','DPS',true,'',0,0,'Protetor de surto BT');
+    if (descNorm.includes('CABO') || descNorm.includes('CONDUTOR') || temPalavra(descNorm,'FIO') ||
+        temPalavra(descNorm,'CAA') || temPalavra(descNorm,'CAZ'))
+        return mk('CABO/CONDUTOR','COND',true,'',0,0,'Condutor - metros');
+    if (descNorm.includes('POSTE'))
+        return mk('POSTE','POSTE',true,'',0,0,'Poste - estrutura de suporte');
+    if (descNorm.includes('CAIXA') && (descNorm.includes('MEDI') || descNorm.includes('POLICARB') || descNorm.includes('MONOF') || descNorm.includes('POLIF')))
+        return mk('CAIXA MEDICAO','CX-M',false,'MEDIDOR',0.8,1.2,'1 caixa por medidor');
+    if (descNorm.includes('CAIXA'))
+        return mk('CAIXA','CX',true,'',0,0,'');
+    if (descNorm.includes('MEDIDOR'))
+        return mk('MEDIDOR','MED',true,'',0,0,'Medidor de energia');
+    if (descNorm.includes('LACRE'))
+        return mk('LACRE','LACRE',false,'MEDIDOR',1.8,2.2,'2 lacres por medidor');
+    if (descNorm.includes('ARMACAO'))
+        return mk('ARMACAO SEC','F-01',true,'',0,0,'Armacao secundaria BT');
+    if (descNorm.includes('ROLDANA'))
+        return mk('ROLDANA','-',false,'ARMACAO SEC',0.8,1.2,'1 roldana por armacao');
+    if (descNorm.includes('GRAMPO'))
+        return mk('GRAMPO','F-20',true,'',0,0,'Grampo de ancoragem');
+    if (temPalavra(descNorm,'ELO') || (descNorm.includes('FUSIVEL') && !descNorm.includes('CHAVE')))
+        return mk('ELO FUSIVEL','E-12',false,'CHAVE FUSIVEL',0.8,3.5,'1-3 elos por chave fusivel');
+    if (temPalavra(descNorm,'CINTA'))
+        return mk('CINTA POSTE','-',false,'POSTE',1,4,'1-4 cintas por poste');
+    if (descNorm.includes('CONECTOR') || descNorm.includes('CONEX'))
+        return mk('CONECTOR','M-01',true,'',0,0,'Conector eletrico');
+    if (temPalavra(descNorm,'LUVA'))
+        return mk('LUVA EMENDA','M-05',true,'',0,0,'Luva de emenda');
+    if (temPalavra(descNorm,'FITA') || descNorm.includes('FECHO') || descNorm.includes('FIVELA'))
+        return mk('FITA/FECHO','F-50',true,'',0,0,'Fita/fecho de aco inox');
+    if (descNorm.includes('TERMINAL') || descNorm.includes('CABECOTE') || descNorm.includes('MUFLA'))
+        return mk('TERMINAL/MUFLA','M-30',true,'',0,0,'Terminacao de cabo');
+    if (descNorm.includes('ESTRIBO'))
+        return mk('ESTRIBO','M-40',true,'',0,0,'Estribo de derivacao');
+    if (descNorm.includes('RELIGADOR') || descNorm.includes('SECCIONA') || descNorm.includes('DISJUNTOR') || descNorm.includes('REGULADOR'))
+        return mk('EQUIP MANOBRA','EQ',true,'',0,0,'Equipamento de manobra');
+    if (temPalavra(descNorm,'BUCHA'))
+        return mk('BUCHA','-',false,'CRUZETA',1,8,'Bucha/fixacao por cruzeta');
+    if (descNorm.includes('ESPACADOR') || descNorm.includes('BRACO') || descNorm.includes('LOSANGULAR'))
+        return mk('REDE COMPACTA','NT018',true,'',0,0,'Rede compacta');
+    if (descNorm.includes('ALCA') && descNorm.includes('PREFORM'))
+        return mk('ALCA PREFORMADA','F-04',true,'',0,0,'Alca preformada');
+    if (temPalavra(descNorm,'ANEL') || temPalavra(descNorm,'LACO') || temPalavra(descNorm,'ALCA'))
+        return mk('REDE COMPACTA','NT018',true,'',0,0,'Acessorio rede compacta');
+    if (descNorm.includes('ELETRODUTO'))
+        return mk('ELETRODUTO','ED',true,'',0,0,'Eletroduto/duto de descida');
+    if (descNorm.includes('ABRACADEIRA') || descNorm.includes('CANTONEIRA') || descNorm.includes('PERFIL') || descNorm.includes('CHAPA'))
+        return mk('FERRAGEM','FE',true,'',0,0,'Ferragem de fixacao');
+    if (temPalavra(descNorm,'ARAME'))
+        return mk('ARAME','AR',true,'',0,0,'Arame de amarracao');
+    if (descNorm.includes('SUPORTE'))
+        return mk('SUPORTE','SUP',true,'',0,0,'Suporte generico');
+
+    return null;
+}
+
+// ── regras de negócio ─────────────────────────────────────────
+
+function ehAderente(fam, libV, prjV, rawSitNorm) {
+    const isMarg = fam.startsWith('COND') || fam.startsWith('CABO') || fam === 'RAMAL';
+    if (isMarg && libV !== '' && prjV !== '' && !isNaN(parseFloat(libV)) && !isNaN(parseFloat(prjV))) {
+        const l = parseFloat(libV), p = parseFloat(prjV);
+        if (p === 0) return l === 0;
+        return Math.abs(l - p) <= 0.1 * Math.abs(p);
+    }
+    return rawSitNorm === 'ADERENTE';
+}
+
+function ehComCritico(famNorm) {
+    const f = famNorm.replace(/\s/g, '');
+    return f.includes('CHFUS') || f.includes('CHAVEFUS') || f.includes('PARARAIO');
+}
+
+function caboComoCOM(fam, libV) {
+    return fam === 'CABO ISOLADO' && !isNaN(parseFloat(libV)) && Math.abs(parseFloat(libV)) < 15;
+}
+
+function ehUnidadeInteira(uml) {
+    const u = normStr(uml);
+    return !['M','MT','MTS','KM','KG','G','GR','T','TON','L','LT','M2','M3'].includes(u);
+}
+
+// ── localizar aba base ────────────────────────────────────────
+
+function acharBaseInventario(wb) {
+    const ignorar = new Set(['PAINEL DO GESTOR','ANALISE SAP x PRJ','RESUMO SAP x PRJ',
+        'RACIONALIZACAO COM','ALERTA CRITICO','PRECO UNITARIO','RANKING DE RISCO']);
+    for (const name of wb.SheetNames) {
+        if (ignorar.has(name)) continue;
+        const ws = wb.Sheets[name];
+        const ref = ws['!ref'];
+        if (!ref) continue;
+        const range = XLSX.utils.decode_range(ref);
+        if (range.e.r < 1) continue;
+        let hasSAP = false, hasPRJ = false;
+        for (let c = range.s.c; c <= range.e.c; c++) {
+            const addr = XLSX.utils.encode_cell({ r: 0, c });
+            const cell = ws[addr];
+            if (!cell) continue;
+            const h = normStr(cell.v);
+            if (h === 'MAT LIB SAP') hasSAP = true;
+            if (h === 'MAT PRJ CAD') hasPRJ = true;
+        }
+        if (hasSAP && hasPRJ) return name;
+    }
+    return null;
+}
+
+// ── leitura da aba base para array de objetos ────────────────
+
+function lerBase(wb, sheetName) {
+    const ws = wb.Sheets[sheetName];
+    const raw = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' });
+    if (raw.length < 2) return { colunas: {}, dados: [] };
+
+    const hdrs = raw[0].map(h => normStr(h));
+    const colunas = {};
+    const mapeamento = {
+        'PEP3NIVEL':'pep3', 'PEP4NIVEL':'pep4', 'NOTA':'nota', 'CLASSE':'classe',
+        'COD MAT':'cod', 'VALOR':'valor', 'DESC MAT':'desc', 'UND':'und',
+        'MAT LIB SAP':'libSAP', 'MAT PRJ CAD':'prjCAD', 'TIPO':'tipo',
+        'FAMILIA':'familia', 'SIT MAT':'sit', 'TIPO PEP':'tipoPep'
+    };
+    hdrs.forEach((h, i) => { if (mapeamento[h]) colunas[mapeamento[h]] = i; });
+
+    const dados = raw.slice(1).map(row => {
+        const obj = {};
+        for (const [key, idx] of Object.entries(colunas)) {
+            obj[key] = row[idx] !== undefined ? row[idx] : '';
+        }
+        return obj;
+    }).filter(r => r.pep4 || r.cod);
+
+    return { colunas, dados };
+}
+
+// ── ANÁLISE SAP × PRJ ─────────────────────────────────────────
+
+function processarSAPxPRJ(dados) {
+    const aprova   = new Map(); // pep4 → bool
+    const temUC    = new Map(); // pep4 → bool
+    const p4pep3   = new Map(); // pep4 → pep3
+    const pep3Rep  = new Map(); // pep3 → bool
+    const pep3UC   = new Map(); // pep3 → bool
+    const pep3Fam  = new Map(); // pep3 → famílias culpadas
+
+    let sumValor = 0, sumNaoAder = 0;
+    const allP4 = new Set();
+
+    for (const row of dados) {
+        const pep4   = String(row.pep4 || '').trim();
+        const pep3   = String(row.pep3 || '').trim();
+        const tipo   = normStr(row.tipo);
+        const sitN   = normStr(row.sit);
+        const famN   = normStr(row.familia);
+        const libV   = row.libSAP;
+        const prjV   = row.prjCAD;
+        const valor  = toNum(row.valor);
+
+        if (pep4) {
+            allP4.add(pep4);
+            if (!p4pep3.has(pep4)) p4pep3.set(pep4, pep3);
+        }
+
+        const ehAval = (tipo === 'UC') || (tipo === 'COM' && ehComCritico(famN));
+        if (pep4 && ehAval && !caboComoCOM(famN, libV)) {
+            if (!temUC.has(pep4)) temUC.set(pep4, true);
+            if (!aprova.has(pep4)) aprova.set(pep4, true);
+            if (!ehAderente(famN, libV, prjV, sitN) && sitN !== 'NULO') {
+                aprova.set(pep4, false);
+                const f = String(row.familia || '(sem familia)').trim();
+                pep3Fam.set(pep3, pep3Fam.has(pep3) ? pep3Fam.get(pep3) + ', ' + f : f);
+            }
+        }
+
+        sumValor += valor;
+        if (!ehAderente(famN, libV, prjV, sitN) && sitN !== 'NULO') sumNaoAder += Math.abs(valor);
+    }
+
+    // rollup PEP3
+    for (const [p4, p3] of p4pep3) {
+        if (!temUC.has(p4)) continue;
+        if (!pep3UC.has(p3)) pep3UC.set(p3, true);
+        if (!pep3Rep.has(p3)) pep3Rep.set(p3, false);
+        if (!aprova.get(p4)) pep3Rep.set(p3, true);
+    }
+
+    let nAprov = 0, nReprov = 0;
+    for (const [, rep] of pep3Rep) { if (rep) nReprov++; else nAprov++; }
+
+    // enriquecer linhas
+    const linhas = dados.map(row => {
+        const pep4  = String(row.pep4 || '').trim();
+        const pep3  = String(row.pep3 || '').trim();
+        const tipo  = normStr(row.tipo);
+        const sitN  = normStr(row.sit);
+        const famN  = normStr(row.familia);
+        const libV  = row.libSAP;
+        const prjV  = row.prjCAD;
+
+        let sitText = String(row.sit || '').trim();
+        if ((famN.startsWith('COND') || famN.startsWith('CABO') || famN === 'RAMAL') &&
+            !isNaN(parseFloat(libV)) && !isNaN(parseFloat(prjV))) {
+            sitText = ehAderente(famN, libV, prjV, sitN) ? 'ADERENTE' : 'NAO ADERENTE';
+        }
+
+        const p3Rep = pep3UC.has(pep3) && pep3Rep.get(pep3);
+        let aprovacao, motivo;
+
+        if (p3Rep) {
+            aprovacao = 'REPROVADO';
+            if (tipo === 'UC' && !ehAderente(famN, libV, prjV, sitN) && sitN !== 'NULO')
+                motivo = `UC não aderente: SAP=${libV} / PRJ=${prjV}`;
+            else if (caboComoCOM(famN, libV))
+                motivo = `Cabo isolado arrastado | Família reprovada: ${pep3Fam.get(pep3) || ''}`;
+            else
+                motivo = `Arrastado pela reprovação do PEP3 | Família reprovada: ${pep3Fam.get(pep3) || ''}`;
+        } else if (caboComoCOM(famN, libV)) {
+            aprovacao = 'APROVADO';
+            motivo = 'Cabo isolado < 15m - isento de UC';
+        } else if (!pep3UC.has(pep3)) {
+            aprovacao = 'SEM UC';
+            motivo = 'PEP3 sem UC nem COM crítico para avaliar';
+        } else {
+            aprovacao = 'APROVADO';
+            motivo = 'Todos os itens avaliados do PEP3 aderentes';
+        }
+
+        return { ...row, sitText, aprovacao, motivo };
+    });
+
+    return {
+        linhas,
+        nPep4: allP4.size,
+        nAprov,
+        nReprov,
+        sumValor,
+        sumNaoAder,
+        pep3Rep,
+        pep3UC,
+    };
+}
+
+// ── RACIONALIZAÇÃO COM (NT.006) ───────────────────────────────
+
+function processarCOMInventario(dados) {
+    const nt006 = criarMapaNT006();
+    const liquidQ    = new Map(); // "pep4|cod" → qtd
+    const liquidInfo = new Map(); // "pep4|cod" → {pep4, pep3, cod, desc, und}
+    const ancoras    = new Map(); // "pep4|familia" → qtd
+    const ancorasP3  = new Map(); // "pep3|familia" → qtd
+    const ancoraInfo = new Map(); // "pep4|familia" → "cod - desc"
+
+    for (const row of dados) {
+        if (normStr(row.tipo) !== 'COM') continue;
+        const pep4 = String(row.pep4 || '').trim();
+        const pep3 = String(row.pep3 || '').trim();
+        const cod  = normCod(row.cod);
+        const qtd  = toNum(row.libSAP);
+        const key  = `${pep4}|${cod}`;
+
+        if (liquidQ.has(key)) {
+            liquidQ.set(key, liquidQ.get(key) + qtd);
+        } else {
+            liquidQ.set(key, qtd);
+            liquidInfo.set(key, { pep4, pep3, cod, desc: String(row.desc || ''), und: String(row.und || '') });
+        }
+    }
+
+    // calcular âncoras
+    for (const [key, qtd] of liquidQ) {
+        const [pep4] = key.split('|');
+        const { pep3, cod, desc } = liquidInfo.get(key);
+        let tm = nt006.has(cod) ? nt006.get(cod) : classificarDesc(normStr(desc));
+        if (!tm || !tm.ehAncora) continue;
+        const aKey  = `${pep4}|${tm.familia}`;
+        const aKey3 = `${pep3}|${tm.familia}`;
+        ancoras.set(aKey,   (ancoras.get(aKey)  || 0) + qtd);
+        ancorasP3.set(aKey3,(ancorasP3.get(aKey3)||0) + qtd);
+        if (!ancoraInfo.has(aKey)) ancoraInfo.set(aKey, `${cod} - ${desc}`);
+    }
+
+    const linhas = [];
+    const processedKeys = [...liquidQ.keys()].sort();
+
+    for (const key of processedKeys) {
+        const [pep4] = key.split('|');
+        const { pep3, cod, desc, und } = liquidInfo.get(key);
+        const qtdL = liquidQ.get(key);
+        const descN = normStr(desc);
+        let tm = nt006.has(cod) ? nt006.get(cod) : classificarDesc(descN);
+
+        let familia='SEM REFERENCIA', nt006cod='-', ehAnc=false, ancoraFam='';
+        let faixaMin=0, faixaMax=0, regra='', status='SEM REFERENCIA';
+        let ancNivel3=false, ligadoA='-';
+
+        if (tm) {
+            familia   = tm.familia;
+            nt006cod  = tm.nt006 || tm.CodNT006 || '-';
+            ehAnc     = tm.ehAncora;
+            ancoraFam = tm.ancoraDep || '';
+            regra     = tm.regra || tm.DescrRegra || '';
+
+            if (ehAnc) {
+                status = qtdL < 0 ? 'ESTORNO SEM ENTRADA' : qtdL === 0 ? 'QTD ZERO' : 'ANCORA';
+                ligadoA = '(é a própria referência)';
+            } else {
+                const ancKey  = `${pep4}|${ancoraFam}`;
+                const ancKey3 = `${pep3}|${ancoraFam}`;
+                let qtdAnc = ancoras.get(ancKey) || 0;
+                if (qtdAnc <= 0 && ancorasP3.get(ancKey3) > 0) {
+                    qtdAnc = ancorasP3.get(ancKey3);
+                    ancNivel3 = true;
+                }
+                if (qtdAnc > 0) {
+                    faixaMin = qtdAnc * (tm.razaoMin || 0);
+                    faixaMax = qtdAnc * (tm.razaoMax || 0);
+                    if (ehUnidadeInteira(und)) {
+                        faixaMin = Math.floor(faixaMin);
+                        faixaMax = Math.ceil(faixaMax);
+                    }
+                    status = qtdL < 0 ? 'ESTORNO SEM ENTRADA'
+                           : qtdL < faixaMin ? 'INSUFICIENTE'
+                           : faixaMax > 0 && qtdL >= faixaMax * 2 ? 'EXCESSO EXAGERADO'
+                           : qtdL > faixaMax ? 'EXCESSO'
+                           : 'OK';
+                    const ai = ancoraInfo.get(ancKey);
+                    ligadoA = ai ? `${ai} (${ancoraFam}, qtd ${qtdAnc.toFixed(2).replace(/\.?0+$/,'')})` : ancoraFam;
+                    if (ancNivel3) ligadoA += ' [agregada no PEP3]';
+                } else {
+                    status = 'SEM ANCORA';
+                    ligadoA = `${ancoraFam} (AUSENTE no PEP)`;
+                }
+            }
+        }
+
+        const previstoTxt = faixaMax > 0
+            ? `${faixaMin.toFixed(2).replace(/\.?0+$/,'')} a ${faixaMax.toFixed(2).replace(/\.?0+$/, '')}`
+            : '-';
+
+        const obs = {
+            'ANCORA':             'Material de referência (âncora)',
+            'OK':                 'Dentro do previsto',
+            'INSUFICIENTE':       `Veio MENOS que o previsto (faltaram ${(faixaMin - qtdL).toFixed(2).replace(/\.?0+$/, '')})`,
+            'EXCESSO':            `Veio MAIS que o previsto (excedeu ${(qtdL - faixaMax).toFixed(2).replace(/\.?0+$/, '')})`,
+            'EXCESSO EXAGERADO':  `Veio MUITO acima do previsto (${(faixaMax > 0 ? qtdL/faixaMax : 0).toFixed(1)}x o máximo)`,
+            'SEM ANCORA':         `Sem ${ancoraFam} no PEP para comparar`,
+            'QTD ZERO':           'Quantidade zero na obra',
+            'ESTORNO SEM ENTRADA':'Estorno sem entrada correspondente',
+            'SEM REFERENCIA':     'Material fora da NT.006',
+        }[status] || '';
+
+        linhas.push({ pep4, pep3, cod, desc, familia, nt006: nt006cod, ligadoA, qtd: qtdL, previsto: previstoTxt, status, obs, isDesc: !!(tm && tm.isDesc) });
+    }
+
+    return { linhas };
+}
+
+// ── ALERTAS CRÍTICOS ──────────────────────────────────────────
+
+function processarAlertaCritico(dados, precos) {
+    precos = precos || new Map();
+    const alertas = [];
+    const p4pep3  = new Map();
+    const p4odi   = new Map();
+    const p4uc    = new Map();
+    const ucNzP4  = new Map();
+    const p4com   = new Map();
+    const pep3All = new Map();
+    const pep3UC  = new Map();
+    const medP4   = new Map();
+    const lacreP4 = new Map();
+    const medPep3 = new Map();
+
+    for (const row of dados) {
+        const pep4   = String(row.pep4 || '').trim();
+        const pep3   = String(row.pep3 || '').trim();
+        const tipo   = normStr(row.tipo);
+        const tipoPep= normStr(row.tipoPep || '');
+
+        if (!pep4) continue;
+        if (!p4pep3.has(pep4)) p4pep3.set(pep4, pep3);
+        if (!p4odi.has(pep4)) p4odi.set(pep4, false);
+        if (tipoPep === 'I' || pep4.endsWith('.I')) p4odi.set(pep4, true);
+        if (tipo === 'UC') { p4uc.set(pep4, true); if (toNum(row.libSAP) !== 0) ucNzP4.set(pep4, true); }
+        if (tipo === 'COM') p4com.set(pep4, true);
+
+        if (pep3) {
+            if (!pep3All.has(pep3)) pep3All.set(pep3, pep4);
+            if (tipo === 'UC') pep3UC.set(pep3, true);
+        }
+
+        const suf = pep4.slice(-2).toUpperCase();
+        if (suf === '.M') {
+            const dN = normStr(String(row.desc || '') + ' ' + normStr(String(row.familia || '')));
+            if (!medPep3.has(pep4)) medPep3.set(pep4, pep3);
+            if (dN.includes('MEDIDOR') && !dN.includes('CAIXA')) medP4.set(pep4, (medP4.get(pep4) || 0) + toNum(row.libSAP));
+            if (dN.includes('LACRE')) lacreP4.set(pep4, (lacreP4.get(pep4) || 0) + toNum(row.libSAP));
+        }
+    }
+
+    // ODI sem UC / sem COM
+    for (const [pep4, pep3] of p4pep3) {
+        if (p4odi.get(pep4) && !ucNzP4.has(pep4))
+            alertas.push({ tipo:'ODI SEM UC', pep3, pep4, motivo: p4uc.has(pep4) ? 'ODI com TODAS as UC zeradas (MAT LIB SAP = 0)' : 'ODI sem nenhum item TIPO=UC' });
+        if (p4odi.get(pep4) && !p4com.has(pep4))
+            alertas.push({ tipo:'ODI SEM COM', pep3, pep4, motivo:'ODI sem nenhum material TIPO=COM' });
+    }
+
+    // PEP3 sem UC
+    for (const [pep3, pep4] of pep3All) {
+        if (!pep3UC.has(pep3))
+            alertas.push({ tipo:'PEP SEM UC', pep3, pep4, motivo:'PEP3 sem nenhum item TIPO=UC cadastrado' });
+    }
+
+    // por linha
+    for (const row of dados) {
+        const pep4  = String(row.pep4 || '').trim();
+        const pep3  = String(row.pep3 || '').trim();
+        const tipo  = normStr(row.tipo);
+        const famN  = normStr(String(row.familia || ''));
+        const cod   = String(row.cod || '').trim();
+        const desc  = String(row.desc || '');
+        const valor = toNum(row.valor);
+        const qtd   = toNum(row.libSAP);
+        const suf   = pep4.slice(-2).toUpperCase();
+
+        if (!pep4) continue;
+
+        if ((suf === '.M' || pep4.includes('.M.')) && famN.includes('POSTE'))
+            alertas.push({ tipo:'POSTE EM PEP .M', pep3, pep4, cod, desc, familia: String(row.familia || ''), valor, qtd, motivo:'Poste em PEP4 com sufixo .M (ODM)' });
+        if ((suf === '.S' || pep4.includes('.S.')) && famN.includes('POSTE'))
+            alertas.push({ tipo:'POSTE EM PEP .S', pep3, pep4, cod, desc, familia: String(row.familia || ''), valor, qtd, motivo:'Poste em PEP4 com sufixo .S (ODS)' });
+
+        const odTp = {'.I':'ODI','.M':'ODM','.S':'ODS','.D':'ODD'}[suf] || '';
+        if (['ODI','ODM','ODS'].includes(odTp) && qtd < 0 && cod)
+            alertas.push({ tipo:'MATERIAL NEGATIVO', pep3, pep4, cod, desc, familia: String(row.familia || ''), valor, qtd, motivo:`Material NEGATIVO em PEP ${odTp} (esperado positivo)` });
+        else if (odTp === 'ODD' && qtd > 0 && cod)
+            alertas.push({ tipo:'MATERIAL POSITIVO EM ODD', pep3, pep4, cod, desc, familia: String(row.familia || ''), valor, qtd, motivo:'Material POSITIVO em PEP ODD (esperado negativo/desmonte)' });
+
+        if (tipo === 'UC' && !famN.startsWith('COND') && !famN.startsWith('CABO') && !cod)
+            alertas.push({ tipo:'UC - COD MATERIAL VAZIO', pep3, pep4, desc, familia: String(row.familia || ''), valor, motivo:'Código de material não preenchido' });
+
+        // subvalorização de UC (só quando há base de preços carregada)
+        if (precos.size > 0 && tipo === 'UC' && !famN.startsWith('COND') && !famN.startsWith('CABO') && cod) {
+            const codN = normCod(cod);
+            if (precos.has(codN) && qtd > 0 && valor > 0) {
+                const refP = precos.get(codN), unit = valor / qtd;
+                if (refP > 0 && unit < refP * TOL_SUBVAL && (refP - unit) * qtd >= MIN_DIVERG_RS)
+                    alertas.push({ tipo:'UC SUBVALORIZADO', pep3, pep4, cod, desc, familia: String(row.familia || ''), valor, qtd, pu: unit, ref: refP,
+                        motivo:`PU ${fmt2(unit)} abaixo de ${Math.round(TOL_SUBVAL*100)}% da referência (${fmt2(refP)})` });
+            } else if (codN && qtd > 0 && valor > 0) {
+                alertas.push({ tipo:'UC - PRECO NAO ENCONTRADO', pep3, pep4, cod, desc, familia: String(row.familia || ''), valor, qtd,
+                    motivo:'Material sem preço de referência na base de preços' });
+            }
+        }
+    }
+
+    // lacre × medidor
+    for (const [pep4, qMed] of medP4) {
+        const qLac = lacreP4.get(pep4) || 0;
+        const espLac = 2 * qMed;
+        if (qMed > 0 && qLac !== espLac) {
+            const pep3 = medPep3.get(pep4) || '';
+            alertas.push({
+                tipo:'LACRE x MEDIDOR', pep3, pep4, familia:'MEDIDOR / LACRE', qtd: qLac, referencia: espLac,
+                motivo:`${qMed} medidor(es) → esperado ${espLac} lacres, veio ${qLac} ${qLac < espLac ? `(FALTAM ${espLac-qLac})` : `(SOBRAM ${qLac-espLac})`}`
+            });
+        }
+    }
+    for (const [pep4, qLac] of lacreP4) {
+        if (!medP4.has(pep4) && qLac !== 0)
+            alertas.push({ tipo:'LACRE x MEDIDOR', pep3: medPep3.get(pep4)||'', pep4, familia:'MEDIDOR / LACRE', qtd: qLac, referencia: 0, motivo:`Lacre sem medidor no PEP ODM (veio ${qLac})` });
+    }
+
+    return { alertas };
+}
+
+// ── RANKING DE RISCO ──────────────────────────────────────────
+
+function processarRankingRisco(resultSAP, resultCOM, resultAlertas, resultPU) {
+    const valOb = new Map(), repOb = new Map(), alOb = new Map(), comOb = new Map(),
+          puOb = new Map(), sobOb = new Map();
+
+    // dados da análise SAP×PRJ
+    for (const row of resultSAP.linhas) {
+        const p3 = String(row.pep3 || '').trim();
+        if (!p3) continue;
+        valOb.set(p3, (valOb.get(p3) || 0) + Math.abs(toNum(row.valor)));
+        if (!repOb.has(p3)) repOb.set(p3, false);
+        if (row.aprovacao === 'REPROVADO') repOb.set(p3, true);
+    }
+
+    // alertas
+    for (const al of resultAlertas.alertas) {
+        const p3 = al.pep3;
+        if (!p3) continue;
+        alOb.set(p3, (alOb.get(p3) || 0) + 1);
+        if (!valOb.has(p3)) valOb.set(p3, 0);
+    }
+
+    // divergências de preço unitário + sobrepreço potencial
+    if (resultPU) {
+        for (const row of resultPU.linhas) {
+            const p3 = row.pep3;
+            if (!p3) continue;
+            if (row.status === 'ABAIXO DO MINIMO' || row.status === 'ACIMA DO MAXIMO') {
+                puOb.set(p3, (puOb.get(p3) || 0) + 1);
+                if (!valOb.has(p3)) valOb.set(p3, 0);
+                if (row.sobre > 0) sobOb.set(p3, (sobOb.get(p3) || 0) + row.sobre);
+            }
+        }
+    }
+
+    // COM fora do previsto
+    for (const row of resultCOM.linhas) {
+        const p3 = row.pep3;
+        if (!p3) continue;
+        if (['INSUFICIENTE','EXCESSO','EXCESSO EXAGERADO','QTD ZERO'].includes(row.status)) {
+            comOb.set(p3, (comOb.get(p3) || 0) + 1);
+            if (!valOb.has(p3)) valOb.set(p3, 0);
+        }
+    }
+
+    const obras = [];
+    for (const [p3] of valOb) {
+        let score = 0;
+        if (repOb.get(p3)) score += PESO_REPROV;
+        score += Math.min((alOb.get(p3) || 0) * PESO_ALERTA, CAP_ALERTA);
+        score += Math.min((puOb.get(p3) || 0) * PESO_PU, CAP_PU);
+        score += Math.min((comOb.get(p3) || 0) * PESO_COM, CAP_COM);
+        if (score > 100) score = 100;
+
+        const risco = score >= 60 ? 'ALTO' : score >= 30 ? 'MEDIO' : score > 0 ? 'BAIXO' : 'OK';
+        const parts = [];
+        if (repOb.get(p3)) parts.push('REPROVADO na análise SAP×PRJ');
+        if (alOb.get(p3)) parts.push(`${alOb.get(p3)} alerta(s) crítico(s)`);
+        if (puOb.get(p3)) {
+            let t = `${puOb.get(p3)} diverg. de preço`;
+            if (sobOb.get(p3) > 0) t += ` (sobrepreço R$ ${fmt2(sobOb.get(p3))})`;
+            parts.push(t);
+        }
+        if (comOb.get(p3)) parts.push(`${comOb.get(p3)} COM fora do previsto`);
+        const diagnostico = parts.join(' | ') || 'Sem apontamentos';
+
+        obras.push({ pep3: p3, valor: valOb.get(p3)||0, situacao: repOb.get(p3) ? 'REPROVADO' : 'APROVADO',
+            alertas: alOb.get(p3)||0, divergPU: puOb.get(p3)||0, sobrepreco: sobOb.get(p3)||0, comFora: comOb.get(p3)||0,
+            score, risco, diagnostico });
+    }
+
+    obras.sort((a, b) => b.score - a.score || b.valor - a.valor);
+    return { obras };
+}
+
+// ── BASE DE PREÇOS ────────────────────────────────────────────
+
+// Faixa MIN/MAX por código. Procura aba interna no workbook principal
+// (BASE PRECOS / BASE DE PRECOS / BASE DE PREÇOS); se não houver e um
+// workbook de preços for fornecido, usa a aba correspondente dele (ou a 1ª).
+// Colunas: MATERIAL | TEXTO MATERIAL | MIN PU | MAX PU. Retorna Map cod → {min,max,texto}.
+function carregarFaixaPrecos(wb, wbPrecos) {
+    const fx = new Map();
+    const faixaNomes = ['BASE PRECOS', 'BASE DE PRECOS'];
+
+    let src = null, sheetName = null;
+    for (const n of (wb.SheetNames || [])) if (faixaNomes.includes(normStr(n))) { src = wb; sheetName = n; break; }
+    if (!src && wbPrecos && wbPrecos.SheetNames) {
+        for (const n of wbPrecos.SheetNames) if (faixaNomes.includes(normStr(n))) { src = wbPrecos; sheetName = n; break; }
+        if (!src && wbPrecos.SheetNames.length) { src = wbPrecos; sheetName = wbPrecos.SheetNames[0]; }
+    }
+    if (!src) return fx;
+
+    const raw = XLSX.utils.sheet_to_json(src.Sheets[sheetName], { header: 1, defval: '' });
+    if (raw.length < 2) return fx;
+
+    const hdr = raw[0].map(h => normStr(h));
+    let cMat = -1, cTxt = -1, cMin = -1, cMax = -1;
+    hdr.forEach((h, i) => {
+        if (h === 'MATERIAL') cMat = i;
+        else if (h === 'TEXTO MATERIAL') cTxt = i;
+        else if (h === 'MIN PU') cMin = i;
+        else if (h === 'MAX PU') cMax = i;
+    });
+    if (cMat < 0) cMat = 0;
+    if (cTxt < 0) cTxt = 1;
+    if (cMin < 0) cMin = 3;
+    if (cMax < 0) cMax = 4;
+
+    for (let r = 1; r < raw.length; r++) {
+        const cod = normCod(raw[r][cMat]);
+        if (cod && !fx.has(cod))
+            fx.set(cod, { min: toNum(raw[r][cMin]), max: toNum(raw[r][cMax]), texto: String(raw[r][cTxt] || '').trim() });
+    }
+    return fx;
+}
+
+// Preço de referência (único) por código, p/ alerta de subvalorização.
+// Prioriza aba interna "PRECOS" (cod col 1, preço col 2); senão usa o ponto
+// médio (min+max)/2 da faixa.
+function carregarPrecos(wb, faixa) {
+    const precos = new Map();
+    const sheetName = (wb.SheetNames || []).find(n => normStr(n) === 'PRECOS');
+    if (sheetName) {
+        const raw = XLSX.utils.sheet_to_json(wb.Sheets[sheetName], { header: 1, defval: '' });
+        for (let r = 1; r < raw.length; r++) {
+            const cod = normCod(raw[r][0]), p = toNum(raw[r][1]);
+            if (cod && p > 0 && !precos.has(cod)) precos.set(cod, p);
+        }
+    }
+    if (precos.size === 0 && faixa) {
+        for (const [cod, f] of faixa) {
+            let mx = f.max; if (mx <= 0) mx = f.min;
+            const md = (f.min + mx) / 2;
+            if (md > 0) precos.set(cod, md);
+        }
+    }
+    return precos;
+}
+
+// ── PREÇO UNITÁRIO ────────────────────────────────────────────
+
+function processarPrecoUnitario(dados, faixa) {
+    const linhas = [];
+    let nDiverg = 0, sobreprecoTotal = 0;
+
+    for (const row of dados) {
+        const cod   = normCod(row.cod);
+        const qtd   = toNum(row.libSAP);
+        const valor = toNum(row.valor);
+        if (!cod || qtd === 0 || valor === 0) continue;
+
+        const pu = valor / qtd;
+        const f  = faixa.get(cod);
+        let status, obs, mn = '', mx = '', sobre = 0;
+
+        if (f) {
+            mn = f.min; mx = f.max;
+            if (pu < mn) {
+                status = 'ABAIXO DO MINIMO'; obs = `PU ${fmt2(pu)} < min ${fmt2(mn)}`; nDiverg++;
+            } else if (pu > mx) {
+                status = 'ACIMA DO MAXIMO'; obs = `PU ${fmt2(pu)} > max ${fmt2(mx)}`; nDiverg++;
+                if (qtd > 0) { sobre = (pu - mx) * qtd; sobreprecoTotal += sobre; }
+            } else {
+                status = 'DENTRO'; obs = `Dentro da faixa (${fmt2(mn)} a ${fmt2(mx)})`;
+            }
+        } else {
+            status = 'SEM REFERENCIA'; obs = 'Material sem faixa na base de preços';
+        }
+
+        const pep4U   = String(row.pep4 || '').trim().toUpperCase();
+        const suf     = pep4U.slice(-2);
+        const tipoPep = normStr(row.tipoPep || '');
+        const tipoOD  = suf === '.I' ? 'ODI' : suf === '.M' ? 'ODM' : suf === '.S' ? 'ODS' : suf === '.D' ? 'ODD'
+                      : tipoPep === 'I' ? 'ODI' : tipoPep === 'M' ? 'ODM' : tipoPep === 'S' ? 'ODS' : tipoPep === 'D' ? 'ODD' : '-';
+
+        linhas.push({
+            pep3: String(row.pep3 || '').trim(), pep4: String(row.pep4 || '').trim(),
+            tipo: String(row.tipo || '').trim(), cod, desc: String(row.desc || ''), und: String(row.und || ''),
+            qtd, valor, pu, min: f ? mn : '', max: f ? mx : '', status, obs, tipoOD, sobre
+        });
+    }
+
+    return { linhas, nDiverg, sobreprecoTotal };
+}
+
+// ── ENTRY POINT ───────────────────────────────────────────────
+
+function gerarInventario(wb, wbPrecos) {
+    const sheetName = acharBaseInventario(wb);
+    if (!sheetName) return { erro: 'Nenhuma aba com "MAT LIB SAP" e "MAT PRJ CAD" foi encontrada.' };
+
+    const { dados } = lerBase(wb, sheetName);
+    if (!dados.length) return { erro: 'A aba base está vazia.' };
+
+    const faixa     = carregarFaixaPrecos(wb, wbPrecos);
+    const temPrecos = faixa.size > 0;
+    const precos    = temPrecos ? carregarPrecos(wb, faixa) : new Map();
+
+    const resultSAP     = processarSAPxPRJ(dados);
+    const resultCOM     = processarCOMInventario(dados);
+    const resultPU      = temPrecos ? processarPrecoUnitario(dados, faixa) : { linhas: [], nDiverg: 0, sobreprecoTotal: 0 };
+    const resultAlertas = processarAlertaCritico(dados, precos);
+    const resultRanking = processarRankingRisco(resultSAP, resultCOM, resultAlertas, resultPU);
+
+    return { sheetName, temPrecos, resultSAP, resultCOM, resultPU, resultAlertas, resultRanking };
+}
+
+window.Inventario = { gerarInventario };
+
+</script>
+<script>
+'use strict';
+
+// ============================================================
+// app.js — UI layer
+// ============================================================
+
+let RESULTADO = null;
+let currentFileName = '';
+let currentWB = null;
+let currentWBPrecos = null;
+
+// ── COLORS MAP ────────────────────────────────────────────────
+
+const ALERTA_COLORS = {
+    'ODI SEM UC':                '#D97706',
+    'ODI SEM COM':               '#1D4ED8',
+    'PEP SEM UC':                '#C2410C',
+    'MATERIAL NEGATIVO':         '#B91C1C',
+    'MATERIAL POSITIVO EM ODD':  '#D97706',
+    'POSTE EM PEP .M':           '#1D4ED8',
+    'POSTE EM PEP .S':           '#0F766E',
+    'LACRE x MEDIDOR':           '#6D28D9',
+    'UC SUBVALORIZADO':          '#B91C1C',
+    'UC - PRECO NAO ENCONTRADO': '#92400E',
+    'UC - COD MATERIAL VAZIO':   '#6B7280',
+    'PU ABAIXO MIN':             '#92400E',
+    'PU ACIMA MAX':              '#B91C1C',
+};
+
+function alertaColor(tipo) { return ALERTA_COLORS[tipo] || '#6B7280'; }
+
+// ── FORMATAÇÃO ────────────────────────────────────────────────
+
+function fmtMoeda(v) {
+    const a = Math.abs(v);
+    if (a >= 1e6) return 'R$ ' + (v/1e6).toFixed(1) + ' MM';
+    if (a >= 1e3) return 'R$ ' + (v/1e3).toFixed(0).replace(/\B(?=(\d{3})+(?!\d))/g,'.') + ' mil';
+    return 'R$ ' + v.toFixed(2).replace('.', ',');
+}
+
+function fmtNum(v) { return v.toLocaleString('pt-BR'); }
+
+function chipAprov(ap) {
+    const map = { 'APROVADO':'aprovado','REPROVADO':'reprovado','SEM UC':'semuc' };
+    const cls = map[ap] || 'semuc';
+    return `<span class="chip chip-${cls}">${ap}</span>`;
+}
+
+function chipSit(s) {
+    const t = s.toUpperCase();
+    if (t.includes('NAO ADER') || t.includes('NÃO ADER')) return `<span class="chip chip-naoaderente">${s}</span>`;
+    if (t.includes('ADERENTE')) return `<span class="chip chip-aderente">${s}</span>`;
+    if (t.includes('NULO')) return `<span class="chip chip-nulo">${s}</span>`;
+    return `<span class="chip chip-semrisco">${s}</span>`;
+}
+
+function chipStatus(st) {
+    const map = {
+        'OK':'ok','ANCORA':'ancora','EXCESSO':'excesso','EXCESSO EXAGERADO':'exagerado',
+        'INSUFICIENTE':'insuficiente','SEM ANCORA':'semancora','QTD ZERO':'qdtzero',
+        'ESTORNO SEM ENTRADA':'estorno','SEM REFERENCIA':'semreferencia'
+    };
+    return `<span class="chip chip-${map[st]||'semreferencia'}">${st}</span>`;
+}
+
+function chipRisco(r) {
+    const map = { 'ALTO':'alto','MEDIO':'medio','BAIXO':'baixo','OK':'semrisco' };
+    return `<span class="chip chip-${map[r]||'semrisco'}">${r}</span>`;
+}
+
+function chipPU(s) {
+    const map = { 'DENTRO':'ok','ABAIXO DO MINIMO':'insuficiente','ACIMA DO MAXIMO':'reprovado','SEM REFERENCIA':'semreferencia' };
+    return `<span class="chip chip-${map[s]||'semreferencia'}">${s}</span>`;
+}
+
+function fmt2js(v) {
+    const n = parseFloat(v);
+    return isNaN(n) ? '' : n.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+// ── TABLE BUILDER ─────────────────────────────────────────────
+
+class DataTable {
+    constructor(containerEl, { columns, data, pageSize = 50, defaultSort = null }) {
+        this.container = containerEl;
+        this.columns   = columns;
+        this.allData   = data;
+        this.filtered  = [...data];
+        this.pageSize  = pageSize;
+        this.page      = 1;
+        this.sortCol   = defaultSort ? defaultSort[0] : null;
+        this.sortDir   = defaultSort ? defaultSort[1] : 'asc';
+        this.render();
+    }
+
+    filter(term, colKey) {
+        const t = (term || '').toLowerCase();
+        this.filtered = this.allData.filter(row => {
+            if (!t) return true;
+            if (colKey) return String(row[colKey] || '').toLowerCase().includes(t);
+            return this.columns.some(c => String(row[c.key] || '').toLowerCase().includes(t));
+        });
+        this.page = 1;
+        this.renderBody();
+        this.renderPager();
+    }
+
+    filterExact(val, colKey) {
+        this.filtered = this.allData.filter(row => !val || String(row[colKey] || '') === val);
+        this.page = 1;
+        this.renderBody();
+        this.renderPager();
+    }
+
+    sort(key) {
+        if (this.sortCol === key) this.sortDir = this.sortDir === 'asc' ? 'desc' : 'asc';
+        else { this.sortCol = key; this.sortDir = 'asc'; }
+        const d = this.sortDir === 'asc' ? 1 : -1;
+        this.filtered.sort((a, b) => {
+            const va = a[key], vb = b[key];
+            if (typeof va === 'number' && typeof vb === 'number') return (va - vb) * d;
+            return String(va || '').localeCompare(String(vb || '')) * d;
+        });
+        this.renderBody();
+        this.renderHeaders();
+    }
+
+    getPage() {
+        const start = (this.page - 1) * this.pageSize;
+        return this.filtered.slice(start, start + this.pageSize);
+    }
+
+    render() {
+        this.container.innerHTML = `
+        <div class="table-toolbar">
+          <div style="display:flex;gap:8px;flex-wrap:wrap;" class="toolbar-left"></div>
+          <div style="display:flex;align-items:center;gap:8px;">
+            <span class="table-count"></span>
+            <button class="export-btn" onclick="this.closest('.table-wrap').dispatchEvent(new Event('export'))">⬇ CSV</button>
+          </div>
+        </div>
+        <div style="overflow-x:auto">
+          <table class="data-table">
+            <thead><tr></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+        <div class="table-pagination"></div>`;
+        this.thead = this.container.querySelector('thead tr');
+        this.tbody = this.container.querySelector('tbody');
+        this.pager = this.container.querySelector('.table-pagination');
+        this.countEl = this.container.querySelector('.table-count');
+
+        this.container.addEventListener('export', () => this.exportCSV());
+        this.renderHeaders();
+        this.renderBody();
+        this.renderPager();
+    }
+
+    renderHeaders() {
+        this.thead.innerHTML = this.columns.map(c => {
+            let cls = '';
+            if (this.sortCol === c.key) cls = this.sortDir;
+            return `<th class="${cls}" data-key="${c.key}">${c.label}<span class="sort-icon"></span></th>`;
+        }).join('');
+        this.thead.querySelectorAll('th').forEach(th => {
+            th.addEventListener('click', () => this.sort(th.dataset.key));
+        });
+    }
+
+    renderBody() {
+        const rows = this.getPage();
+        if (!rows.length) {
+            this.tbody.innerHTML = `<tr><td colspan="${this.columns.length}" style="text-align:center;padding:32px;color:var(--muted)">Nenhum registro encontrado</td></tr>`;
+        } else {
+            this.tbody.innerHTML = rows.map(row =>
+                `<tr>${this.columns.map(c => `<td title="${String(row[c.key]||'')}">${c.render ? c.render(row[c.key], row) : (row[c.key] !== undefined ? String(row[c.key]) : '')}</td>`).join('')}</tr>`
+            ).join('');
+        }
+        this.countEl.textContent = `${this.filtered.length.toLocaleString('pt-BR')} registro(s)`;
+    }
+
+    renderPager() {
+        const total = Math.ceil(this.filtered.length / this.pageSize);
+        if (total <= 1) { this.pager.innerHTML = ''; return; }
+        const pages = [];
+        for (let i = 1; i <= Math.min(total, 7); i++) pages.push(i);
+        this.pager.innerHTML = `
+          <button class="page-btn" ${this.page===1?'disabled':''} onclick="this.closest('.table-pagination')._dt.changePage(${this.page-1})">‹ Ant</button>
+          ${pages.map(p => `<button class="page-btn ${p===this.page?'active':''}" onclick="this.closest('.table-pagination')._dt.changePage(${p})">${p}</button>`).join('')}
+          ${total > 7 ? `<span style="color:var(--muted)">... ${total}</span>` : ''}
+          <button class="page-btn" ${this.page===total?'disabled':''} onclick="this.closest('.table-pagination')._dt.changePage(${this.page+1})">Próx ›</button>`;
+        this.pager._dt = this;
+    }
+
+    changePage(p) {
+        const total = Math.ceil(this.filtered.length / this.pageSize);
+        this.page = Math.max(1, Math.min(p, total));
+        this.renderBody();
+        this.renderPager();
+    }
+
+    exportCSV() {
+        const headers = this.columns.map(c => `"${c.label}"`).join(',');
+        const rows = this.filtered.map(row =>
+            this.columns.map(c => `"${String(row[c.key] || '').replace(/"/g, '""')}"`).join(',')
+        );
+        const csv = [headers, ...rows].join('\n');
+        const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a'); a.href = url;
+        a.download = 'inventario_export.csv'; a.click();
+        URL.revokeObjectURL(url);
+    }
+
+    addSearch(label, colKey) {
+        const toolbar = this.container.querySelector('.toolbar-left');
+        const inp = document.createElement('input');
+        inp.className = 'search-box';
+        inp.placeholder = label || 'Pesquisar...';
+        inp.style.width = '200px';
+        inp.addEventListener('input', () => this.filter(inp.value, colKey || null));
+        toolbar.appendChild(inp);
+        return inp;
+    }
+
+    addSelect(label, options, colKey) {
+        const toolbar = this.container.querySelector('.toolbar-left');
+        const sel = document.createElement('select');
+        sel.className = 'filter-select';
+        sel.innerHTML = `<option value="">— ${label} —</option>` + options.map(o => `<option value="${o}">${o}</option>`).join('');
+        sel.addEventListener('change', () => this.filterExact(sel.value, colKey));
+        toolbar.appendChild(sel);
+        return sel;
+    }
+}
+
+// ── PAINEL DO GESTOR ──────────────────────────────────────────
+
+function renderPainel(res) {
+    const { resultSAP, resultAlertas, resultRanking } = res;
+    const nPep3 = resultSAP.nAprov + resultSAP.nReprov;
+    const pctAprov = nPep3 > 0 ? Math.round(resultSAP.nAprov / nPep3 * 100) : 0;
+    const nAlertas = resultAlertas.alertas.length;
+    const pu = res.resultPU || { nDiverg: 0, sobreprecoTotal: 0, linhas: [] };
+
+    // contagem por tipo de alerta
+    const tiposCont = {};
+    for (const al of resultAlertas.alertas) tiposCont[al.tipo] = (tiposCont[al.tipo] || 0) + 1;
+    const tiposOrdenados = Object.entries(tiposCont).sort((a, b) => b[1] - a[1]);
+    const maxTipo = tiposOrdenados[0]?.[1] || 1;
+
+    document.getElementById('painel-content').innerHTML = `
+    <div class="cards-row cards-4">
+      <div class="kpi-card">
+        <div class="kpi-label">Valor Total da Obra</div>
+        <div class="kpi-value azul">${fmtMoeda(resultSAP.sumValor)}</div>
+        <div class="kpi-sub">soma dos itens analisados</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">PEPs Analisados</div>
+        <div class="kpi-value">${fmtNum(nPep3)}</div>
+        <div class="kpi-sub">PEP3 com UC ou COM crítico</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">PEPs Aprovados</div>
+        <div class="kpi-value green">${fmtNum(resultSAP.nAprov)} <small style="font-size:16px">(${pctAprov}%)</small></div>
+        <div class="kpi-sub">todos os itens aderentes</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">PEPs Reprovados</div>
+        <div class="kpi-value red">${fmtNum(resultSAP.nReprov)}</div>
+        <div class="kpi-sub">ao menos 1 item não aderente</div>
+      </div>
+    </div>
+    <div class="cards-row cards-4">
+      <div class="kpi-card">
+        <div class="kpi-label">Alertas Críticos</div>
+        <div class="kpi-value amber">${fmtNum(nAlertas)}</div>
+        <div class="kpi-sub">apontamentos encontrados</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">Divergências de Preço</div>
+        <div class="kpi-value ${res.temPrecos ? 'amber' : ''}">${res.temPrecos ? fmtNum(pu.nDiverg) : '—'}</div>
+        <div class="kpi-sub">${res.temPrecos ? 'PU fora da faixa min/max' : 'sem base de preços'}</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">Sobrepreço Potencial</div>
+        <div class="kpi-value ${res.temPrecos ? 'red' : ''}">${res.temPrecos ? fmtMoeda(pu.sobreprecoTotal) : '—'}</div>
+        <div class="kpi-sub">${res.temPrecos ? '(PU − max) × qtd' : 'carregue a base de preços'}</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">Valor em Risco</div>
+        <div class="kpi-value red">${fmtMoeda(resultSAP.sumNaoAder)}</div>
+        <div class="kpi-sub">itens não aderentes</div>
+      </div>
+    </div>
+
+    <div class="charts-row">
+      <div class="chart-card">
+        <h3>Aprovação dos PEP3</h3>
+        <div class="chart-container"><canvas id="chart-aprov"></canvas></div>
+      </div>
+      <div class="chart-card">
+        <h3>Distribuição de Risco das Obras</h3>
+        <div class="chart-container"><canvas id="chart-risco"></canvas></div>
+      </div>
+    </div>
+
+    <div class="section-title" style="margin-top:8px">Alertas Críticos por Tipo</div>
+    <div class="table-wrap" style="padding:16px 20px">
+      ${nAlertas === 0
+        ? '<div class="empty-state"><div class="icon">✅</div><p>Nenhum alerta crítico encontrado. Parabéns!</p></div>'
+        : tiposOrdenados.map(([tipo, cnt]) => `
+          <div class="alert-type-bar">
+            <div class="alert-type-name"><span class="chip-alerta" style="background:${alertaColor(tipo)}">${tipo}</span></div>
+            <div class="alert-type-bar-fill" style="max-width:${Math.round(cnt/maxTipo*100)}%;background:${alertaColor(tipo)}"></div>
+            <div class="alert-type-count">${cnt}</div>
+            <div class="alert-type-pct">${Math.round(cnt/nAlertas*100)}%</div>
+          </div>`).join('')
+      }
+    </div>`;
+
+    // charts
+    const aprov = new Chart(document.getElementById('chart-aprov'), {
+        type: 'doughnut',
+        data: {
+            labels: ['Aprovados', 'Reprovados', 'Sem UC'],
+            datasets: [{ data: [resultSAP.nAprov, resultSAP.nReprov, nPep3 === 0 ? 0 : 0],
+                backgroundColor: ['#16A34A','#DC2626','#9CA3AF'], borderWidth: 0 }]
+        },
+        options: { responsive: true, maintainAspectRatio: false,
+            plugins: { legend: { position: 'bottom', labels: { font: { size: 11 } } } } }
+    });
+
+    const riskoCounts = { ALTO: 0, MEDIO: 0, BAIXO: 0, OK: 0 };
+    for (const o of resultRanking.obras) riskoCounts[o.risco]++;
+    new Chart(document.getElementById('chart-risco'), {
+        type: 'bar',
+        data: {
+            labels: ['ALTO', 'MÉDIO', 'BAIXO', 'OK'],
+            datasets: [{ data: [riskoCounts.ALTO, riskoCounts.MEDIO, riskoCounts.BAIXO, riskoCounts.OK],
+                backgroundColor: ['#DC2626','#D97706','#1D4ED8','#16A34A'], borderRadius: 6, borderWidth: 0 }]
+        },
+        options: { responsive: true, maintainAspectRatio: false,
+            plugins: { legend: { display: false } },
+            scales: { y: { beginAtZero: true, ticks: { font: { size: 11 } } }, x: { ticks: { font: { size: 11 } } } } }
+    });
+}
+
+// ── ANÁLISE SAP × PRJ ─────────────────────────────────────────
+
+function renderAnalise(res) {
+    const el = document.getElementById('analise-content');
+    el.innerHTML = '<div class="table-wrap" id="tbl-analise"></div>';
+
+    const cols = [
+        { key:'pep3', label:'PEP3' },
+        { key:'pep4', label:'PEP4' },
+        { key:'cod',  label:'Cód Material', render: v => `<span class="mono">${v||''}</span>` },
+        { key:'familia', label:'Família' },
+        { key:'tipo', label:'Tipo' },
+        { key:'desc', label:'Descrição' },
+        { key:'libSAP', label:'SAP', render: v => `<span class="text-right">${v !== '' && v !== undefined ? toNum(v).toFixed(2).replace(/\.?0+$/,'') : ''}</span>` },
+        { key:'prjCAD', label:'PRJ', render: v => `<span class="text-right">${v !== '' && v !== undefined ? toNum(v).toFixed(2).replace(/\.?0+$/,'') : ''}</span>` },
+        { key:'valor', label:'Valor R
+</body>
+</html>
+, render: v => v ? fmtMoeda(toNum(v)) : '' },
+        { key:'sitText', label:'Situação', render: v => chipSit(v||'') },
+        { key:'aprovacao', label:'Aprovação', render: v => chipAprov(v||'') },
+        { key:'motivo', label:'Motivo' },
+    ];
+
+    const dt = new DataTable(document.getElementById('tbl-analise'), {
+        columns: cols, data: res.resultSAP.linhas, pageSize: 100
+    });
+    dt.addSearch('Pesquisar...', null);
+
+    const statusOpts = [...new Set(res.resultSAP.linhas.map(r => r.aprovacao).filter(Boolean))];
+    dt.addSelect('Aprovação', statusOpts, 'aprovacao');
+
+    const famOpts = [...new Set(res.resultSAP.linhas.map(r => r.familia).filter(Boolean))].sort();
+    dt.addSelect('Família', famOpts, 'familia');
+}
+
+// ── RACIONALIZAÇÃO COM ────────────────────────────────────────
+
+function renderCOM(res) {
+    const el = document.getElementById('com-content');
+    el.innerHTML = '<div class="table-wrap" id="tbl-com"></div>';
+
+    const cols = [
+        { key:'pep4',    label:'PEP4' },
+        { key:'pep3',    label:'PEP3' },
+        { key:'cod',     label:'Cód', render: v => `<span class="mono">${v||''}</span>` },
+        { key:'desc',    label:'Descrição' },
+        { key:'familia', label:'Família' },
+        { key:'nt006',   label:'NT.006' },
+        { key:'ligadoA', label:'Ligado a (âncora)' },
+        { key:'qtd',     label:'Veio', render: v => typeof v === 'number' ? v.toLocaleString('pt-BR', {minimumFractionDigits:0,maximumFractionDigits:2}) : v },
+        { key:'previsto',label:'Previsto' },
+        { key:'status',  label:'Status', render: v => chipStatus(v||'SEM REFERENCIA') },
+        { key:'obs',     label:'Observação' },
+    ];
+
+    const dt = new DataTable(document.getElementById('tbl-com'), {
+        columns: cols, data: res.resultCOM.linhas, pageSize: 100
+    });
+    dt.addSearch('Pesquisar...', null);
+
+    const stOpts = [...new Set(res.resultCOM.linhas.map(r => r.status).filter(Boolean))].sort();
+    dt.addSelect('Status', stOpts, 'status');
+
+    const famOpts = [...new Set(res.resultCOM.linhas.map(r => r.familia).filter(Boolean))].sort();
+    dt.addSelect('Família', famOpts, 'familia');
+}
+
+// ── PREÇO UNITÁRIO ────────────────────────────────────────────
+
+function renderPreco(res) {
+    const el = document.getElementById('preco-content');
+
+    if (!res.temPrecos) {
+        el.innerHTML = `
+          <div class="table-wrap" style="padding:32px 20px">
+            <div class="empty-state">
+              <div class="icon">💰</div>
+              <p>Nenhuma base de preços carregada.</p>
+              <p style="font-size:12px;color:var(--muted);max-width:540px;margin:8px auto 16px">
+                Carregue o arquivo <b>BASE DE PREÇOS.xlsx</b> (colunas <b>MATERIAL</b>, <b>MIN PU</b>, <b>MAX PU</b>)
+                para habilitar a análise de preço unitário, os alertas de subvalorização e o peso de preço no ranking de risco.
+              </p>
+              <button class="btn-upload" onclick="document.getElementById('preco-file-input').click()">Carregar base de preços</button>
+              <input type="file" id="preco-file-input" accept=".xlsx,.xlsm,.xls" style="display:none">
+              <div class="upload-error" id="preco-error" style="margin-top:12px"></div>
+            </div>
+          </div>`;
+        document.getElementById('preco-file-input').addEventListener('change', e => processPrecoFile(e.target.files[0]));
+        return;
+    }
+
+    const pu = res.resultPU;
+    const nDentro = pu.linhas.filter(l => l.status === 'DENTRO').length;
+
+    el.innerHTML = `
+      <div class="cards-row cards-4">
+        <div class="kpi-card"><div class="kpi-label">Itens com PU</div><div class="kpi-value">${fmtNum(pu.linhas.length)}</div><div class="kpi-sub">com código, qtd e valor</div></div>
+        <div class="kpi-card"><div class="kpi-label">Dentro da Faixa</div><div class="kpi-value green">${fmtNum(nDentro)}</div><div class="kpi-sub">PU entre min e max</div></div>
+        <div class="kpi-card"><div class="kpi-label">Divergências</div><div class="kpi-value amber">${fmtNum(pu.nDiverg)}</div><div class="kpi-sub">abaixo do min ou acima do max</div></div>
+        <div class="kpi-card"><div class="kpi-label">Sobrepreço Potencial</div><div class="kpi-value red">${fmtMoeda(pu.sobreprecoTotal)}</div><div class="kpi-sub">(PU − max) × qtd</div></div>
+      </div>
+      <div style="text-align:right;margin-bottom:8px">
+        <button class="btn-reset" onclick="document.getElementById('preco-file-input2').click()">↻ Trocar base de preços</button>
+        <input type="file" id="preco-file-input2" accept=".xlsx,.xlsm,.xls" style="display:none">
+      </div>
+      <div class="table-wrap" id="tbl-preco"></div>`;
+
+    document.getElementById('preco-file-input2').addEventListener('change', e => processPrecoFile(e.target.files[0]));
+
+    const cols = [
+        { key:'pep3',   label:'PEP3' },
+        { key:'pep4',   label:'PEP4' },
+        { key:'tipoOD', label:'OD' },
+        { key:'cod',    label:'Cód', render: v => `<span class="mono">${v||''}</span>` },
+        { key:'desc',   label:'Descrição' },
+        { key:'und',    label:'Und' },
+        { key:'qtd',    label:'Qtd', render: v => fmt2js(v) },
+        { key:'valor',  label:'Valor R
+</body>
+</html>
+, render: v => fmtMoeda(v) },
+        { key:'pu',     label:'PU', render: v => fmt2js(v) },
+        { key:'min',    label:'Min PU', render: v => v === '' ? '' : fmt2js(v) },
+        { key:'max',    label:'Max PU', render: v => v === '' ? '' : fmt2js(v) },
+        { key:'status', label:'Status', render: v => chipPU(v||'') },
+        { key:'obs',    label:'Observação' },
+    ];
+
+    const dt = new DataTable(document.getElementById('tbl-preco'), { columns: cols, data: pu.linhas, pageSize: 100 });
+    dt.addSearch('Pesquisar...', null);
+    const stOpts = [...new Set(pu.linhas.map(r => r.status).filter(Boolean))];
+    dt.addSelect('Status', stOpts, 'status');
+    const odOpts = [...new Set(pu.linhas.map(r => r.tipoOD).filter(Boolean))].sort();
+    dt.addSelect('OD', odOpts, 'tipoOD');
+}
+
+// ── ALERTAS CRÍTICOS ──────────────────────────────────────────
+
+function renderAlertas(res) {
+    const el = document.getElementById('alertas-content');
+    el.innerHTML = '<div class="table-wrap" id="tbl-alertas"></div>';
+
+    const cols = [
+        { key:'tipo', label:'Tipo de Alerta',
+          render: v => `<span class="chip-alerta" style="background:${alertaColor(v)}">${v||''}</span>` },
+        { key:'pep3', label:'PEP3' },
+        { key:'pep4', label:'PEP4' },
+        { key:'cod',  label:'Cód', render: v => `<span class="mono">${v||''}</span>` },
+        { key:'desc', label:'Descrição' },
+        { key:'familia', label:'Família' },
+        { key:'valor', label:'Valor R
+</body>
+</html>
+, render: v => v ? fmtMoeda(toNum(v)) : '' },
+        { key:'qtd',  label:'Qtd', render: v => v !== undefined && v !== '' ? String(v) : '' },
+        { key:'motivo', label:'Motivo' },
+    ];
+
+    const dt = new DataTable(document.getElementById('tbl-alertas'), {
+        columns: cols, data: res.resultAlertas.alertas, pageSize: 100
+    });
+    dt.addSearch('Pesquisar...', null);
+
+    const tipoOpts = [...new Set(res.resultAlertas.alertas.map(r => r.tipo).filter(Boolean))].sort();
+    dt.addSelect('Tipo', tipoOpts, 'tipo');
+}
+
+// ── RANKING DE RISCO ──────────────────────────────────────────
+
+function renderRanking(res) {
+    const el = document.getElementById('ranking-content');
+    el.innerHTML = '<div class="table-wrap" id="tbl-ranking"></div>';
+
+    const dados = res.resultRanking.obras.map((o, i) => ({ rank: i+1, ...o }));
+
+    const cols = [
+        { key:'rank',        label:'#', render: v => `<b>${v}</b>` },
+        { key:'pep3',        label:'PEP3' },
+        { key:'valor',       label:'Valor Obra', render: v => fmtMoeda(v) },
+        { key:'situacao',    label:'Situação', render: v => chipAprov(v) },
+        { key:'alertas',     label:'Alertas', render: v => v ? `<b style="color:var(--red)">${v}</b>` : '0' },
+        { key:'divergPU',    label:'Diverg. Preço', render: v => v ? `<b style="color:var(--amber)">${v}</b>` : '0' },
+        { key:'sobrepreco',  label:'Sobrepreço R
+</body>
+</html>
+, render: v => v ? fmtMoeda(v) : '—' },
+        { key:'comFora',     label:'COM Fora NT.006', render: v => v ? `<b style="color:var(--amber)">${v}</b>` : '0' },
+        { key:'score',       label:'Score', render: v => `<b>${v}</b>` },
+        { key:'risco',       label:'Risco', render: v => chipRisco(v) },
+        { key:'diagnostico', label:'Diagnóstico' },
+    ];
+
+    const dt = new DataTable(document.getElementById('tbl-ranking'), {
+        columns: cols, data: dados, pageSize: 100, defaultSort: ['rank', 'asc']
+    });
+
+    const rOpts = ['ALTO','MEDIO','BAIXO','OK'];
+    dt.addSelect('Risco', rOpts, 'risco');
+}
+
+// ── TABS ───────────────────────────────────────────────────────
+
+function initTabs() {
+    document.querySelectorAll('.tab-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+            document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
+            btn.classList.add('active');
+            document.getElementById('pane-' + btn.dataset.tab).classList.add('active');
+        });
+    });
+}
+
+// ── RENDER ALL ────────────────────────────────────────────────
+
+function renderAll(res) {
+    RESULTADO = res;
+    renderPainel(res);
+    renderAnalise(res);
+    renderCOM(res);
+    renderPreco(res);
+    renderAlertas(res);
+    renderRanking(res);
+}
+
+// ── FILE HANDLING ─────────────────────────────────────────────
+
+function showLoading(show) {
+    document.getElementById('loading-overlay').style.display = show ? 'flex' : 'none';
+}
+
+function showError(msg) {
+    const el = document.getElementById('upload-error');
+    el.textContent = msg;
+    el.style.display = 'block';
+}
+
+function hideError() {
+    document.getElementById('upload-error').style.display = 'none';
+}
+
+function processFile(file) {
+    if (!file) return;
+    if (!file.name.match(/\.(xlsx|xlsm|xls)$/i)) {
+        showError('Por favor, selecione um arquivo Excel (.xlsx, .xlsm ou .xls).'); return;
+    }
+    hideError();
+    currentFileName = file.name;
+    showLoading(true);
+
+    const reader = new FileReader();
+    reader.onload = e => {
+        try {
+            const data = new Uint8Array(e.target.result);
+            currentWB = XLSX.read(data, { type: 'array' });
+            currentWBPrecos = null;
+            setTimeout(() => {
+                try {
+                    const res = Inventario.gerarInventario(currentWB, currentWBPrecos);
+                    showLoading(false);
+                    if (res.erro) { showError(res.erro); return; }
+                    document.getElementById('upload-section').style.display = 'none';
+                    document.getElementById('app').style.display = 'block';
+                    document.getElementById('app-filename').textContent = file.name;
+                    renderAll(res);
+                } catch(err) {
+                    showLoading(false);
+                    showError('Erro ao processar: ' + err.message);
+                    console.error(err);
+                }
+            }, 50);
+        } catch(err) {
+            showLoading(false);
+            showError('Erro ao ler o arquivo: ' + err.message);
+            console.error(err);
+        }
+    };
+    reader.readAsArrayBuffer(file);
+}
+
+function processPrecoFile(file) {
+    if (!file || !currentWB) return;
+    const errEl = document.getElementById('preco-error');
+    const setErr = msg => { if (errEl) { errEl.textContent = msg; errEl.style.display = 'block'; } };
+    if (!file.name.match(/\.(xlsx|xlsm|xls)$/i)) {
+        setErr('Selecione um arquivo Excel válido (.xlsx, .xlsm ou .xls).'); return;
+    }
+    showLoading(true);
+    const reader = new FileReader();
+    reader.onload = e => {
+        try {
+            const data = new Uint8Array(e.target.result);
+            currentWBPrecos = XLSX.read(data, { type: 'array' });
+            setTimeout(() => {
+                try {
+                    const res = Inventario.gerarInventario(currentWB, currentWBPrecos);
+                    showLoading(false);
+                    if (res.erro) { setErr(res.erro); return; }
+                    if (!res.temPrecos) {
+                        currentWBPrecos = null;
+                        renderAll(res);
+                        const e2 = document.getElementById('preco-error');
+                        if (e2) {
+                            e2.textContent = 'Nenhuma faixa de preço reconhecida (esperado colunas MATERIAL, MIN PU, MAX PU).';
+                            e2.style.display = 'block';
+                        }
+                    } else {
+                        renderAll(res);
+                    }
+                } catch (err) {
+                    showLoading(false); setErr('Erro ao processar: ' + err.message); console.error(err);
+                }
+            }, 50);
+        } catch (err) {
+            showLoading(false); setErr('Erro ao ler o arquivo: ' + err.message); console.error(err);
+        }
+    };
+    reader.readAsArrayBuffer(file);
+}
+
+// ── INIT ──────────────────────────────────────────────────────
+
+document.addEventListener('DOMContentLoaded', () => {
+    initTabs();
+
+    const dropZone = document.getElementById('drop-zone');
+    const fileInput = document.getElementById('file-input');
+
+    dropZone.addEventListener('click', () => fileInput.click());
+    fileInput.addEventListener('change', () => processFile(fileInput.files[0]));
+
+    dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('dragover'); });
+    dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
+    dropZone.addEventListener('drop', e => {
+        e.preventDefault(); dropZone.classList.remove('dragover');
+        processFile(e.dataTransfer.files[0]);
+    });
+
+    document.getElementById('btn-reset').addEventListener('click', () => {
+        document.getElementById('app').style.display = 'none';
+        document.getElementById('upload-section').style.display = 'flex';
+        fileInput.value = '';
+        hideError();
+    });
+});
+
+// helper exposed for table cells
+function toNum(v) { const n = parseFloat(v); return isNaN(n) ? 0 : n; }
+
+</script>
+</body>
+</html>
