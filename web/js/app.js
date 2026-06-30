@@ -1,0 +1,564 @@
+'use strict';
+
+// ============================================================
+// app.js — UI layer
+// ============================================================
+
+let RESULTADO = null;
+let currentFileName = '';
+
+// ── COLORS MAP ────────────────────────────────────────────────
+
+const ALERTA_COLORS = {
+    'ODI SEM UC':                '#D97706',
+    'ODI SEM COM':               '#1D4ED8',
+    'PEP SEM UC':                '#C2410C',
+    'MATERIAL NEGATIVO':         '#B91C1C',
+    'MATERIAL POSITIVO EM ODD':  '#D97706',
+    'POSTE EM PEP .M':           '#1D4ED8',
+    'POSTE EM PEP .S':           '#0F766E',
+    'LACRE x MEDIDOR':           '#6D28D9',
+    'UC SUBVALORIZADO':          '#B91C1C',
+    'UC - PRECO NAO ENCONTRADO': '#92400E',
+    'UC - COD MATERIAL VAZIO':   '#6B7280',
+    'PU ABAIXO MIN':             '#92400E',
+    'PU ACIMA MAX':              '#B91C1C',
+};
+
+function alertaColor(tipo) { return ALERTA_COLORS[tipo] || '#6B7280'; }
+
+// ── FORMATAÇÃO ────────────────────────────────────────────────
+
+function fmtMoeda(v) {
+    const a = Math.abs(v);
+    if (a >= 1e6) return 'R$ ' + (v/1e6).toFixed(1) + ' MM';
+    if (a >= 1e3) return 'R$ ' + (v/1e3).toFixed(0).replace(/\B(?=(\d{3})+(?!\d))/g,'.') + ' mil';
+    return 'R$ ' + v.toFixed(2).replace('.', ',');
+}
+
+function fmtNum(v) { return v.toLocaleString('pt-BR'); }
+
+function chipAprov(ap) {
+    const map = { 'APROVADO':'aprovado','REPROVADO':'reprovado','SEM UC':'semuc' };
+    const cls = map[ap] || 'semuc';
+    return `<span class="chip chip-${cls}">${ap}</span>`;
+}
+
+function chipSit(s) {
+    const t = s.toUpperCase();
+    if (t.includes('NAO ADER') || t.includes('NÃO ADER')) return `<span class="chip chip-naoaderente">${s}</span>`;
+    if (t.includes('ADERENTE')) return `<span class="chip chip-aderente">${s}</span>`;
+    if (t.includes('NULO')) return `<span class="chip chip-nulo">${s}</span>`;
+    return `<span class="chip chip-semrisco">${s}</span>`;
+}
+
+function chipStatus(st) {
+    const map = {
+        'OK':'ok','ANCORA':'ancora','EXCESSO':'excesso','EXCESSO EXAGERADO':'exagerado',
+        'INSUFICIENTE':'insuficiente','SEM ANCORA':'semancora','QTD ZERO':'qdtzero',
+        'ESTORNO SEM ENTRADA':'estorno','SEM REFERENCIA':'semreferencia'
+    };
+    return `<span class="chip chip-${map[st]||'semreferencia'}">${st}</span>`;
+}
+
+function chipRisco(r) {
+    const map = { 'ALTO':'alto','MEDIO':'medio','BAIXO':'baixo','OK':'semrisco' };
+    return `<span class="chip chip-${map[r]||'semrisco'}">${r}</span>`;
+}
+
+// ── TABLE BUILDER ─────────────────────────────────────────────
+
+class DataTable {
+    constructor(containerEl, { columns, data, pageSize = 50, defaultSort = null }) {
+        this.container = containerEl;
+        this.columns   = columns;
+        this.allData   = data;
+        this.filtered  = [...data];
+        this.pageSize  = pageSize;
+        this.page      = 1;
+        this.sortCol   = defaultSort ? defaultSort[0] : null;
+        this.sortDir   = defaultSort ? defaultSort[1] : 'asc';
+        this.render();
+    }
+
+    filter(term, colKey) {
+        const t = (term || '').toLowerCase();
+        this.filtered = this.allData.filter(row => {
+            if (!t) return true;
+            if (colKey) return String(row[colKey] || '').toLowerCase().includes(t);
+            return this.columns.some(c => String(row[c.key] || '').toLowerCase().includes(t));
+        });
+        this.page = 1;
+        this.renderBody();
+        this.renderPager();
+    }
+
+    filterExact(val, colKey) {
+        this.filtered = this.allData.filter(row => !val || String(row[colKey] || '') === val);
+        this.page = 1;
+        this.renderBody();
+        this.renderPager();
+    }
+
+    sort(key) {
+        if (this.sortCol === key) this.sortDir = this.sortDir === 'asc' ? 'desc' : 'asc';
+        else { this.sortCol = key; this.sortDir = 'asc'; }
+        const d = this.sortDir === 'asc' ? 1 : -1;
+        this.filtered.sort((a, b) => {
+            const va = a[key], vb = b[key];
+            if (typeof va === 'number' && typeof vb === 'number') return (va - vb) * d;
+            return String(va || '').localeCompare(String(vb || '')) * d;
+        });
+        this.renderBody();
+        this.renderHeaders();
+    }
+
+    getPage() {
+        const start = (this.page - 1) * this.pageSize;
+        return this.filtered.slice(start, start + this.pageSize);
+    }
+
+    render() {
+        this.container.innerHTML = `
+        <div class="table-toolbar">
+          <div style="display:flex;gap:8px;flex-wrap:wrap;" class="toolbar-left"></div>
+          <div style="display:flex;align-items:center;gap:8px;">
+            <span class="table-count"></span>
+            <button class="export-btn" onclick="this.closest('.table-wrap').dispatchEvent(new Event('export'))">⬇ CSV</button>
+          </div>
+        </div>
+        <div style="overflow-x:auto">
+          <table class="data-table">
+            <thead><tr></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+        <div class="table-pagination"></div>`;
+        this.thead = this.container.querySelector('thead tr');
+        this.tbody = this.container.querySelector('tbody');
+        this.pager = this.container.querySelector('.table-pagination');
+        this.countEl = this.container.querySelector('.table-count');
+
+        this.container.addEventListener('export', () => this.exportCSV());
+        this.renderHeaders();
+        this.renderBody();
+        this.renderPager();
+    }
+
+    renderHeaders() {
+        this.thead.innerHTML = this.columns.map(c => {
+            let cls = '';
+            if (this.sortCol === c.key) cls = this.sortDir;
+            return `<th class="${cls}" data-key="${c.key}">${c.label}<span class="sort-icon"></span></th>`;
+        }).join('');
+        this.thead.querySelectorAll('th').forEach(th => {
+            th.addEventListener('click', () => this.sort(th.dataset.key));
+        });
+    }
+
+    renderBody() {
+        const rows = this.getPage();
+        if (!rows.length) {
+            this.tbody.innerHTML = `<tr><td colspan="${this.columns.length}" style="text-align:center;padding:32px;color:var(--muted)">Nenhum registro encontrado</td></tr>`;
+        } else {
+            this.tbody.innerHTML = rows.map(row =>
+                `<tr>${this.columns.map(c => `<td title="${String(row[c.key]||'')}">${c.render ? c.render(row[c.key], row) : (row[c.key] !== undefined ? String(row[c.key]) : '')}</td>`).join('')}</tr>`
+            ).join('');
+        }
+        this.countEl.textContent = `${this.filtered.length.toLocaleString('pt-BR')} registro(s)`;
+    }
+
+    renderPager() {
+        const total = Math.ceil(this.filtered.length / this.pageSize);
+        if (total <= 1) { this.pager.innerHTML = ''; return; }
+        const pages = [];
+        for (let i = 1; i <= Math.min(total, 7); i++) pages.push(i);
+        this.pager.innerHTML = `
+          <button class="page-btn" ${this.page===1?'disabled':''} onclick="this.closest('.table-pagination')._dt.changePage(${this.page-1})">‹ Ant</button>
+          ${pages.map(p => `<button class="page-btn ${p===this.page?'active':''}" onclick="this.closest('.table-pagination')._dt.changePage(${p})">${p}</button>`).join('')}
+          ${total > 7 ? `<span style="color:var(--muted)">... ${total}</span>` : ''}
+          <button class="page-btn" ${this.page===total?'disabled':''} onclick="this.closest('.table-pagination')._dt.changePage(${this.page+1})">Próx ›</button>`;
+        this.pager._dt = this;
+    }
+
+    changePage(p) {
+        const total = Math.ceil(this.filtered.length / this.pageSize);
+        this.page = Math.max(1, Math.min(p, total));
+        this.renderBody();
+        this.renderPager();
+    }
+
+    exportCSV() {
+        const headers = this.columns.map(c => `"${c.label}"`).join(',');
+        const rows = this.filtered.map(row =>
+            this.columns.map(c => `"${String(row[c.key] || '').replace(/"/g, '""')}"`).join(',')
+        );
+        const csv = [headers, ...rows].join('\n');
+        const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a'); a.href = url;
+        a.download = 'inventario_export.csv'; a.click();
+        URL.revokeObjectURL(url);
+    }
+
+    addSearch(label, colKey) {
+        const toolbar = this.container.querySelector('.toolbar-left');
+        const inp = document.createElement('input');
+        inp.className = 'search-box';
+        inp.placeholder = label || 'Pesquisar...';
+        inp.style.width = '200px';
+        inp.addEventListener('input', () => this.filter(inp.value, colKey || null));
+        toolbar.appendChild(inp);
+        return inp;
+    }
+
+    addSelect(label, options, colKey) {
+        const toolbar = this.container.querySelector('.toolbar-left');
+        const sel = document.createElement('select');
+        sel.className = 'filter-select';
+        sel.innerHTML = `<option value="">— ${label} —</option>` + options.map(o => `<option value="${o}">${o}</option>`).join('');
+        sel.addEventListener('change', () => this.filterExact(sel.value, colKey));
+        toolbar.appendChild(sel);
+        return sel;
+    }
+}
+
+// ── PAINEL DO GESTOR ──────────────────────────────────────────
+
+function renderPainel(res) {
+    const { resultSAP, resultAlertas, resultRanking } = res;
+    const nPep3 = resultSAP.nAprov + resultSAP.nReprov;
+    const pctAprov = nPep3 > 0 ? Math.round(resultSAP.nAprov / nPep3 * 100) : 0;
+    const nAlertas = resultAlertas.alertas.length;
+
+    // contagem por tipo de alerta
+    const tiposCont = {};
+    for (const al of resultAlertas.alertas) tiposCont[al.tipo] = (tiposCont[al.tipo] || 0) + 1;
+    const tiposOrdenados = Object.entries(tiposCont).sort((a, b) => b[1] - a[1]);
+    const maxTipo = tiposOrdenados[0]?.[1] || 1;
+
+    document.getElementById('painel-content').innerHTML = `
+    <div class="cards-row cards-4">
+      <div class="kpi-card">
+        <div class="kpi-label">Valor Total da Obra</div>
+        <div class="kpi-value azul">${fmtMoeda(resultSAP.sumValor)}</div>
+        <div class="kpi-sub">soma dos itens analisados</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">PEPs Analisados</div>
+        <div class="kpi-value">${fmtNum(nPep3)}</div>
+        <div class="kpi-sub">PEP3 com UC ou COM crítico</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">PEPs Aprovados</div>
+        <div class="kpi-value green">${fmtNum(resultSAP.nAprov)} <small style="font-size:16px">(${pctAprov}%)</small></div>
+        <div class="kpi-sub">todos os itens aderentes</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">PEPs Reprovados</div>
+        <div class="kpi-value red">${fmtNum(resultSAP.nReprov)}</div>
+        <div class="kpi-sub">ao menos 1 item não aderente</div>
+      </div>
+    </div>
+    <div class="cards-row cards-4">
+      <div class="kpi-card">
+        <div class="kpi-label">Alertas Críticos</div>
+        <div class="kpi-value amber">${fmtNum(nAlertas)}</div>
+        <div class="kpi-sub">apontamentos encontrados</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">Obras no Ranking</div>
+        <div class="kpi-value">${fmtNum(resultRanking.obras.length)}</div>
+        <div class="kpi-sub">PEP3 com score calculado</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">Obras Risco ALTO</div>
+        <div class="kpi-value red">${fmtNum(resultRanking.obras.filter(o=>o.risco==='ALTO').length)}</div>
+        <div class="kpi-sub">score ≥ 60</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">Valor em Risco</div>
+        <div class="kpi-value red">${fmtMoeda(resultSAP.sumNaoAder)}</div>
+        <div class="kpi-sub">itens não aderentes</div>
+      </div>
+    </div>
+
+    <div class="charts-row">
+      <div class="chart-card">
+        <h3>Aprovação dos PEP3</h3>
+        <div class="chart-container"><canvas id="chart-aprov"></canvas></div>
+      </div>
+      <div class="chart-card">
+        <h3>Distribuição de Risco das Obras</h3>
+        <div class="chart-container"><canvas id="chart-risco"></canvas></div>
+      </div>
+    </div>
+
+    <div class="section-title" style="margin-top:8px">Alertas Críticos por Tipo</div>
+    <div class="table-wrap" style="padding:16px 20px">
+      ${nAlertas === 0
+        ? '<div class="empty-state"><div class="icon">✅</div><p>Nenhum alerta crítico encontrado. Parabéns!</p></div>'
+        : tiposOrdenados.map(([tipo, cnt]) => `
+          <div class="alert-type-bar">
+            <div class="alert-type-name"><span class="chip-alerta" style="background:${alertaColor(tipo)}">${tipo}</span></div>
+            <div class="alert-type-bar-fill" style="max-width:${Math.round(cnt/maxTipo*100)}%;background:${alertaColor(tipo)}"></div>
+            <div class="alert-type-count">${cnt}</div>
+            <div class="alert-type-pct">${Math.round(cnt/nAlertas*100)}%</div>
+          </div>`).join('')
+      }
+    </div>`;
+
+    // charts
+    const aprov = new Chart(document.getElementById('chart-aprov'), {
+        type: 'doughnut',
+        data: {
+            labels: ['Aprovados', 'Reprovados', 'Sem UC'],
+            datasets: [{ data: [resultSAP.nAprov, resultSAP.nReprov, nPep3 === 0 ? 0 : 0],
+                backgroundColor: ['#16A34A','#DC2626','#9CA3AF'], borderWidth: 0 }]
+        },
+        options: { responsive: true, maintainAspectRatio: false,
+            plugins: { legend: { position: 'bottom', labels: { font: { size: 11 } } } } }
+    });
+
+    const riskoCounts = { ALTO: 0, MEDIO: 0, BAIXO: 0, OK: 0 };
+    for (const o of resultRanking.obras) riskoCounts[o.risco]++;
+    new Chart(document.getElementById('chart-risco'), {
+        type: 'bar',
+        data: {
+            labels: ['ALTO', 'MÉDIO', 'BAIXO', 'OK'],
+            datasets: [{ data: [riskoCounts.ALTO, riskoCounts.MEDIO, riskoCounts.BAIXO, riskoCounts.OK],
+                backgroundColor: ['#DC2626','#D97706','#1D4ED8','#16A34A'], borderRadius: 6, borderWidth: 0 }]
+        },
+        options: { responsive: true, maintainAspectRatio: false,
+            plugins: { legend: { display: false } },
+            scales: { y: { beginAtZero: true, ticks: { font: { size: 11 } } }, x: { ticks: { font: { size: 11 } } } } }
+    });
+}
+
+// ── ANÁLISE SAP × PRJ ─────────────────────────────────────────
+
+function renderAnalise(res) {
+    const el = document.getElementById('analise-content');
+    el.innerHTML = '<div class="table-wrap" id="tbl-analise"></div>';
+
+    const cols = [
+        { key:'pep3', label:'PEP3' },
+        { key:'pep4', label:'PEP4' },
+        { key:'cod',  label:'Cód Material', render: v => `<span class="mono">${v||''}</span>` },
+        { key:'familia', label:'Família' },
+        { key:'tipo', label:'Tipo' },
+        { key:'desc', label:'Descrição' },
+        { key:'libSAP', label:'SAP', render: v => `<span class="text-right">${v !== '' && v !== undefined ? toNum(v).toFixed(2).replace(/\.?0+$/,'') : ''}</span>` },
+        { key:'prjCAD', label:'PRJ', render: v => `<span class="text-right">${v !== '' && v !== undefined ? toNum(v).toFixed(2).replace(/\.?0+$/,'') : ''}</span>` },
+        { key:'valor', label:'Valor R$', render: v => v ? fmtMoeda(toNum(v)) : '' },
+        { key:'sitText', label:'Situação', render: v => chipSit(v||'') },
+        { key:'aprovacao', label:'Aprovação', render: v => chipAprov(v||'') },
+        { key:'motivo', label:'Motivo' },
+    ];
+
+    const dt = new DataTable(document.getElementById('tbl-analise'), {
+        columns: cols, data: res.resultSAP.linhas, pageSize: 100
+    });
+    dt.addSearch('Pesquisar...', null);
+
+    const statusOpts = [...new Set(res.resultSAP.linhas.map(r => r.aprovacao).filter(Boolean))];
+    dt.addSelect('Aprovação', statusOpts, 'aprovacao');
+
+    const famOpts = [...new Set(res.resultSAP.linhas.map(r => r.familia).filter(Boolean))].sort();
+    dt.addSelect('Família', famOpts, 'familia');
+}
+
+// ── RACIONALIZAÇÃO COM ────────────────────────────────────────
+
+function renderCOM(res) {
+    const el = document.getElementById('com-content');
+    el.innerHTML = '<div class="table-wrap" id="tbl-com"></div>';
+
+    const cols = [
+        { key:'pep4',    label:'PEP4' },
+        { key:'pep3',    label:'PEP3' },
+        { key:'cod',     label:'Cód', render: v => `<span class="mono">${v||''}</span>` },
+        { key:'desc',    label:'Descrição' },
+        { key:'familia', label:'Família' },
+        { key:'nt006',   label:'NT.006' },
+        { key:'ligadoA', label:'Ligado a (âncora)' },
+        { key:'qtd',     label:'Veio', render: v => typeof v === 'number' ? v.toLocaleString('pt-BR', {minimumFractionDigits:0,maximumFractionDigits:2}) : v },
+        { key:'previsto',label:'Previsto' },
+        { key:'status',  label:'Status', render: v => chipStatus(v||'SEM REFERENCIA') },
+        { key:'obs',     label:'Observação' },
+    ];
+
+    const dt = new DataTable(document.getElementById('tbl-com'), {
+        columns: cols, data: res.resultCOM.linhas, pageSize: 100
+    });
+    dt.addSearch('Pesquisar...', null);
+
+    const stOpts = [...new Set(res.resultCOM.linhas.map(r => r.status).filter(Boolean))].sort();
+    dt.addSelect('Status', stOpts, 'status');
+
+    const famOpts = [...new Set(res.resultCOM.linhas.map(r => r.familia).filter(Boolean))].sort();
+    dt.addSelect('Família', famOpts, 'familia');
+}
+
+// ── ALERTAS CRÍTICOS ──────────────────────────────────────────
+
+function renderAlertas(res) {
+    const el = document.getElementById('alertas-content');
+    el.innerHTML = '<div class="table-wrap" id="tbl-alertas"></div>';
+
+    const cols = [
+        { key:'tipo', label:'Tipo de Alerta',
+          render: v => `<span class="chip-alerta" style="background:${alertaColor(v)}">${v||''}</span>` },
+        { key:'pep3', label:'PEP3' },
+        { key:'pep4', label:'PEP4' },
+        { key:'cod',  label:'Cód', render: v => `<span class="mono">${v||''}</span>` },
+        { key:'desc', label:'Descrição' },
+        { key:'familia', label:'Família' },
+        { key:'valor', label:'Valor R$', render: v => v ? fmtMoeda(toNum(v)) : '' },
+        { key:'qtd',  label:'Qtd', render: v => v !== undefined && v !== '' ? String(v) : '' },
+        { key:'motivo', label:'Motivo' },
+    ];
+
+    const dt = new DataTable(document.getElementById('tbl-alertas'), {
+        columns: cols, data: res.resultAlertas.alertas, pageSize: 100
+    });
+    dt.addSearch('Pesquisar...', null);
+
+    const tipoOpts = [...new Set(res.resultAlertas.alertas.map(r => r.tipo).filter(Boolean))].sort();
+    dt.addSelect('Tipo', tipoOpts, 'tipo');
+}
+
+// ── RANKING DE RISCO ──────────────────────────────────────────
+
+function renderRanking(res) {
+    const el = document.getElementById('ranking-content');
+    el.innerHTML = '<div class="table-wrap" id="tbl-ranking"></div>';
+
+    const dados = res.resultRanking.obras.map((o, i) => ({ rank: i+1, ...o }));
+
+    const cols = [
+        { key:'rank',        label:'#', render: v => `<b>${v}</b>` },
+        { key:'pep3',        label:'PEP3' },
+        { key:'valor',       label:'Valor Obra', render: v => fmtMoeda(v) },
+        { key:'situacao',    label:'Situação', render: v => chipAprov(v) },
+        { key:'alertas',     label:'Alertas', render: v => v ? `<b style="color:var(--red)">${v}</b>` : '0' },
+        { key:'comFora',     label:'COM Fora NT.006', render: v => v ? `<b style="color:var(--amber)">${v}</b>` : '0' },
+        { key:'score',       label:'Score', render: v => `<b>${v}</b>` },
+        { key:'risco',       label:'Risco', render: v => chipRisco(v) },
+        { key:'diagnostico', label:'Diagnóstico' },
+    ];
+
+    const dt = new DataTable(document.getElementById('tbl-ranking'), {
+        columns: cols, data: dados, pageSize: 100, defaultSort: ['rank', 'asc']
+    });
+
+    const rOpts = ['ALTO','MEDIO','BAIXO','OK'];
+    dt.addSelect('Risco', rOpts, 'risco');
+}
+
+// ── TABS ───────────────────────────────────────────────────────
+
+function initTabs() {
+    document.querySelectorAll('.tab-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+            document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
+            btn.classList.add('active');
+            document.getElementById('pane-' + btn.dataset.tab).classList.add('active');
+        });
+    });
+}
+
+// ── RENDER ALL ────────────────────────────────────────────────
+
+function renderAll(res) {
+    RESULTADO = res;
+    renderPainel(res);
+    renderAnalise(res);
+    renderCOM(res);
+    renderAlertas(res);
+    renderRanking(res);
+}
+
+// ── FILE HANDLING ─────────────────────────────────────────────
+
+function showLoading(show) {
+    document.getElementById('loading-overlay').style.display = show ? 'flex' : 'none';
+}
+
+function showError(msg) {
+    const el = document.getElementById('upload-error');
+    el.textContent = msg;
+    el.style.display = 'block';
+}
+
+function hideError() {
+    document.getElementById('upload-error').style.display = 'none';
+}
+
+function processFile(file) {
+    if (!file) return;
+    if (!file.name.match(/\.(xlsx|xlsm|xls)$/i)) {
+        showError('Por favor, selecione um arquivo Excel (.xlsx, .xlsm ou .xls).'); return;
+    }
+    hideError();
+    currentFileName = file.name;
+    showLoading(true);
+
+    const reader = new FileReader();
+    reader.onload = e => {
+        try {
+            const data = new Uint8Array(e.target.result);
+            const wb = XLSX.read(data, { type: 'array' });
+            setTimeout(() => {
+                try {
+                    const res = Inventario.gerarInventario(wb);
+                    showLoading(false);
+                    if (res.erro) { showError(res.erro); return; }
+                    document.getElementById('upload-section').style.display = 'none';
+                    document.getElementById('app').style.display = 'block';
+                    document.getElementById('app-filename').textContent = file.name;
+                    renderAll(res);
+                } catch(err) {
+                    showLoading(false);
+                    showError('Erro ao processar: ' + err.message);
+                    console.error(err);
+                }
+            }, 50);
+        } catch(err) {
+            showLoading(false);
+            showError('Erro ao ler o arquivo: ' + err.message);
+            console.error(err);
+        }
+    };
+    reader.readAsArrayBuffer(file);
+}
+
+// ── INIT ──────────────────────────────────────────────────────
+
+document.addEventListener('DOMContentLoaded', () => {
+    initTabs();
+
+    const dropZone = document.getElementById('drop-zone');
+    const fileInput = document.getElementById('file-input');
+
+    dropZone.addEventListener('click', () => fileInput.click());
+    fileInput.addEventListener('change', () => processFile(fileInput.files[0]));
+
+    dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('dragover'); });
+    dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
+    dropZone.addEventListener('drop', e => {
+        e.preventDefault(); dropZone.classList.remove('dragover');
+        processFile(e.dataTransfer.files[0]);
+    });
+
+    document.getElementById('btn-reset').addEventListener('click', () => {
+        document.getElementById('app').style.display = 'none';
+        document.getElementById('upload-section').style.display = 'flex';
+        fileInput.value = '';
+        hideError();
+    });
+});
+
+// helper exposed for table cells
+function toNum(v) { const n = parseFloat(v); return isNaN(n) ? 0 : n; }
