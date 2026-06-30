@@ -42,27 +42,26 @@ Mantenha compacto. Não invente micronutrientes precisos sem base.
 ## Formato
 Direto. Sem bajulação. Comece pelo risco/erro quando houver. Pergunte 1 coisa por vez se faltar dado crítico.`;
 
-app.get('/api/health', (req, res) => {
-  res.json({ ok: !!process.env.ANTHROPIC_API_KEY });
+const ANTHROPIC_BASE = (process.env.ANTHROPIC_BASE_URL || 'https://api.anthropic.com').replace(/\/$/, '');
+const API_KEY = process.env.ANTHROPIC_API_KEY || 'no-key';
+
+app.get('/api/health', (_req, res) => {
+  res.json({ ok: true });
 });
 
 app.post('/api/chat', async (req, res) => {
   const { messages } = req.body;
-
-  if (!process.env.ANTHROPIC_API_KEY) {
-    return res.status(500).json({ error: 'ANTHROPIC_API_KEY não configurada. Crie um arquivo .env com sua chave.' });
-  }
 
   res.setHeader('Content-Type', 'text/event-stream');
   res.setHeader('Cache-Control', 'no-cache');
   res.setHeader('Connection', 'keep-alive');
 
   try {
-    const upstream = await fetch('https://api.anthropic.com/v1/messages', {
+    const upstream = await fetch(`${ANTHROPIC_BASE}/v1/messages`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'x-api-key': process.env.ANTHROPIC_API_KEY,
+        'x-api-key': API_KEY,
         'anthropic-version': '2023-06-01'
       },
       body: JSON.stringify({
@@ -117,7 +116,5 @@ app.get('*', (_req, res) => {
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`\n🥗 Consultor Nutricional rodando em http://localhost:${PORT}`);
-  if (!process.env.ANTHROPIC_API_KEY) {
-    console.warn('⚠️  ANTHROPIC_API_KEY não encontrada. Crie um arquivo .env com:\n   ANTHROPIC_API_KEY=sk-ant-...\n');
-  }
+  console.log(`   API: ${ANTHROPIC_BASE}`);
 });
