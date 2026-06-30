@@ -14,12 +14,19 @@ const chartjs = fs.readFileSync(path.join(vendor, 'chart.umd.min.js'), 'utf8');
 const inv  = fs.readFileSync(path.join(dir, 'js/inventario.js'), 'utf8');
 const app  = fs.readFileSync(path.join(dir, 'js/app.js'), 'utf8');
 
+// IMPORTANTE: usar FUNÇÕES de substituição (não strings) — strings de
+// replacement interpretam $&, $`, $', $1... e o JS minificado das libs
+// contém essas sequências, o que duplicaria/corromperia o HTML.
+// Também escapamos qualquer "</script" embutido por segurança.
+const wrapScript = code => '<script>\n' + code.replace(/<\/script/gi, '<\\/script') + '\n</script>';
+const wrapStyle  = code => '<style>\n' + code + '\n</style>';
+
 html = html
-  .replace(/<link rel="stylesheet" href="css\/style.css">/, '<style>\n' + css + '\n</style>')
-  .replace(/<script src="https:\/\/cdn\.sheetjs\.com[^"]+"><\/script>/, '<script>\n' + xlsx + '\n</script>')
-  .replace(/<script src="https:\/\/cdn\.jsdelivr\.net[^"]+"><\/script>/, '<script>\n' + chartjs + '\n</script>')
-  .replace(/<script src="js\/inventario\.js"><\/script>/, '<script>\n' + inv + '\n</script>')
-  .replace(/<script src="js\/app\.js"><\/script>/, '<script>\n' + app + '\n</script>');
+  .replace(/<link rel="stylesheet" href="css\/style.css">/, () => wrapStyle(css))
+  .replace(/<script src="https:\/\/cdn\.sheetjs\.com[^"]+"><\/script>/, () => wrapScript(xlsx))
+  .replace(/<script src="https:\/\/cdn\.jsdelivr\.net[^"]+"><\/script>/, () => wrapScript(chartjs))
+  .replace(/<script src="js\/inventario\.js"><\/script>/, () => wrapScript(inv))
+  .replace(/<script src="js\/app\.js"><\/script>/, () => wrapScript(app));
 
 const out = path.join(dir, 'inventario-standalone.html');
 fs.writeFileSync(out, html);
