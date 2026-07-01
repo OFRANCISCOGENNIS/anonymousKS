@@ -67,6 +67,17 @@ html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sa
 .act-label{font-size:13px;font-weight:600;color:var(--tx)}
 .act-desc{font-size:11px;color:var(--mu)}
 .field-full{margin-bottom:14px}
+.train-row{display:flex;flex-wrap:wrap;gap:8px}
+.train-chip{display:flex;align-items:center;gap:6px;padding:8px 13px;border:1.5px solid var(--bdr);border-radius:20px;cursor:pointer;font-size:12px;font-weight:600;background:var(--bg);transition:all .18s}
+.train-chip.sel{border-color:var(--s);background:#E8F5EE;color:var(--p)}
+.train-chip input{width:13px;height:13px;accent-color:var(--s);cursor:pointer}
+.train-icon{font-size:15px}
+.train-block{background:var(--bg);border-radius:12px;padding:12px 14px;margin-bottom:10px}
+.train-block:last-of-type{margin-bottom:0}
+.train-block-title{font-size:14px;font-weight:700;color:var(--pm);margin-bottom:6px}
+.train-row-item{font-size:12px;color:var(--tx);margin-bottom:4px;line-height:1.4}
+.train-row-item span:first-child{font-weight:600;color:var(--mu);margin-right:4px}
+.train-evidence{font-size:11px;color:var(--mu);margin-top:4px;font-style:italic}
 
 /* CONDITIONS */
 .cond-list{display:flex;flex-direction:column;gap:8px;margin-bottom:12px}
@@ -212,6 +223,7 @@ const S = {
   conditions:[], meds:'', allergies:'',
   diet:null, intolerances:[], budget:null, time:null,
   proteins:[],
+  trainings:[],
 };
 
 /* ── SAVE TEXT FIELDS before re-render ── */
@@ -308,12 +320,23 @@ const ACTS=[
   {k:'active',  label:'Muito ativo',          desc:'Exercício 6–7 dias/sem'},
   {k:'vactive', label:'Extremamente ativo',   desc:'Atleta / trabalho físico pesado'},
 ];
+const TRAININGS=[
+  {k:'muscle',   icon:'🏋️', label:'Musculação'},
+  {k:'running',  icon:'🏃', label:'Corrida'},
+  {k:'strength', icon:'💪', label:'Treino de força'},
+  {k:'cycling',  icon:'🚴', label:'Ciclismo'},
+];
 function buildStep2() {
   const acts = ACTS.map(a=>`
     <button class="act-item ${S.activity===a.k?'sel':''}" onclick="S.activity='${a.k}';render()">
       <span class="act-label">${a.label}</span>
       <span class="act-desc">${a.desc}</span>
     </button>`).join('');
+  const trainChips = TRAININGS.map(t=>`
+    <label class="train-chip ${S.trainings.includes(t.k)?'sel':''}">
+      <input type="checkbox" ${S.trainings.includes(t.k)?'checked':''} onchange="toggleTraining('${t.k}',this.checked)">
+      <span class="train-icon">${t.icon}</span><span>${t.label}</span>
+    </label>`).join('');
   return `<div class="main"><div class="card">
     <h2 class="step-title">Seu perfil</h2>
     <p class="step-sub">Calcula seu metabolismo pela fórmula Mifflin-St Jeor.</p>
@@ -343,12 +366,23 @@ function buildStep2() {
     <div class="field-full">
       <div class="field"><label>Nível de atividade</label><div class="act-list">${acts}</div></div>
     </div>
+    <div class="field-full">
+      <div class="field"><label>Tipo de treino <span style="font-weight:400;color:var(--mu)">(opcional, selecione quantos fizer)</span></label>
+        <div class="train-row">${trainChips}</div>
+      </div>
+    </div>
     <div class="nav-row">
       <button class="btn-back" onclick="S.step=1;render()">← Voltar</button>
       <button class="btn-primary" onclick="nextStep2()">Continuar →</button>
     </div>
     <p id="p-err" class="err-msg"></p>
   </div></div>`;
+}
+function toggleTraining(k,v) {
+  saveFields();
+  if (v) { if (!S.trainings.includes(k)) S.trainings.push(k); }
+  else     S.trainings = S.trainings.filter(x=>x!==k);
+  render();
 }
 function nextStep2() {
   saveFields();
@@ -534,6 +568,62 @@ function macros(){
   const cKcal= Math.max(0,kcal-pKcal-fKcal);
   const carbs= Math.round(cKcal/4);
   return {prot,fat,carbs,pKcal,fKcal,cKcal};
+}
+
+/* ── TRAINING PLANS ── */
+const TRAINING_DATA={
+  muscle:{
+    label:'🏋️ Musculação',
+    freq:{sed:'2x/semana (full body)',light:'3x/semana (full body)',mod:'4x/semana (upper/lower)',active:'5x/semana (push/pull/legs)',vactive:'5–6x/semana (push/pull/legs + acessórios)'},
+    session: goal => ({
+      loss:'3–4 séries de 10–15 reps, 45–60s de descanso, priorize exercícios compostos (agachamento, remada, supino)',
+      gain:'4 séries de 8–12 reps por exercício, 60–90s de descanso, 5–7 exercícios por sessão',
+      performance:'3–5 séries de 5–8 reps em compostos, foco em força funcional',
+      maintain:'3 séries de 10–12 reps, 60s de descanso, foco em consistência',
+      health:'3 séries de 10–12 reps, 60s de descanso, priorize execução e consistência',
+    }[goal]),
+    progression:'Aumente carga ou repetições a cada 1–2 semanas quando completar todas as séries com boa execução (sobrecarga progressiva).',
+    evidence:'forte (ACSM, NSCA)',
+  },
+  running:{
+    label:'🏃 Corrida',
+    freq:{sed:'2x/semana (intervalos caminhada/corrida)',light:'3x/semana',mod:'3–4x/semana (1 intervalado + 1 longo + 1 leve)',active:'4–5x/semana (intervalado + tempo run + longão + regenerativo)',vactive:'5–6x/semana com periodização'},
+    session: goal => ({
+      loss:'Combine corrida leve contínua (30–40min, ritmo confortável) com 1 sessão intervalada por semana (ex: 6x400m)',
+      gain:'Volume reduzido — 2–3 corridas leves de 20–30min para não competir com a recuperação da musculação',
+      performance:'Inclua tiros (intervalado), rodagem longa progressiva e 1 treino de ritmo (tempo run)',
+      maintain:'Corrida contínua em ritmo confortável, 30–40min, mantendo o volume estável',
+      health:'Corrida leve contínua, 20–30min, priorizando regularidade sobre intensidade',
+    }[goal]),
+    progression:'Aumente o volume semanal em no máximo 10% por semana para reduzir risco de lesão por overuse.',
+    evidence:'moderada (regra dos 10% é prática consolidada, mas debatida na literatura)',
+  },
+  strength:{
+    label:'💪 Treino de força',
+    freq:{sed:'2x/semana (full body, cargas moderadas)',light:'2–3x/semana',mod:'3–4x/semana (divisão por padrão de movimento)',active:'4x/semana',vactive:'4–5x/semana com periodização'},
+    session: () => '3–5 séries de 3–6 reps em levantamentos compostos (agachamento, terra, supino, remada), 2–3min de descanso entre séries, intensidade alta (75–90% de 1RM estimado)',
+    progression:'Use periodização linear simples: 3 semanas de acúmulo de carga + 1 semana de descarga (redução de volume/intensidade).',
+    evidence:'forte (NSCA Position Stand)',
+  },
+  cycling:{
+    label:'🚴 Ciclismo',
+    freq:{sed:'2x/semana',light:'2–3x/semana',mod:'3–4x/semana (base + 1 intervalado)',active:'4–5x/semana (base + intervalado + longão)',vactive:'5–6x/semana com periodização por zonas'},
+    session: goal => ({
+      loss:'Pedaladas em ritmo confortável (zona aeróbica), 40–60min, com 1 sessão intervalada leve por semana',
+      gain:'Volume reduzido — 2 pedaladas leves de 30–40min para não competir com a recuperação da musculação',
+      performance:'Inclua 1 sessão de intervalos de alta intensidade, 1 rodagem longa e treinos de base aeróbica',
+      maintain:'Pedaladas em ritmo confortável, 40–60min, mantendo o volume estável',
+      health:'Pedaladas leves de 30–40min, priorizando regularidade',
+    }[goal]),
+    progression:'Aumente o volume ou a intensidade gradualmente, seguindo a mesma regra de ~10% de progressão semanal.',
+    evidence:'moderada a forte, dependendo do protocolo',
+  },
+};
+function buildTrainingPlan(){
+  return S.trainings.map(k=>{
+    const t=TRAINING_DATA[k];
+    return {label:t.label, freq:t.freq[S.activity], session:t.session(S.goal), progression:t.progression, evidence:t.evidence};
+  });
 }
 
 /* ── PROTEIN OPTIONS (selecionáveis pelo usuário) ── */
@@ -757,6 +847,21 @@ function buildResults(){
       ${iTip?`<div class="tip info" style="margin-top:8px">ℹ️ ${iTip}</div>`:''}
     </div>
 
+    ${S.trainings.length ? `
+    <!-- TREINO -->
+    <div class="sec">
+      <div class="sec-title">🏋️ Plano de treino</div>
+      ${buildTrainingPlan().map(tp=>`
+        <div class="train-block">
+          <div class="train-block-title">${tp.label}</div>
+          <div class="train-row-item"><span>Frequência:</span>${tp.freq}</div>
+          <div class="train-row-item"><span>Estrutura:</span>${tp.session}</div>
+          <div class="train-row-item"><span>Progressão:</span>${tp.progression}</div>
+          <p class="train-evidence">Evidência: ${tp.evidence}</p>
+        </div>`).join('')}
+      <div class="tip info" style="margin-top:8px">💡 Treino e nutrição andam juntos: nos dias de treino mais intenso, priorize os carboidratos ao redor do exercício.</div>
+    </div>` : ''}
+
     <!-- LISTA DE COMPRAS -->
     <div class="sec">
       <div class="sec-title">🛒 Lista de compras — 1 semana</div>
@@ -818,7 +923,7 @@ function buildStop(){
 /* ── HELPERS ── */
 function restart(){
   Object.assign(S,{step:1,goal:null,age:'',weight:'',height:'',sex:null,activity:null,
-    conditions:[],meds:'',allergies:'',diet:null,intolerances:[],budget:null,time:null,proteins:[]});
+    conditions:[],meds:'',allergies:'',diet:null,intolerances:[],budget:null,time:null,proteins:[],trainings:[]});
   render();
 }
 
