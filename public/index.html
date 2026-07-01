@@ -2,8 +2,17 @@
 <html lang="pt-BR">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Consultor Nutricional</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#05070D">
+<meta name="color-scheme" content="dark">
+<meta name="description" content="Consultor nutricional baseado em evidência: calcula calorias e macros (Mifflin-St Jeor), monta cardápio semanal com variação treino/descanso, lista de compras e plano de treino. Educacional — não substitui profissional de saúde.">
+<meta name="author" content="Consultor Nutricional">
+<meta property="og:title" content="Consultor Nutricional — Plano baseado em evidência">
+<meta property="og:description" content="Plano nutricional e de treino baseado em evidência, 100% no seu navegador.">
+<meta property="og:type" content="website">
+<meta name="twitter:card" content="summary">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🥗</text></svg>">
+<title>Consultor Nutricional — Plano baseado em evidência</title>
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 :root{
@@ -96,6 +105,14 @@ body::after{content:'';position:fixed;inset:0;z-index:-1;pointer-events:none;
 .train-row-item{font-size:12px;color:var(--tx);margin-bottom:4px;line-height:1.45}
 .train-row-item span:first-child{font-weight:600;color:var(--mu);margin-right:4px}
 .train-evidence{font-size:11px;color:var(--mu);margin-top:4px;font-style:italic}
+.wd-row{display:flex;gap:6px;flex-wrap:wrap}
+.wd-btn{flex:1;min-width:42px;padding:9px 4px;border:1.5px solid var(--bdr);border-radius:10px;cursor:pointer;font-size:12px;font-weight:700;background:rgba(255,255,255,.03);color:var(--mu);font-family:inherit;transition:all .18s}
+.wd-btn:hover{border-color:rgba(52,245,197,.4)}
+.wd-btn.sel{border-color:var(--neon);background:rgba(52,245,197,.12);color:var(--neon);box-shadow:0 0 12px rgba(52,245,197,.25)}
+/* Footer */
+.site-footer{position:relative;z-index:1;text-align:center;padding:22px 18px 30px;border-top:1px solid var(--bdr);background:rgba(10,16,26,.4);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px)}
+.site-footer p{font-size:11px;color:var(--mu);line-height:1.6;max-width:560px;margin:0 auto}
+.site-footer strong{color:var(--tx)}
 
 /* CONDITIONS */
 .cond-list{display:flex;flex-direction:column;gap:8px;margin-bottom:12px}
@@ -248,7 +265,7 @@ body::after{content:'';position:fixed;inset:0;z-index:-1;pointer-events:none;
 @media print{
   body::before,body::after{display:none}
   html,body{background:#fff}
-  .hdr,.prog-wrap,.nav-row,.center-row{display:none}
+  .hdr,.prog-wrap,.nav-row,.center-row,.site-footer{display:none}
   .sec,.res-header{box-shadow:none;border:1px solid #ddd;background:#fff;backdrop-filter:none}
   .sec-title,.step-title,.stop-card h2{-webkit-text-fill-color:#1B5E42;color:#1B5E42}
   .cal-row strong,.meal-item li,.cond-item span,.shop-tag,.res-header h2,.res-header p,.day-name,.dm{color:#17201B}
@@ -259,6 +276,10 @@ body::after{content:'';position:fixed;inset:0;z-index:-1;pointer-events:none;
 </head>
 <body>
 <div id="root"></div>
+<footer class="site-footer">
+  <p><strong>⚕️ Ferramenta educacional</strong> — não substitui avaliação de nutricionista ou médico.</p>
+  <p>Cálculos: Mifflin-St Jeor · faixas de proteína ISSN 2017 · processado 100% no seu navegador, sem enviar dados · v1.0</p>
+</footer>
 <script>
 /* ── STATE ── */
 const S = {
@@ -268,8 +289,19 @@ const S = {
   conditions:[], meds:'', allergies:'',
   diet:null, intolerances:[], budget:null, time:null,
   proteins:[],
-  trainings:[],
+  trainings:[], trainDays:[],
 };
+
+/* ── PERSISTENCE (localStorage) ── */
+const STORE_KEY='cn_state_v1';
+function persist(){ try{ localStorage.setItem(STORE_KEY, JSON.stringify(S)); }catch(e){} }
+function restore(){
+  try{
+    const raw=localStorage.getItem(STORE_KEY);
+    if(raw){ const o=JSON.parse(raw); if(o&&typeof o==='object') Object.assign(S,o); }
+  }catch(e){}
+}
+function clearStore(){ try{ localStorage.removeItem(STORE_KEY); }catch(e){} }
 
 /* ── SAVE TEXT FIELDS before re-render ── */
 function saveFields() {
@@ -285,6 +317,7 @@ function saveFields() {
 
 function render() {
   saveFields();
+  persist();
   const el = document.getElementById('root');
   el.innerHTML = page();
   window.scrollTo(0,0);
@@ -416,6 +449,12 @@ function buildStep2() {
         <div class="train-row">${trainChips}</div>
       </div>
     </div>
+    ${S.trainings.length ? `<div class="field-full">
+      <div class="field"><label>Dias que você treina <span style="font-weight:400;color:var(--mu)">(opcional — se vazio, calculamos pelo nível de atividade)</span></label>
+        <div class="wd-row">${WEEKDAYS.map((w,i)=>`
+          <button type="button" class="wd-btn ${S.trainDays.includes(i)?'sel':''}" onclick="toggleTrainDay(${i})" aria-pressed="${S.trainDays.includes(i)}">${w}</button>`).join('')}</div>
+      </div>
+    </div>` : ''}
     <div class="nav-row">
       <button class="btn-back" onclick="S.step=1;render()">← Voltar</button>
       <button class="btn-primary" onclick="nextStep2()">Continuar →</button>
@@ -423,10 +462,17 @@ function buildStep2() {
     <p id="p-err" class="err-msg"></p>
   </div></div>`;
 }
+const WEEKDAYS=['Seg','Ter','Qua','Qui','Sex','Sáb','Dom'];
 function toggleTraining(k,v) {
   saveFields();
   if (v) { if (!S.trainings.includes(k)) S.trainings.push(k); }
   else     S.trainings = S.trainings.filter(x=>x!==k);
+  render();
+}
+function toggleTrainDay(i) {
+  saveFields();
+  if (S.trainDays.includes(i)) S.trainDays = S.trainDays.filter(x=>x!==i);
+  else S.trainDays.push(i);
   render();
 }
 function nextStep2() {
@@ -768,7 +814,9 @@ function buildWeeklyPlan(){
   const bfP    = opts.filter(p=>p.breakfast);
   const snP    = opts.filter(p=>p.snack);
   const tDays  = TRAIN_DAYS[S.activity] || 3;
-  const restSet= REST_DAYS[tDays] || [];
+  const restSet= S.trainDays && S.trainDays.length
+    ? DAYS.map((_,i)=>i).filter(i=>!S.trainDays.includes(i))
+    : (REST_DAYS[tDays] || []);
   return DAYS.map((name,i)=>{
     const rest = restSet.includes(i);
     const carb = CARBS[i % CARBS.length];
@@ -860,6 +908,14 @@ function buildResults(){
   const m=macros();
   const pp=Math.round(m.pKcal/g*100), cp=Math.round(m.cKcal/g*100), fp=Math.round(m.fKcal/g*100);
   const waterL=((+S.weight*35)/1000).toFixed(1);
+  const imc=(+S.weight/Math.pow(+S.height/100,2));
+  const imcV=imc.toFixed(1);
+  const imcInfo = imc<18.5?{t:'Abaixo do peso',c:'#22D3EE'}
+    : imc<25?{t:'Peso normal',c:'#34F5C5'}
+    : imc<30?{t:'Sobrepeso',c:'#FFB86B'}
+    : imc<35?{t:'Obesidade grau I',c:'#FF9B6B'}
+    : imc<40?{t:'Obesidade grau II',c:'#FF6B6B'}
+    : {t:'Obesidade grau III',c:'#FF6B6B'};
   const plan=buildMealPlan();
   const week=buildWeeklyPlan();
   const anyTrain=S.trainings.length>0;
@@ -909,6 +965,8 @@ function buildResults(){
       <div class="cal-row"><span>TDEE (TMB × ${PAL[S.activity]} — ${ALABEL[S.activity]})</span><strong>= ${d} kcal</strong></div>
       <div class="cal-row hl"><span>${GLABEL[S.goal]} (× ${GFAC[S.goal]}):</span><strong>${g} kcal / dia</strong></div>
       <div class="cal-row"><span>💧 Água recomendada (35ml/kg)</span><strong>${waterL} L / dia</strong></div>
+      <div class="cal-row"><span>📏 IMC (peso/altura²)</span><strong>${imcV} — <span style="color:${imcInfo.c}">${imcInfo.t}</span></strong></div>
+      <p style="font-size:11px;color:var(--mu);margin-top:8px">O IMC é uma triagem populacional e não distingue músculo de gordura — atletas e pessoas muito musculosas podem ter IMC alto sem excesso de gordura.</p>
     </div>
 
     <!-- MACROS -->
@@ -985,9 +1043,46 @@ function buildResults(){
 
     <div class="center-row">
       <button class="btn-primary" onclick="restart()">↩ Nova consulta</button>
-      <button class="print-btn" onclick="window.print()">🖨️ Imprimir</button>
+      <button class="print-btn" onclick="window.print()">🖨️ Imprimir / PDF</button>
+      <button class="print-btn" id="copy-btn" onclick="copySummary(this)">📋 Copiar resumo</button>
     </div>
   </div>`;
+}
+
+function copySummary(btn){
+  const g=goalCal(), m=macros(), waterL=((+S.weight*35)/1000).toFixed(1);
+  const imc=(+S.weight/Math.pow(+S.height/100,2)).toFixed(1);
+  const L=[];
+  L.push('PLANO NUTRICIONAL — Consultor Nutricional');
+  L.push('(educacional, não substitui profissional de saúde)');
+  L.push('');
+  L.push(`Objetivo: ${GLABEL[S.goal]}`);
+  L.push(`Perfil: ${S.weight}kg · ${S.height}cm · ${S.age} anos · ${S.sex==='M'?'Masculino':'Feminino'} · ${ALABEL[S.activity]}`);
+  L.push(`IMC: ${imc}`);
+  L.push('');
+  L.push(`Meta calórica: ${g} kcal/dia`);
+  L.push(`Proteína: ${m.prot}g · Carboidratos: ${m.carbs}g · Gorduras: ${m.fat}g`);
+  L.push(`Água: ${waterL} L/dia`);
+  const provChosen = PROTEINS[S.diet].filter(p=>S.proteins.includes(p.k)).map(p=>p.label);
+  if(provChosen.length) L.push(`Proteínas p/ compra: ${provChosen.join(', ')}`);
+  if(S.trainings.length) L.push(`Treinos: ${S.trainings.map(k=>TRAINING_DATA[k].label.replace(/^[^ ]+ /,'')).join(', ')}`);
+  L.push('');
+  L.push('CARDÁPIO SEMANAL:');
+  buildWeeklyPlan().forEach(dd=>{
+    L.push(`• ${dd.name} (${dd.rest?'descanso':'treino'}): Café: ${dd.bf.join(' · ')} | Almoço: ${dd.al.join(' · ')} | Lanche: ${dd.sn.join(' · ')} | Jantar: ${dd.jt.join(' · ')}`);
+  });
+  const txt=L.join('\n');
+  const done=()=>{ if(btn){ const o=btn.textContent; btn.textContent='✓ Copiado!'; setTimeout(()=>btn.textContent=o,1800);} };
+  if(navigator.clipboard&&navigator.clipboard.writeText){
+    navigator.clipboard.writeText(txt).then(done).catch(()=>fallbackCopy(txt,done));
+  } else fallbackCopy(txt,done);
+}
+function fallbackCopy(txt,cb){
+  const ta=document.createElement('textarea');
+  ta.value=txt; ta.style.position='fixed'; ta.style.opacity='0';
+  document.body.appendChild(ta); ta.select();
+  try{ document.execCommand('copy'); }catch(e){}
+  document.body.removeChild(ta); if(cb) cb();
 }
 
 /* ── STOP PAGE ── */
@@ -1034,12 +1129,14 @@ function buildStop(){
 
 /* ── HELPERS ── */
 function restart(){
+  clearStore();
   Object.assign(S,{step:1,goal:null,age:'',weight:'',height:'',sex:null,activity:null,
-    conditions:[],meds:'',allergies:'',diet:null,intolerances:[],budget:null,time:null,proteins:[],trainings:[]});
+    conditions:[],meds:'',allergies:'',diet:null,intolerances:[],budget:null,time:null,proteins:[],trainings:[],trainDays:[]});
   render();
 }
 
 /* ── INIT ── */
+restore();
 render();
 </script>
 </body>
