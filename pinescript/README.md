@@ -41,6 +41,23 @@ destacadas na tabela e **excluídas do win rate** (contadas como "Evitadas (not�
 Um **banner vermelho** avisa quando a vela mais recente está nessa janela de risco —
 útil para não abrir posição em cima de um evento de alto impacto.
 
+## 📈 Métricas de Análise (backtest)
+
+Painel dedicado que avalia o desempenho das entradas (ignorando as bloqueadas por
+notícia). Informe o **Payout por WIN (%)** — típico de opções binárias, 70–90% — e o
+app calcula, em unidades de aposta (WIN = +payout, LOSS = −1):
+
+- **Win rate geral** vs **Win rate p/ empatar** (breakeven = `1/(1+payout)`): se o
+  win rate real fica abaixo do breakeven, a estratégia perde dinheiro mesmo acertando
+  "bastante" — o ponto central de opções binárias.
+- **P&L acumulado** e **Expectativa por operação** (valor esperado por trade).
+- **Profit factor** (ganho bruto / perda bruta).
+- **Win rate por direção** (CALL e PUT separados).
+- **Maiores sequências** de WIN e de LOSS consecutivos (risco de drawdown).
+- **Curva de capital** (baseline verde acima / vermelho abaixo de zero).
+- **Win rate por score de confluência** — tabela que mostra se sinais com mais fatores
+  (ex.: 5/5) realmente acertam mais que os fracos (ex.: 3/5), validando a confluência.
+
 ## 📰 Notícias em tempo real
 
 Painel **Notícias em tempo real (cripto)** que agrega manchetes de RSS

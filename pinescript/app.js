@@ -23,6 +23,7 @@ let computed = {};           // indicadores calculados (emaR, emaL, ema200, rsi,
 let chartPreco = null, chartRsi = null, chartAtr = null;
 let serieVelas = null, serieEma9 = null, serieEma21 = null, serieEma200 = null;
 let serieRsi = null, serieAtr = null, serieAtrMedia = null;
+let chartEquity = null, serieEquity = null;
 let graficosMontados = false;
 
 // WebSocket ao vivo
@@ -301,6 +302,15 @@ function montarGraficos() {
     serieAtr = chartAtr.addLineSeries({ color: '#27ae60', lineWidth: 2, priceLineVisible: false });
     serieAtrMedia = chartAtr.addLineSeries({ color: '#16a085', lineWidth: 1, lineStyle: LightweightCharts.LineStyle.Dashed, priceLineVisible: false, lastValueVisible: false });
 
+    // Curva de capital (baseline em 0: verde acima, vermelho abaixo)
+    chartEquity = LightweightCharts.createChart(document.getElementById('chartEquity'), { ...opcoesBase(), height: 200 });
+    serieEquity = chartEquity.addBaselineSeries({
+        baseValue: { type: 'price', price: 0 },
+        topLineColor: '#27ae60', topFillColor1: 'rgba(39,174,96,0.28)', topFillColor2: 'rgba(39,174,96,0.05)',
+        bottomLineColor: '#e74c3c', bottomFillColor1: 'rgba(231,76,60,0.05)', bottomFillColor2: 'rgba(231,76,60,0.28)',
+        priceLineVisible: false
+    });
+
     sincronizarTempo([chartPreco, chartRsi, chartAtr]);
     graficosMontados = true;
 }
@@ -486,6 +496,9 @@ function atualizarPaineis() {
         (bloqueadas ? `<span class="sum-item sum-block">Evitadas (notícia): <strong>${bloqueadas}</strong></span>` : '') +
         `<span class="sum-item sum-rate">Win rate: <strong>${wr}${wr === '–' ? '' : '%'}</strong></span>`;
 
+    // Métricas de análise (backtest) sobre as entradas não bloqueadas
+    calcularMetricas(validas);
+
     const hint = document.getElementById('entryHint');
     if (entradas.length === 0) {
         const poucas = dados.length < 200 && document.getElementById('useEma200').checked;
@@ -494,6 +507,81 @@ function atualizarPaineis() {
             : '💡 Nenhuma entrada com estes filtros. A confluência estrita gera poucos sinais (por design) — afrouxe um filtro (ex.: Estrutura ou Momentum).';
         hint.style.display = 'block';
     } else { hint.style.display = 'none'; }
+}
+
+// ============================================================================
+// BLOCO 7.5 — MÉTRICAS DE ANÁLISE (backtest das entradas)
+// ============================================================================
+
+function calcularMetricas(validas) {
+    const payout = Math.max(0.01, (parseFloat(document.getElementById('payout').value) || 87) / 100);
+    const evaluated = validas.filter(e => e.resultado === 'WIN' || e.resultado === 'LOSS');
+    const grid = document.getElementById('metricsGrid');
+    const scoreBody = document.getElementById('scoreTableBody');
+
+    if (!evaluated.length) {
+        grid.innerHTML = '<div class="metric-empty">Sem operações avaliadas ainda — aguardando a expiração das entradas.</div>';
+        scoreBody.innerHTML = '';
+        if (serieEquity) serieEquity.setData([]);
+        return;
+    }
+
+    const wins = evaluated.filter(e => e.resultado === 'WIN');
+    const losses = evaluated.filter(e => e.resultado === 'LOSS');
+    const wr = wins.length / evaluated.length * 100;
+
+    const wrDir = arr => arr.length ? (arr.filter(e => e.resultado === 'WIN').length / arr.length * 100).toFixed(1) + '%' : '–';
+    const call = evaluated.filter(e => e.dir === 'CALL');
+    const put = evaluated.filter(e => e.dir === 'PUT');
+
+    // P&L em unidades de aposta: WIN = +payout, LOSS = -1
+    const pnl = wins.length * payout - losses.length;
+    const expect = pnl / evaluated.length;
+    const grossWin = wins.length * payout, grossLoss = losses.length;
+    const pf = grossLoss > 0 ? grossWin / grossLoss : Infinity;
+    const beWR = 1 / (1 + payout) * 100;   // win rate necessário para empatar
+
+    // Sequências (streaks) em ordem cronológica
+    const chron = [...evaluated].sort((a, b) => a.entryTime - b.entryTime);
+    let maxW = 0, maxL = 0, curW = 0, curL = 0;
+    chron.forEach(e => {
+        if (e.resultado === 'WIN') { curW++; curL = 0; maxW = Math.max(maxW, curW); }
+        else { curL++; curW = 0; maxL = Math.max(maxL, curL); }
+    });
+
+    const cards = [
+        ['Win rate geral', wr.toFixed(1) + '%', wr >= beWR ? 'good' : 'bad'],
+        ['Win rate p/ empatar', beWR.toFixed(1) + '%', ''],
+        ['P&L acumulado', (pnl >= 0 ? '+' : '') + pnl.toFixed(2) + 'u', pnl >= 0 ? 'good' : 'bad'],
+        ['Expectativa/op', (expect >= 0 ? '+' : '') + expect.toFixed(3) + 'u', expect >= 0 ? 'good' : 'bad'],
+        ['Profit factor', pf === Infinity ? '∞' : pf.toFixed(2), pf >= 1 ? 'good' : 'bad'],
+        ['Win rate CALL', wrDir(call), ''],
+        ['Win rate PUT', wrDir(put), ''],
+        ['Maior seq. WIN', String(maxW), 'good'],
+        ['Maior seq. LOSS', String(maxL), 'bad'],
+        ['Operações avaliadas', String(evaluated.length), '']
+    ];
+    grid.innerHTML = cards.map(c =>
+        `<div class="metric-card"><span class="metric-val ${c[2]}">${c[1]}</span><span class="metric-lbl">${c[0]}</span></div>`
+    ).join('');
+
+    // Win rate por score de confluência (valida a tese: mais fatores = mais acerto?)
+    const byScore = {};
+    evaluated.forEach(e => {
+        const k = e.score + '/' + e.enabled;
+        (byScore[k] = byScore[k] || { t: 0, w: 0 });
+        byScore[k].t++; if (e.resultado === 'WIN') byScore[k].w++;
+    });
+    scoreBody.innerHTML = Object.keys(byScore).sort().reverse().map(k => {
+        const o = byScore[k], r = o.w / o.t * 100;
+        return `<tr><td>${k}</td><td>${o.t}</td><td>${o.w}</td><td class="${r >= beWR ? 'res-win' : 'res-loss'}">${r.toFixed(0)}%</td></tr>`;
+    }).join('');
+
+    // Curva de capital acumulada
+    let acc = 0;
+    const eq = chron.map(e => { acc += e.resultado === 'WIN' ? payout : -1; return { time: e.entryTime, value: +acc.toFixed(4) }; });
+    if (serieEquity) serieEquity.setData(eq);
+    if (chartEquity) chartEquity.timeScale().fitContent();
 }
 
 // ============================================================================
@@ -819,8 +907,8 @@ document.getElementById('newsSoMoeda').addEventListener('change', renderNoticias
 // Confluência: mudar modo/pontuação/janela recalcula os sinais na hora
 ['confMode', 'minScore', 'confJanela'].forEach(id =>
     document.getElementById(id).addEventListener('change', recalcularSinaisApenas));
-// Filtro de notícias: só reavalia o painel (não recarrega dados)
-['useNewsFilter', 'newsJanela'].forEach(id =>
+// Filtro de notícias + payout: só reavalia o painel/métricas (não recarrega dados)
+['useNewsFilter', 'newsJanela', 'payout'].forEach(id =>
     document.getElementById(id).addEventListener('change', atualizarPaineis));
 document.getElementById('expiracao').addEventListener('change', function () {
     if (!dados.length) { carregar(); return; }
@@ -833,6 +921,7 @@ window.addEventListener('resize', function () {
     if (chartPreco) chartPreco.applyOptions({ width: document.getElementById('chartPreco').clientWidth });
     if (chartRsi) chartRsi.applyOptions({ width: document.getElementById('chartRsi').clientWidth });
     if (chartAtr) chartAtr.applyOptions({ width: document.getElementById('chartAtr').clientWidth });
+    if (chartEquity) chartEquity.applyOptions({ width: document.getElementById('chartEquity').clientWidth });
 });
 
 // Inicializa em DOMContentLoaded (NÃO em 'load') para não depender do tv.js:

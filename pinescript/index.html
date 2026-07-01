@@ -197,6 +197,29 @@
                     <p id="entryHint" class="signal-hint"></p>
                 </div>
 
+                <!-- Métricas de Análise (backtest) -->
+                <div class="chart-container">
+                    <h2>📈 Métricas de Análise (backtest)</h2>
+                    <div class="metrics-toolbar">
+                        <label>Payout por WIN (%) <input type="number" id="payout" value="87" min="1" max="500" step="1"></label>
+                        <span class="metrics-hint">Opções binárias: retorno típico 70–90% por acerto; um LOSS perde 1× a aposta.</span>
+                    </div>
+                    <div class="metrics-grid" id="metricsGrid"></div>
+                    <div class="metrics-cols">
+                        <div class="metrics-equity">
+                            <h3>Curva de capital (unidades de aposta)</h3>
+                            <div id="chartEquity" class="tv-chart tv-chart-sub"></div>
+                        </div>
+                        <div class="metrics-scores">
+                            <h3>Win rate por confluência (score)</h3>
+                            <table class="score-table">
+                                <thead><tr><th>Score</th><th>Ops</th><th>WIN</th><th>Win rate</th></tr></thead>
+                                <tbody id="scoreTableBody"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
                 <!-- Notícias em tempo real -->
                 <div class="chart-container">
                     <h2>📰 Notícias em tempo real (cripto)</h2>
