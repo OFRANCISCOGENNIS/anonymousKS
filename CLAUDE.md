@@ -4,7 +4,7 @@ Módulo VBA para Excel que transforma o export bruto do SAP (CKCP) em um conjunt
 
 ## Arquivo fonte
 
-`vba/AnaliseCKCP_OTIMIZADO.bas` — 6.153 linhas, 60 Subs, 71 Functions.
+`vba/AnaliseCKCP_OTIMIZADO.bas` — 6.175 linhas, 60 Subs, 71 Functions.
 
 ## Como usar
 
