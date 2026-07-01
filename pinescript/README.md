@@ -8,9 +8,34 @@ WIN/LOSS de cada entrada e win rate.
 
 ## ⚡ Modo mais rápido: arquivo único
 
-Abra **`Simulador_Standalone.html`** com duplo-clique — tudo (CSS, JS e a lib de
-gráficos) está embutido, funciona sem servidor e sem internet. Regenere-o com
-`node build_standalone.js` após editar os fontes.
+Abra **`Simulador_Standalone.html`** com duplo-clique — a interface e a lib de
+gráficos estão embutidas. Regenere-o com `node build_standalone.js` após editar
+os fontes.
+
+## 📡 Tempo real (dados ao vivo da Binance)
+
+Por padrão a fonte é **Binance (ao vivo)**: ao abrir com **internet**, o simulador
+- baixa o histórico de candles via REST (`data-api.binance.vision`, domínio público
+  oficial da Binance, **sem cadastro / sem API key**);
+- abre um **WebSocket** (`wss://data-stream.binance.vision`) e atualiza o candle em
+  formação, os indicadores, os sinais e os avisos de entrada **a cada tick**;
+- o indicador **● AO VIVO** e o ponto verde piscando confirmam a conexão.
+
+**Par / moeda:** digite qualquer par no campo (ex.: `BTCUSDT`, `ETHUSDT`, `SOLUSDT`,
+`XRPUSDT`…). O campo tem autocompletar com **todas as ~1300 moedas em negociação**
+(carregadas do `exchangeInfo` da Binance).
+
+**Sem internet / região bloqueada:** troque a fonte para **Simulado (offline)** —
+gera candles aleatórios localmente. Se o carregamento ao vivo falhar, o app cai
+automaticamente no modo simulado para não deixar a tela vazia.
+
+**Endpoint alternativo:** é possível apontar para outro espelho compatível com a API
+da Binance via query string, ex.:
+`Simulador_Standalone.html?rest=https://SEU_MIRROR&ws=wss://SEU_MIRROR_WS`.
+
+> Observação: em algumas regiões o domínio principal `api.binance.com` é bloqueado,
+> mas o domínio público de dados `data-api.binance.vision` costuma funcionar — é o
+> que o simulador usa.
 
 ## 🚀 Como usar (pasta + servidor)
 

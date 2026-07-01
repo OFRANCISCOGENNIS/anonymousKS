@@ -288,6 +288,63 @@ body {
 .entry-table .res-loss { color: var(--color-danger); font-weight: 700; }
 .entry-table .res-pend { color: #95a5a6; }
 
+/* ============================================================================
+   STATUS DE CONEXÃO (tempo real)
+   ============================================================================ */
+
+.conn-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 8px;
+    font-size: 12px;
+}
+
+.conn-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    display: inline-block;
+    flex-shrink: 0;
+}
+
+.conn-dot.conn-on { background: #27ae60; box-shadow: 0 0 6px #27ae60; animation: pulse 1.4s infinite; }
+.conn-dot.conn-connecting { background: #f39c12; animation: pulse 1s infinite; }
+.conn-dot.conn-off { background: #95a5a6; }
+.conn-dot.conn-err { background: #e74c3c; }
+
+.conn-text { color: var(--color-secondary); font-weight: 600; }
+
+@keyframes pulse {
+    0% { opacity: 1; }
+    50% { opacity: 0.35; }
+    100% { opacity: 1; }
+}
+
+.live-badge {
+    display: none;
+    font-size: 12px;
+    font-weight: 700;
+    color: #fff;
+    background: #e74c3c;
+    padding: 2px 8px;
+    border-radius: 10px;
+    vertical-align: middle;
+    animation: pulse 1.4s infinite;
+}
+
+/* Campo de par/moeda */
+#symbol {
+    width: 100%;
+    padding: 6px 8px;
+    border: 1px solid #bdc3c7;
+    border-radius: 4px;
+    font-size: 13px;
+    text-transform: uppercase;
+    font-weight: 600;
+}
+#symbol:focus { outline: none; border-color: var(--color-accent); }
+
 /* Selects da sidebar */
 .control-group select {
     padding: 6px 8px;

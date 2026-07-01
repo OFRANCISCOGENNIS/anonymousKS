@@ -21,6 +21,27 @@
             <aside class="sidebar">
                 <h2>⚙️ Controles</h2>
 
+                <!-- Fonte de dados -->
+                <section class="control-group">
+                    <h3>📡 Fonte de dados</h3>
+                    <label>
+                        Fonte
+                        <select id="fonte">
+                            <option value="binance" selected>Binance (ao vivo)</option>
+                            <option value="sim">Simulado (offline)</option>
+                        </select>
+                    </label>
+                    <label>
+                        Par / moeda
+                        <input type="text" id="symbol" value="BTCUSDT" list="listaSimbolos" autocomplete="off" spellcheck="false">
+                        <datalist id="listaSimbolos"></datalist>
+                    </label>
+                    <div class="conn-row">
+                        <span id="connDot" class="conn-dot conn-off"></span>
+                        <span id="connText" class="conn-text">Offline</span>
+                    </div>
+                </section>
+
                 <!-- Gráfico & Expiração -->
                 <section class="control-group">
                     <h3>🕒 Gráfico & Expiração</h3>
@@ -51,13 +72,13 @@
                     <h3>📈 Dados</h3>
                     <label>
                         <input type="number" id="numCandles" value="300" min="20" max="1000">
-                        <span>Nº de velas</span>
+                        <span>Nº de velas (histórico / limite Binance máx 1000)</span>
                     </label>
                     <label>
                         <input type="number" id="volatility" value="2" min="0.5" max="10" step="0.5">
-                        <span>Volatilidade %</span>
+                        <span>Volatilidade % (só no modo Simulado)</span>
                     </label>
-                    <button id="btnGerar" class="btn-primary">Gerar Dados</button>
+                    <button id="btnGerar" class="btn-primary">Recarregar / Gerar</button>
                 </section>
 
                 <!-- Tendência -->
@@ -107,7 +128,7 @@
             <section class="charts-area">
                 <!-- Gráfico de Velas (Candlestick) + EMAs -->
                 <div class="chart-container">
-                    <h2>💹 Preço (Velas) & EMAs</h2>
+                    <h2>💹 <span id="chartTitulo">Preço (Velas) & EMAs</span> <span id="liveBadge" class="live-badge">● AO VIVO</span></h2>
                     <div id="chartPreco" class="tv-chart tv-chart-main"></div>
                     <div class="chart-legend" id="legendPreco"></div>
                 </div>
