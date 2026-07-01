@@ -2928,7 +2928,9 @@ ProxBcalc:
         tpAneel = TipoPEPANEEL(pep)
         If tipoG = "S" Then tpAneel = "ODS"
         motG = ""
-        If tipoG = "D" Then
+        If qG = 0 And vG <> 0 Then
+            motG = "PENDENCIA DE AJUSTE (QTD=0)"
+        ElseIf tipoG = "D" Then
             If qG > 0 Then motG = "QTD+"
             If vG > 0 Then motG = Trim$(motG & " VALOR+")
         Else
@@ -2958,7 +2960,7 @@ ProxBcalc:
             .Font.Color = corB: .Font.Bold = True
         End With
         If qG < 0 Or (tipoG = "D" And qG > 0) Then ws.Cells(row, 8).Font.Color = corB
-        If vG < 0 Or (tipoG = "D" And vG > 0) Then ws.Cells(row, 9).Font.Color = corB
+        If vG < 0 Or (tipoG = "D" And vG > 0) Or (qG = 0 And vG <> 0) Then ws.Cells(row, 9).Font.Color = corB
         With ws.Cells(row, 10)
             .Interior.Color = corBcl
             .Font.Color = corB: .Font.Bold = True: .Font.Size = 8.5
