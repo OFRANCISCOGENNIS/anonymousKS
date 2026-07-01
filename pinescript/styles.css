@@ -203,6 +203,108 @@ body {
 }
 
 /* ============================================================================
+   GRÁFICOS TRADINGVIEW (Lightweight Charts)
+   ============================================================================ */
+
+.tv-chart {
+    width: 100%;
+    position: relative;
+}
+
+.tv-chart-main {
+    height: 340px;
+}
+
+.tv-chart-sub {
+    height: 180px;
+}
+
+.chart-legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 14px;
+    margin-top: 10px;
+    font-size: 12px;
+    font-weight: 600;
+}
+
+.chart-legend .lg-close { color: #2c3e50; }
+.chart-legend .lg-ema9 { color: #3498db; }
+.chart-legend .lg-ema21 { color: #f39c12; }
+.chart-legend .lg-ema200 { color: #9b59b6; }
+
+/* ============================================================================
+   TABELA DE AVISOS DE ENTRADA
+   ============================================================================ */
+
+.entry-summary {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 16px;
+    margin-bottom: 14px;
+    font-size: 13px;
+}
+
+.entry-summary .sum-item strong { font-size: 15px; }
+.entry-summary .sum-win strong { color: var(--color-success); }
+.entry-summary .sum-loss strong { color: var(--color-danger); }
+.entry-summary .sum-pend strong { color: #95a5a6; }
+.entry-summary .sum-rate strong { color: var(--color-accent); }
+
+.entry-table-wrap {
+    max-height: 340px;
+    overflow-y: auto;
+    border: 1px solid #e1e6ea;
+    border-radius: 6px;
+}
+
+.entry-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12px;
+}
+
+.entry-table thead th {
+    position: sticky;
+    top: 0;
+    background: var(--color-primary);
+    color: #fff;
+    padding: 8px 10px;
+    text-align: left;
+    font-weight: 600;
+    z-index: 1;
+}
+
+.entry-table tbody td {
+    padding: 7px 10px;
+    border-bottom: 1px solid #eef2f5;
+}
+
+.entry-table tbody tr:hover { background: #f5f8fa; }
+
+.entry-table .dir-call { color: var(--color-success); font-weight: 700; }
+.entry-table .dir-put { color: var(--color-danger); font-weight: 700; }
+.entry-table .res-win { color: var(--color-success); font-weight: 700; }
+.entry-table .res-loss { color: var(--color-danger); font-weight: 700; }
+.entry-table .res-pend { color: #95a5a6; }
+
+/* Selects da sidebar */
+.control-group select {
+    padding: 6px 8px;
+    border: 1px solid #bdc3c7;
+    border-radius: 4px;
+    font-size: 12px;
+    width: 100%;
+    cursor: pointer;
+    background: #fff;
+}
+
+.control-group select:focus {
+    outline: none;
+    border-color: var(--color-accent);
+}
+
+/* ============================================================================
    STATUS PANEL
    ============================================================================ */
 

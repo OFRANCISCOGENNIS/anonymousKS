@@ -1,8 +1,18 @@
 # 📊 Simulador: Confluência Multi-Fator [Forex/Cripto]
 
-Um **simulador visual interativo** do indicador Pine Script v5 em HTML/CSS/JavaScript puro que roda 100% localmente no navegador.
+Um **simulador visual interativo** do indicador Pine Script v5 com **velas japonesas
+estilo TradingView** (biblioteca oficial **Lightweight Charts** vendorizada localmente),
+que roda 100% offline no navegador. Inclui **avisos de entrada com expiração**
+(1m / 5m / 15m / 30m / 1h) no estilo opções binárias, com avaliação automática
+WIN/LOSS de cada entrada e win rate.
 
-## 🚀 Como usar
+## ⚡ Modo mais rápido: arquivo único
+
+Abra **`Simulador_Standalone.html`** com duplo-clique — tudo (CSS, JS e a lib de
+gráficos) está embutido, funciona sem servidor e sem internet. Regenere-o com
+`node build_standalone.js` após editar os fontes.
+
+## 🚀 Como usar (pasta + servidor)
 
 ### Opção 1: Python SimpleHTTPServer (Python 3)
 
@@ -69,13 +79,22 @@ php -S localhost:8000
   - Confirmação de fechamento de vela
   - Cooldown entre sinais (default 5 velas)
 
-### 📊 Gráficos Interativos
+### 🕒 Gráfico & Expiração
 
-1. **Preço & Tendência (EMAs)**
-   - Linha de fechamento
-   - EMA Rápida (azul tracejada)
-   - EMA Lenta (laranja tracejada)
-   - EMA 200 (roxo fina)
+- **Timeframe do gráfico**: M1, M5, M15, M30, H1 (define o tamanho de cada vela)
+- **Expiração da entrada**: 1m, 5m, 15m, 30m, 1h (estilo opções binárias)
+- Cada sinal vira um **aviso de entrada** (CALL/PUT) avaliado na expiração:
+  compara o preço no fechamento da vela de entrada com o preço N velas à frente
+  (N = expiração ÷ timeframe) e marca **WIN / LOSS / EMPATE / pendente**
+- Tabela de entradas + resumo com **win rate**
+
+### 📊 Gráficos Interativos (Lightweight Charts / TradingView)
+
+1. **Preço (Velas) & EMAs**
+   - Velas japonesas (verde alta / vermelho baixa), pan e zoom
+   - EMA Rápida (azul), EMA Lenta (laranja), EMA 200 (roxo)
+   - Setas CALL (▲ abaixo) / PUT (▼ acima) com o texto da expiração
+   - Legenda O/H/L/C + valores das EMAs
 
 2. **RSI (Momentum)**
    - Gráfico em área com linhas de referência (30/70)

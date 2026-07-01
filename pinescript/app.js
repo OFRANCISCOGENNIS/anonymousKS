@@ -1,140 +1,109 @@
 // ============================================================================
-// SIMULADOR CONFLUÊNCIA MULTI-FATOR — LÓGICA E RENDERIZAÇÃO
+// SIMULADOR CONFLUÊNCIA MULTI-FATOR — CANDLES estilo TradingView
+// Usa TradingView Lightweight Charts para velas japonesas + EMAs + RSI + ATR
+// e um sistema de avisos de entrada com expiração (1m/5m/15m/30m/1h).
 // ============================================================================
 
 // Variáveis globais
-let dados = [];
-let sinaisLong = [];
+let dados = [];              // candles: {time, open, high, low, close, volume}
+let sinaisLong = [];         // [{index, preco}]
 let sinaisShort = [];
-let chartPreco, chartRsi, chartAtr;
+let entradas = [];           // [{index, dir, ...}] avisos de entrada com expiração
+
+// Instâncias dos gráficos (Lightweight Charts)
+let chartPreco = null, chartRsi = null, chartAtr = null;
+let serieVelas = null, serieEma9 = null, serieEma21 = null, serieEma200 = null;
+let serieRsi = null, serieAtr = null, serieAtrMedia = null;
 
 // ============================================================================
-// BLOCO 1 — FUNÇÕES UTILITÁRIAS
+// BLOCO 1 — FUNÇÕES UTILITÁRIAS (indicadores)
 // ============================================================================
 
-/**
- * SMA (Simple Moving Average)
- */
 function sma(array, period) {
     const result = [];
     for (let i = 0; i < array.length; i++) {
-        if (i < period - 1) {
-            result.push(null);
-        } else {
-            let sum = 0;
-            for (let j = i - period + 1; j <= i; j++) {
-                sum += array[j];
-            }
-            result.push(sum / period);
-        }
+        if (i < period - 1) { result.push(null); continue; }
+        let sum = 0;
+        for (let j = i - period + 1; j <= i; j++) sum += array[j];
+        result.push(sum / period);
     }
     return result;
 }
 
-/**
- * EMA (Exponential Moving Average)
- */
 function ema(array, period) {
     const result = [];
     const multiplier = 2 / (period + 1);
-
-    let smaValue = null;
+    let emaPrev = null;
     for (let i = 0; i < array.length; i++) {
-        if (i < period - 1) {
-            result.push(null);
-        } else if (i === period - 1) {
+        if (i < period - 1) { result.push(null); continue; }
+        if (i === period - 1) {
             let sum = 0;
-            for (let j = 0; j < period; j++) {
-                sum += array[j];
-            }
-            smaValue = sum / period;
-            result.push(smaValue);
+            for (let j = 0; j < period; j++) sum += array[j];
+            emaPrev = sum / period;
+            result.push(emaPrev);
         } else {
-            smaValue = (array[i] - smaValue) * multiplier + smaValue;
-            result.push(smaValue);
+            emaPrev = (array[i] - emaPrev) * multiplier + emaPrev;
+            result.push(emaPrev);
         }
     }
     return result;
 }
 
-/**
- * RSI (Relative Strength Index)
- */
 function rsi(array, period) {
-    const result = [];
+    const result = [null]; // alinhado ao índice do array de preços (i=0 sem RSI)
     const changes = [];
-
-    for (let i = 1; i < array.length; i++) {
-        changes.push(array[i] - array[i - 1]);
-    }
-
+    for (let i = 1; i < array.length; i++) changes.push(array[i] - array[i - 1]);
     for (let i = 0; i < changes.length; i++) {
-        if (i < period - 1) {
-            result.push(null);
-        } else {
-            let gainSum = 0, lossSum = 0;
-            for (let j = i - period + 1; j <= i; j++) {
-                if (changes[j] > 0) gainSum += changes[j];
-                else lossSum += Math.abs(changes[j]);
-            }
-            const avgGain = gainSum / period;
-            const avgLoss = lossSum / period;
-            const rs = avgLoss === 0 ? 100 : avgGain / avgLoss;
-            const rsiValue = 100 - (100 / (1 + rs));
-            result.push(rsiValue);
+        if (i < period - 1) { result.push(null); continue; }
+        let gainSum = 0, lossSum = 0;
+        for (let j = i - period + 1; j <= i; j++) {
+            if (changes[j] > 0) gainSum += changes[j];
+            else lossSum += Math.abs(changes[j]);
         }
+        const avgGain = gainSum / period;
+        const avgLoss = lossSum / period;
+        const rs = avgLoss === 0 ? 100 : avgGain / avgLoss;
+        result.push(100 - (100 / (1 + rs)));
     }
     return result;
 }
 
-/**
- * ATR (Average True Range)
- */
 function atr(high, low, close, period) {
-    const result = [];
     const tr = [];
-
     for (let i = 0; i < close.length; i++) {
-        let trValue;
-        if (i === 0) {
-            trValue = high[i] - low[i];
-        } else {
-            trValue = Math.max(
-                high[i] - low[i],
-                Math.abs(high[i] - close[i - 1]),
-                Math.abs(low[i] - close[i - 1])
-            );
-        }
-        tr.push(trValue);
+        if (i === 0) { tr.push(high[i] - low[i]); continue; }
+        tr.push(Math.max(
+            high[i] - low[i],
+            Math.abs(high[i] - close[i - 1]),
+            Math.abs(low[i] - close[i - 1])
+        ));
     }
-
-    const atrValues = sma(tr, period);
-    return atrValues;
+    return sma(tr, period);
 }
 
-/**
- * Crossover: prev <= prevPrev e curr > currPrev
- */
-function crossover(curr, prev, currPrev, prevPrev) {
-    if (prev === null || prevPrev === null || currPrev === null) return false;
-    return prevPrev <= prev && curr > currPrev;
+function crossover(curr, prev, nivel) {
+    if (prev === null || curr === null) return false;
+    return prev <= nivel && curr > nivel;
 }
-
-/**
- * Crossunder: prev >= prevPrev e curr < currPrev
- */
-function crossunder(curr, prev, currPrev, prevPrev) {
-    if (prev === null || prevPrev === null || currPrev === null) return false;
-    return prevPrev >= prev && curr < currPrev;
+function crossunder(curr, prev, nivel) {
+    if (prev === null || curr === null) return false;
+    return prev >= nivel && curr < nivel;
 }
 
 // ============================================================================
-// BLOCO 2 — GERAÇÃO DE DADOS SIMULADOS
+// BLOCO 2 — GERAÇÃO DE DADOS SIMULADOS (com timestamps reais)
 // ============================================================================
+
+function tfMinutes() { return parseInt(document.getElementById('timeframe').value); }
+function expMinutes() { return parseInt(document.getElementById('expiracao').value); }
 
 function gerarDadosSim(numCandles, volatilidade) {
-    const dados = [];
+    const out = [];
     let preco = 100;
+    const stepSec = tfMinutes() * 60;
+    // Alinha o último candle ao "agora" arredondado ao timeframe
+    const agora = Math.floor(Date.now() / 1000);
+    const baseTime = agora - (agora % stepSec);
 
     for (let i = 0; i < numCandles; i++) {
         const open = preco;
@@ -142,28 +111,24 @@ function gerarDadosSim(numCandles, volatilidade) {
         const close = open + change;
         const high = Math.max(open, close) * (1 + Math.random() * 0.01);
         const low = Math.min(open, close) * (1 - Math.random() * 0.01);
-
-        dados.push({
-            index: i,
-            open: parseFloat(open.toFixed(4)),
-            high: parseFloat(high.toFixed(4)),
-            low: parseFloat(low.toFixed(4)),
-            close: parseFloat(close.toFixed(4)),
+        out.push({
+            time: baseTime - (numCandles - 1 - i) * stepSec,
+            open: +open.toFixed(4),
+            high: +high.toFixed(4),
+            low: +low.toFixed(4),
+            close: +close.toFixed(4),
             volume: Math.floor(Math.random() * 1000000) + 100000
         });
-
         preco = close;
     }
-
-    return dados;
+    return out;
 }
 
 // ============================================================================
-// BLOCO 3 — CÁLCULO DO INDICADOR
+// BLOCO 3 — CÁLCULO DO INDICADOR (mesma lógica de confluência do Pine Script)
 // ============================================================================
 
 function calcularIndicador(dados) {
-    // Obter inputs
     const useTendencia = document.getElementById('useTendencia').checked;
     const emaRapidaLen = parseInt(document.getElementById('emaRapida').value);
     const emaLentaLen = parseInt(document.getElementById('emaLenta').value);
@@ -181,489 +146,364 @@ function calcularIndicador(dados) {
     const useEstrutura = document.getElementById('useEstrutura').checked;
     const estruturaLookback = parseInt(document.getElementById('estruturaLookback').value);
 
-    const confirmarFechamento = document.getElementById('confirmarFechamento').checked;
     const cooldownVelas = parseInt(document.getElementById('cooldownVelas').value);
 
-    // Extrair arrays
     const closes = dados.map(d => d.close);
     const highs = dados.map(d => d.high);
     const lows = dados.map(d => d.low);
-    const volumes = dados.map(d => d.volume);
 
-    // Calcular EMAs
-    const emaRapida = ema(closes, emaRapidaLen);
-    const emaLenta = ema(closes, emaLentaLen);
+    const emaR = ema(closes, emaRapidaLen);
+    const emaL = ema(closes, emaLentaLen);
     const ema200 = ema(closes, 200);
-
-    // Calcular RSI
     const rsiValues = rsi(closes, rsiLen);
-
-    // Calcular ATR
     const atrValues = atr(highs, lows, closes, atrLen);
     const atrMedia = sma(atrValues, atrMediaLen);
 
-    // Calcular máxima/mínima recente
-    const maxRecente = [];
-    const minRecente = [];
+    // Máxima/mínima recente (excluindo a vela atual)
+    const maxRec = [], minRec = [];
     for (let i = 0; i < closes.length; i++) {
-        if (i === 0) {
-            maxRecente.push(highs[i]);
-            minRecente.push(lows[i]);
-        } else {
-            let max = -Infinity, min = Infinity;
-            const start = Math.max(0, i - estruturaLookback);
-            for (let j = start; j < i; j++) {
-                max = Math.max(max, highs[j]);
-                min = Math.min(min, lows[j]);
-            }
-            maxRecente.push(max);
-            minRecente.push(min);
-        }
+        if (i === 0) { maxRec.push(highs[0]); minRec.push(lows[0]); continue; }
+        let mx = -Infinity, mn = Infinity;
+        const start = Math.max(0, i - estruturaLookback);
+        for (let j = start; j < i; j++) { mx = Math.max(mx, highs[j]); mn = Math.min(mn, lows[j]); }
+        maxRec.push(mx); minRec.push(mn);
     }
 
-    // Calcular sinais
     sinaisLong = [];
     sinaisShort = [];
-    let barrasDesdeUltimoSinal = 999999;
+    let barras = 999999;
 
     for (let i = 1; i < closes.length; i++) {
-        barrasDesdeUltimoSinal++;
+        barras++;
 
-        // Condições brutas
-        const rawTendenciaLong = emaRapida[i] !== null && emaLenta[i] !== null && emaRapida[i] > emaLenta[i];
-        const rawTendenciaShort = emaRapida[i] !== null && emaLenta[i] !== null && emaRapida[i] < emaLenta[i];
-
+        const rawTendLong = emaR[i] !== null && emaL[i] !== null && emaR[i] > emaL[i];
+        const rawTendShort = emaR[i] !== null && emaL[i] !== null && emaR[i] < emaL[i];
         const rawMacroLong = ema200[i] !== null && closes[i] > ema200[i];
         const rawMacroShort = ema200[i] !== null && closes[i] < ema200[i];
+        const rawMomLong = crossover(rsiValues[i], rsiValues[i - 1], rsiSobrevenda);
+        const rawMomShort = crossunder(rsiValues[i], rsiValues[i - 1], rsiSobrecompra);
+        const rawVol = atrValues[i] !== null && atrMedia[i] !== null && atrValues[i] > atrMedia[i];
+        const rawEstrLong = closes[i] > maxRec[i - 1];
+        const rawEstrShort = closes[i] < minRec[i - 1];
 
-        const rawMomentumLong = rsiValues[i] !== null && rsiValues[i - 1] !== null &&
-            crossover(rsiValues[i], rsiValues[i - 1], rsiSobrevenda, rsiSobrevenda);
-        const rawMomentumShort = rsiValues[i] !== null && rsiValues[i - 1] !== null &&
-            crossunder(rsiValues[i], rsiValues[i - 1], rsiSobrecompra, rsiSobrecompra);
+        const cTendLong = !useTendencia || rawTendLong;
+        const cTendShort = !useTendencia || rawTendShort;
+        const cMacroLong = !useEma200 || rawMacroLong;
+        const cMacroShort = !useEma200 || rawMacroShort;
+        const cMomLong = !useMomentum || rawMomLong;
+        const cMomShort = !useMomentum || rawMomShort;
+        const cVol = !useVolatilidade || rawVol;
+        const cEstrLong = !useEstrutura || rawEstrLong;
+        const cEstrShort = !useEstrutura || rawEstrShort;
 
-        const rawVolatilidade = atrValues[i] !== null && atrMedia[i] !== null && atrValues[i] > atrMedia[i];
+        const longBruto = cTendLong && cMacroLong && cMomLong && cVol && cEstrLong;
+        const shortBruto = cTendShort && cMacroShort && cMomShort && cVol && cEstrShort;
+        const cCooldown = barras >= cooldownVelas;
 
-        const rawEstruturaLong = closes[i] > maxRecente[i - 1];
-        const rawEstruturaShort = closes[i] < minRecente[i - 1];
-
-        // Aplicar toggles
-        const condTendenciaLong = !useTendencia || rawTendenciaLong;
-        const condTendenciaShort = !useTendencia || rawTendenciaShort;
-
-        const condMacroLong = !useEma200 || rawMacroLong;
-        const condMacroShort = !useEma200 || rawMacroShort;
-
-        const condMomentumLong = !useMomentum || rawMomentumLong;
-        const condMomentumShort = !useMomentum || rawMomentumShort;
-
-        const condVolatilidade = !useVolatilidade || rawVolatilidade;
-
-        const condEstruturaLong = !useEstrutura || rawEstruturaLong;
-        const condEstruturaShort = !useEstrutura || rawEstruturaShort;
-
-        // Confluência
-        const sinalLongBruto = condTendenciaLong && condMacroLong && condMomentumLong && condVolatilidade && condEstruturaLong;
-        const sinalShortBruto = condTendenciaShort && condMacroShort && condMomentumShort && condVolatilidade && condEstruturaShort;
-
-        // Cooldown
-        const condCooldown = barrasDesdeUltimoSinal >= cooldownVelas;
-
-        // Sinais finais
-        if (sinalLongBruto && condCooldown) {
-            sinaisLong.push({
-                index: i,
-                preco: closes[i],
-                filtros: {
-                    tendencia: rawTendenciaLong,
-                    macro: rawMacroLong,
-                    momentum: rawMomentumLong,
-                    volatilidade: rawVolatilidade,
-                    estrutura: rawEstruturaLong
-                }
-            });
-            barrasDesdeUltimoSinal = 0;
-        }
-
-        if (sinalShortBruto && condCooldown && sinalLongBruto === false) {
-            sinaisShort.push({
-                index: i,
-                preco: closes[i],
-                filtros: {
-                    tendencia: rawTendenciaShort,
-                    macro: rawMacroShort,
-                    momentum: rawMomentumShort,
-                    volatilidade: rawVolatilidade,
-                    estrutura: rawEstruturaShort
-                }
-            });
-            barrasDesdeUltimoSinal = 0;
+        if (longBruto && cCooldown) {
+            sinaisLong.push({ index: i, preco: closes[i] });
+            barras = 0;
+        } else if (shortBruto && cCooldown) {
+            sinaisShort.push({ index: i, preco: closes[i] });
+            barras = 0;
         }
     }
 
-    return {
-        closes,
-        emaRapida,
-        emaLenta,
-        ema200,
-        rsiValues,
-        atrValues,
-        atrMedia,
-        sinaisLong,
-        sinaisShort
-    };
+    return { closes, emaR, emaL, ema200, rsiValues, atrValues, atrMedia };
 }
 
 // ============================================================================
-// BLOCO 4 — RENDERIZAÇÃO DOS GRÁFICOS
+// BLOCO 4 — AVISOS DE ENTRADA COM EXPIRAÇÃO (avaliação WIN/LOSS)
 // ============================================================================
+
+function calcularEntradas() {
+    const tf = tfMinutes();
+    const exp = expMinutes();
+    // Nº de velas até a expiração (mínimo 1). Ex.: TF M5, exp 15m -> 3 velas.
+    const N = Math.max(1, Math.round(exp / tf));
+
+    const brutos = [
+        ...sinaisLong.map(s => ({ index: s.index, dir: 'CALL' })),
+        ...sinaisShort.map(s => ({ index: s.index, dir: 'PUT' }))
+    ].sort((a, b) => a.index - b.index);
+
+    entradas = brutos.map(s => {
+        const c = dados[s.index];
+        const entryPrice = c.close;
+        const expIdx = s.index + N;
+        const expTime = c.time + exp * 60;
+        let resultado = 'pendente';
+        let expPrice = null;
+        if (expIdx < dados.length) {
+            expPrice = dados[expIdx].close;
+            if (expPrice === entryPrice) resultado = 'EMPATE';
+            else if (s.dir === 'CALL') resultado = expPrice > entryPrice ? 'WIN' : 'LOSS';
+            else resultado = expPrice < entryPrice ? 'WIN' : 'LOSS';
+        }
+        return {
+            index: s.index, dir: s.dir, entryTime: c.time, entryPrice,
+            expMin: exp, expTime, resultado, expPrice
+        };
+    });
+    return { N, tf, exp };
+}
+
+function fmtHora(unixSec) {
+    const d = new Date(unixSec * 1000);
+    const p = n => String(n).padStart(2, '0');
+    return `${p(d.getHours())}:${p(d.getMinutes())}`;
+}
+
+// ============================================================================
+// BLOCO 5 — RENDERIZAÇÃO DOS GRÁFICOS (Lightweight Charts)
+// ============================================================================
+
+function opcoesBase(alturaSub) {
+    return {
+        layout: { background: { color: '#ffffff' }, textColor: '#2c3e50' },
+        grid: { vertLines: { color: '#eef2f5' }, horzLines: { color: '#eef2f5' } },
+        rightPriceScale: { borderColor: '#d5dbdf' },
+        timeScale: {
+            borderColor: '#d5dbdf',
+            timeVisible: true,
+            secondsVisible: false
+        },
+        crosshair: { mode: LightweightCharts.CrosshairMode.Normal },
+        localization: {
+            timeFormatter: t => fmtHora(t)
+        }
+    };
+}
+
+function destruirGraficos() {
+    [chartPreco, chartRsi, chartAtr].forEach(c => { if (c) c.remove(); });
+    chartPreco = chartRsi = chartAtr = null;
+}
+
+function toLine(times, valores) {
+    // Constrói dados {time, value} pulando nulls
+    const out = [];
+    for (let i = 0; i < valores.length; i++) {
+        if (valores[i] !== null && valores[i] !== undefined) {
+            out.push({ time: times[i], value: valores[i] });
+        }
+    }
+    return out;
+}
 
 function renderizarGraficos(resultado) {
-    const indices = Array.from({ length: dados.length }, (_, i) => i);
+    destruirGraficos();
+    const times = dados.map(d => d.time);
 
-    // Marcadores de sinais: arrays alinhados aos índices, preço no sinal e null no resto
-    const markerLong = resultado.closes.map(() => null);
-    const markerShort = resultado.closes.map(() => null);
-    sinaisLong.forEach(s => { markerLong[s.index] = s.preco; });
-    sinaisShort.forEach(s => { markerShort[s.index] = s.preco; });
-
-    // Gráfico de Preço + EMAs
-    const ctxPreco = document.getElementById('chartPreco').getContext('2d');
-    if (chartPreco) chartPreco.destroy();
-
-    chartPreco = new Chart(ctxPreco, {
-        type: 'line',
-        data: {
-            labels: indices,
-            datasets: [
-                {
-                    label: 'Fechamento',
-                    data: resultado.closes,
-                    borderColor: '#2c3e50',
-                    backgroundColor: 'transparent',
-                    borderWidth: 2,
-                    tension: 0.2,
-                    pointRadius: 0,
-                    pointHoverRadius: 4,
-                    yAxisID: 'y'
-                },
-                {
-                    label: 'EMA Rápida (9)',
-                    data: resultado.emaRapida,
-                    borderColor: '#3498db',
-                    backgroundColor: 'transparent',
-                    borderWidth: 1.5,
-                    tension: 0.2,
-                    pointRadius: 0,
-                    borderDash: [5, 5],
-                    yAxisID: 'y'
-                },
-                {
-                    label: 'EMA Lenta (21)',
-                    data: resultado.emaLenta,
-                    borderColor: '#f39c12',
-                    backgroundColor: 'transparent',
-                    borderWidth: 1.5,
-                    tension: 0.2,
-                    pointRadius: 0,
-                    borderDash: [5, 5],
-                    yAxisID: 'y'
-                },
-                {
-                    label: 'EMA 200 (viés macro)',
-                    data: resultado.ema200,
-                    borderColor: '#9b59b6',
-                    backgroundColor: 'transparent',
-                    borderWidth: 1.5,
-                    tension: 0.2,
-                    pointRadius: 0,
-                    borderDash: [2, 2],
-                    yAxisID: 'y'
-                },
-                {
-                    label: '▲ Sinal LONG',
-                    data: markerLong,
-                    borderColor: '#27ae60',
-                    backgroundColor: '#27ae60',
-                    showLine: false,
-                    pointStyle: 'triangle',
-                    pointRadius: 9,
-                    pointHoverRadius: 12,
-                    pointRotation: 0,
-                    yAxisID: 'y'
-                },
-                {
-                    label: '▼ Sinal SHORT',
-                    data: markerShort,
-                    borderColor: '#e74c3c',
-                    backgroundColor: '#e74c3c',
-                    showLine: false,
-                    pointStyle: 'triangle',
-                    pointRadius: 9,
-                    pointHoverRadius: 12,
-                    pointRotation: 180,
-                    yAxisID: 'y'
-                }
-            ]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: true,
-            plugins: {
-                legend: { position: 'top' },
-                tooltip: {
-                    mode: 'index',
-                    intersect: false
-                }
-            },
-            scales: {
-                y: {
-                    type: 'linear',
-                    position: 'left'
-                },
-                x: {
-                    display: false
-                }
-            }
-        }
+    // ---- Gráfico principal: VELAS ----
+    chartPreco = LightweightCharts.createChart(document.getElementById('chartPreco'), {
+        ...opcoesBase(),
+        height: 340
     });
-
-    // Gráfico de RSI
-    const ctxRsi = document.getElementById('chartRsi').getContext('2d');
-    if (chartRsi) chartRsi.destroy();
-
-    // Plugin que desenha as linhas de referência do RSI (30 e 70)
-    const rsiRefLines = {
-        id: 'rsiRefLines',
-        afterDatasetsDraw(chart) {
-            const { ctx, scales: { y } } = chart;
-            const yTop = y.getPixelForValue(70);
-            const yBottom = y.getPixelForValue(30);
-
-            ctx.save();
-            ctx.strokeStyle = 'rgba(0, 0, 0, 0.2)';
-            ctx.lineWidth = 1;
-            ctx.setLineDash([5, 5]);
-
-            ctx.beginPath();
-            ctx.moveTo(chart.chartArea.left, yTop);
-            ctx.lineTo(chart.chartArea.right, yTop);
-            ctx.stroke();
-
-            ctx.beginPath();
-            ctx.moveTo(chart.chartArea.left, yBottom);
-            ctx.lineTo(chart.chartArea.right, yBottom);
-            ctx.stroke();
-
-            ctx.setLineDash([]);
-            ctx.restore();
-        }
-    };
-
-    chartRsi = new Chart(ctxRsi, {
-        type: 'line',
-        plugins: [rsiRefLines],
-        data: {
-            labels: indices,
-            datasets: [
-                {
-                    label: 'RSI (14)',
-                    data: resultado.rsiValues,
-                    borderColor: '#e74c3c',
-                    backgroundColor: 'rgba(231, 76, 60, 0.1)',
-                    borderWidth: 2,
-                    tension: 0.2,
-                    pointRadius: 0,
-                    fill: true,
-                    yAxisID: 'y'
-                }
-            ]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: true,
-            plugins: {
-                legend: { position: 'top' },
-                annotation: {}
-            },
-            scales: {
-                y: {
-                    type: 'linear',
-                    position: 'left',
-                    min: 0,
-                    max: 100,
-                    ticks: {
-                        callback: function(value) {
-                            if (value === 30 || value === 70) return value;
-                            return '';
-                        }
-                    }
-                },
-                x: {
-                    display: false
-                }
-            }
-        }
+    serieVelas = chartPreco.addCandlestickSeries({
+        upColor: '#26a69a', downColor: '#ef5350',
+        borderUpColor: '#26a69a', borderDownColor: '#ef5350',
+        wickUpColor: '#26a69a', wickDownColor: '#ef5350'
     });
+    serieVelas.setData(dados.map(d => ({
+        time: d.time, open: d.open, high: d.high, low: d.low, close: d.close
+    })));
 
-    // Gráfico de ATR
-    const ctxAtr = document.getElementById('chartAtr').getContext('2d');
-    if (chartAtr) chartAtr.destroy();
+    // EMAs sobrepostas
+    serieEma9 = chartPreco.addLineSeries({ color: '#3498db', lineWidth: 1, priceLineVisible: false, lastValueVisible: false });
+    serieEma9.setData(toLine(times, resultado.emaR));
+    serieEma21 = chartPreco.addLineSeries({ color: '#f39c12', lineWidth: 1, priceLineVisible: false, lastValueVisible: false });
+    serieEma21.setData(toLine(times, resultado.emaL));
+    if (document.getElementById('useEma200').checked) {
+        serieEma200 = chartPreco.addLineSeries({ color: '#9b59b6', lineWidth: 2, priceLineVisible: false, lastValueVisible: false });
+        serieEma200.setData(toLine(times, resultado.ema200));
+    }
 
-    chartAtr = new Chart(ctxAtr, {
-        type: 'line',
-        data: {
-            labels: indices,
-            datasets: [
-                {
-                    label: 'ATR (14)',
-                    data: resultado.atrValues,
-                    borderColor: '#27ae60',
-                    backgroundColor: 'rgba(39, 174, 96, 0.1)',
-                    borderWidth: 2,
-                    tension: 0.2,
-                    pointRadius: 0,
-                    fill: true,
-                    yAxisID: 'y'
-                },
-                {
-                    label: 'Média ATR (50)',
-                    data: resultado.atrMedia,
-                    borderColor: '#16a085',
-                    backgroundColor: 'transparent',
-                    borderWidth: 1.5,
-                    tension: 0.2,
-                    pointRadius: 0,
-                    borderDash: [5, 5],
-                    yAxisID: 'y'
-                }
-            ]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: true,
-            plugins: {
-                legend: { position: 'top' }
-            },
-            scales: {
-                y: {
-                    type: 'linear',
-                    position: 'left'
-                },
-                x: {
-                    display: false
-                }
-            }
-        }
+    // Marcadores de entrada (setas com direção + expiração)
+    const marcadores = entradas.map(e => ({
+        time: dados[e.index].time,
+        position: e.dir === 'CALL' ? 'belowBar' : 'aboveBar',
+        color: e.dir === 'CALL' ? '#26a69a' : '#ef5350',
+        shape: e.dir === 'CALL' ? 'arrowUp' : 'arrowDown',
+        text: `${e.dir} • exp ${e.expMin}m`
+    })).sort((a, b) => a.time - b.time);
+    serieVelas.setMarkers(marcadores);
+
+    // ---- RSI ----
+    chartRsi = LightweightCharts.createChart(document.getElementById('chartRsi'), {
+        ...opcoesBase(), height: 180
     });
+    serieRsi = chartRsi.addLineSeries({ color: '#e74c3c', lineWidth: 2, priceLineVisible: false });
+    serieRsi.setData(toLine(times, resultado.rsiValues));
+    const sobrec = parseInt(document.getElementById('rsiSobrecompra').value);
+    const sobrev = parseInt(document.getElementById('rsiSobrevenda').value);
+    serieRsi.createPriceLine({ price: sobrec, color: 'rgba(0,0,0,0.25)', lineStyle: LightweightCharts.LineStyle.Dashed, lineWidth: 1, axisLabelVisible: true, title: String(sobrec) });
+    serieRsi.createPriceLine({ price: sobrev, color: 'rgba(0,0,0,0.25)', lineStyle: LightweightCharts.LineStyle.Dashed, lineWidth: 1, axisLabelVisible: true, title: String(sobrev) });
 
-    // Atualizar status panel
-    atualizarStatusPanel(resultado);
+    // ---- ATR ----
+    chartAtr = LightweightCharts.createChart(document.getElementById('chartAtr'), {
+        ...opcoesBase(), height: 180
+    });
+    serieAtr = chartAtr.addLineSeries({ color: '#27ae60', lineWidth: 2, priceLineVisible: false });
+    serieAtr.setData(toLine(times, resultado.atrValues));
+    serieAtrMedia = chartAtr.addLineSeries({ color: '#16a085', lineWidth: 1, lineStyle: LightweightCharts.LineStyle.Dashed, priceLineVisible: false, lastValueVisible: false });
+    serieAtrMedia.setData(toLine(times, resultado.atrMedia));
+
+    // Sincroniza pan/zoom entre os três painéis (estilo TradingView)
+    sincronizarTempo([chartPreco, chartRsi, chartAtr]);
+
+    chartPreco.timeScale().fitContent();
+    chartRsi.timeScale().fitContent();
+    chartAtr.timeScale().fitContent();
+
+    atualizarPaineis(resultado);
+    atualizarLegenda(resultado);
+}
+
+let sincronizando = false;
+function sincronizarTempo(charts) {
+    charts.forEach(src => {
+        src.timeScale().subscribeVisibleLogicalRangeChange(range => {
+            if (sincronizando || !range) return;
+            sincronizando = true;
+            charts.forEach(t => { if (t !== src) t.timeScale().setVisibleLogicalRange(range); });
+            sincronizando = false;
+        });
+    });
+}
+
+function atualizarLegenda(resultado) {
+    const last = dados.length - 1;
+    const el = document.getElementById('legendPreco');
+    const fmt = v => (v === null || v === undefined) ? '–' : v.toFixed(4);
+    el.innerHTML =
+        `<span class="lg lg-close">O ${dados[last].open.toFixed(4)} · H ${dados[last].high.toFixed(4)} · L ${dados[last].low.toFixed(4)} · C ${dados[last].close.toFixed(4)}</span>` +
+        `<span class="lg lg-ema9">EMA ${document.getElementById('emaRapida').value}: ${fmt(resultado.emaR[last])}</span>` +
+        `<span class="lg lg-ema21">EMA ${document.getElementById('emaLenta').value}: ${fmt(resultado.emaL[last])}</span>` +
+        (document.getElementById('useEma200').checked ? `<span class="lg lg-ema200">EMA 200: ${fmt(resultado.ema200[last])}</span>` : '');
 }
 
 // ============================================================================
-// BLOCO 5 — ATUALIZAR PAINEL DE STATUS
+// BLOCO 6 — PAINÉIS: STATUS + TABELA DE ENTRADAS
 // ============================================================================
 
-function atualizarStatusPanel(resultado) {
-    // Contadores
+function atualizarPaineis(resultado) {
     document.getElementById('countLong').textContent = sinaisLong.length;
     document.getElementById('countShort').textContent = sinaisShort.length;
 
-    // Último sinal
-    let lastSignal = '–';
-    if (sinaisLong.length > 0) {
-        lastSignal = `LONG em ${sinaisLong[sinaisLong.length - 1].index}`;
-    } else if (sinaisShort.length > 0) {
-        lastSignal = `SHORT em ${sinaisShort[sinaisShort.length - 1].index}`;
-    }
-    document.getElementById('lastSignal').textContent = lastSignal;
-
-    // Dica quando não há sinais (confluência estrita é rara — isso é esperado)
-    const hint = document.getElementById('signalHint');
-    if (sinaisLong.length === 0 && sinaisShort.length === 0) {
-        const poucasVelas = dados.length < 200 && document.getElementById('useEma200').checked;
-        hint.textContent = poucasVelas
-            ? '💡 Filtro EMA 200 ativo, mas há menos de 200 velas — gere mais velas ou desligue a EMA 200.'
-            : '💡 Nenhum sinal com estes filtros. A confluência estrita é rara por design — afrouxe um filtro (ex.: desligar Estrutura ou Momentum) ou gere novos dados.';
-        hint.style.display = 'block';
-    } else {
-        hint.style.display = 'none';
-    }
-
     // Viés atual
-    const lastClose = resultado.closes[resultado.closes.length - 1];
-    const lastEmaRapida = resultado.emaRapida[resultado.emaRapida.length - 1];
-    const lastEmaLenta = resultado.emaLenta[resultado.emaLenta.length - 1];
-    const lastEma200 = resultado.ema200[resultado.ema200.length - 1];
-
+    const last = resultado.closes.length - 1;
     let bias = 'NEUTRO';
-    if (lastEmaRapida !== null && lastEmaLenta !== null && lastEma200 !== null) {
-        if (lastEmaRapida > lastEmaLenta && lastClose > lastEma200) {
-            bias = '🟢 ALTA';
-        } else if (lastEmaRapida < lastEmaLenta && lastClose < lastEma200) {
-            bias = '🔴 BAIXA';
-        }
+    const er = resultado.emaR[last], el = resultado.emaL[last], e2 = resultado.ema200[last], cl = resultado.closes[last];
+    if (er !== null && el !== null && e2 !== null) {
+        if (er > el && cl > e2) bias = '🟢 ALTA';
+        else if (er < el && cl < e2) bias = '🔴 BAIXA';
     }
     document.getElementById('currentBias').textContent = bias;
 
     // Status dos filtros
     const filtersStatus = document.getElementById('filtersStatus');
     filtersStatus.innerHTML = '';
-
-    const useTendencia = document.getElementById('useTendencia').checked;
-    const useMomentum = document.getElementById('useMomentum').checked;
-    const useVolatilidade = document.getElementById('useVolatilidade').checked;
-    const useEstrutura = document.getElementById('useEstrutura').checked;
-
     const filters = [
-        { name: 'Tendência (EMA)', enabled: useTendencia },
+        { name: 'Tendência (EMA)', enabled: document.getElementById('useTendencia').checked },
         { name: 'Macro (EMA200)', enabled: document.getElementById('useEma200').checked },
-        { name: 'Momentum (RSI)', enabled: useMomentum },
-        { name: 'Volatilidade (ATR)', enabled: useVolatilidade },
-        { name: 'Estrutura', enabled: useEstrutura }
+        { name: 'Momentum (RSI)', enabled: document.getElementById('useMomentum').checked },
+        { name: 'Volatilidade (ATR)', enabled: document.getElementById('useVolatilidade').checked },
+        { name: 'Estrutura', enabled: document.getElementById('useEstrutura').checked }
     ];
-
     filters.forEach(f => {
-        const filterDiv = document.createElement('div');
-        filterDiv.className = 'filter-item';
-        filterDiv.innerHTML = `
-            <span>${f.name}</span>
-            <span class="filter-status-icon ${f.enabled ? 'filter-status-ok' : 'filter-status-disabled'}">
-                ${f.enabled ? '✓' : '–'}
-            </span>
-        `;
-        filtersStatus.appendChild(filterDiv);
+        const div = document.createElement('div');
+        div.className = 'filter-item';
+        div.innerHTML = `<span>${f.name}</span><span class="filter-status-icon ${f.enabled ? 'filter-status-ok' : 'filter-status-disabled'}">${f.enabled ? '✓' : '–'}</span>`;
+        filtersStatus.appendChild(div);
     });
+
+    // Tabela de entradas
+    const tbody = document.getElementById('entryTableBody');
+    tbody.innerHTML = '';
+    // Mostra as últimas 30 entradas (mais recentes primeiro)
+    const lista = [...entradas].reverse().slice(0, 30);
+    lista.forEach((e, idx) => {
+        const tr = document.createElement('tr');
+        const dirClass = e.dir === 'CALL' ? 'dir-call' : 'dir-put';
+        const resClass = e.resultado === 'WIN' ? 'res-win' : e.resultado === 'LOSS' ? 'res-loss' : 'res-pend';
+        tr.innerHTML =
+            `<td>${entradas.length - idx}</td>` +
+            `<td>${fmtHora(e.entryTime)}</td>` +
+            `<td class="${dirClass}">${e.dir === 'CALL' ? '▲ CALL' : '▼ PUT'}</td>` +
+            `<td>${e.entryPrice.toFixed(4)}</td>` +
+            `<td>${e.expMin} min</td>` +
+            `<td>${fmtHora(e.expTime)}</td>` +
+            `<td class="${resClass}">${e.resultado}</td>`;
+        tbody.appendChild(tr);
+    });
+
+    // Resumo (win rate)
+    const avaliadas = entradas.filter(e => e.resultado === 'WIN' || e.resultado === 'LOSS');
+    const wins = entradas.filter(e => e.resultado === 'WIN').length;
+    const losses = entradas.filter(e => e.resultado === 'LOSS').length;
+    const pend = entradas.filter(e => e.resultado === 'pendente').length;
+    const winRate = avaliadas.length ? ((wins / avaliadas.length) * 100).toFixed(1) : '–';
+    document.getElementById('entrySummary').innerHTML =
+        `<span class="sum-item">Total entradas: <strong>${entradas.length}</strong></span>` +
+        `<span class="sum-item sum-win">WIN: <strong>${wins}</strong></span>` +
+        `<span class="sum-item sum-loss">LOSS: <strong>${losses}</strong></span>` +
+        `<span class="sum-item sum-pend">Pendentes: <strong>${pend}</strong></span>` +
+        `<span class="sum-item sum-rate">Win rate: <strong>${winRate}${winRate === '–' ? '' : '%'}</strong></span>`;
+
+    // Dica quando não há entradas
+    const hint = document.getElementById('entryHint');
+    if (entradas.length === 0) {
+        const poucas = dados.length < 200 && document.getElementById('useEma200').checked;
+        hint.textContent = poucas
+            ? '💡 Filtro EMA 200 ativo com menos de 200 velas — gere mais velas ou desligue a EMA 200.'
+            : '💡 Nenhuma entrada com estes filtros. A confluência estrita gera poucos sinais (por design) — afrouxe um filtro (ex.: Estrutura ou Momentum) ou gere novos dados.';
+        hint.style.display = 'block';
+    } else {
+        hint.style.display = 'none';
+    }
 }
 
 // ============================================================================
-// BLOCO 6 — EVENT LISTENERS
+// BLOCO 7 — ORQUESTRAÇÃO
 // ============================================================================
 
-document.getElementById('btnGerar').addEventListener('click', function() {
+function recalcularTudo() {
+    const resultado = calcularIndicador(dados);
+    calcularEntradas();
+    renderizarGraficos(resultado);
+}
+
+function gerarErenderizar() {
     const numCandles = parseInt(document.getElementById('numCandles').value);
     const volatilidade = parseFloat(document.getElementById('volatility').value);
-
     dados = gerarDadosSim(numCandles, volatilidade);
-    const resultado = calcularIndicador(dados);
-    renderizarGraficos(resultado);
+    recalcularTudo();
+}
+
+// ============================================================================
+// BLOCO 8 — EVENT LISTENERS
+// ============================================================================
+
+document.getElementById('btnGerar').addEventListener('click', gerarErenderizar);
+document.getElementById('btnRecalcular').addEventListener('click', function () {
+    if (dados.length === 0) { alert('Gere dados primeiro clicando em "Gerar Dados"'); return; }
+    recalcularTudo();
+});
+// Mudar timeframe regenera os dados (timestamps mudam); expiração só recalcula
+document.getElementById('timeframe').addEventListener('change', gerarErenderizar);
+document.getElementById('expiracao').addEventListener('change', function () {
+    if (dados.length === 0) { gerarErenderizar(); return; }
+    recalcularTudo();
 });
 
-document.getElementById('btnRecalcular').addEventListener('click', function() {
-    if (dados.length === 0) {
-        alert('Gere dados primeiro clicando em "Gerar Dados"');
-        return;
-    }
-    const resultado = calcularIndicador(dados);
-    renderizarGraficos(resultado);
+// Redimensionar gráficos com a janela
+window.addEventListener('resize', function () {
+    const w = document.getElementById('chartPreco').clientWidth;
+    if (chartPreco) chartPreco.applyOptions({ width: w });
+    if (chartRsi) chartRsi.applyOptions({ width: document.getElementById('chartRsi').clientWidth });
+    if (chartAtr) chartAtr.applyOptions({ width: document.getElementById('chartAtr').clientWidth });
 });
 
-// Gerar dados iniciais ao carregar
-window.addEventListener('load', function() {
-    const numCandles = parseInt(document.getElementById('numCandles').value);
-    const volatilidade = parseFloat(document.getElementById('volatility').value);
-
-    dados = gerarDadosSim(numCandles, volatilidade);
-    const resultado = calcularIndicador(dados);
-    renderizarGraficos(resultado);
-});
+// Inicializar ao carregar
+window.addEventListener('load', gerarErenderizar);

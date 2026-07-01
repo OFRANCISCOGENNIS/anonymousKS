@@ -3,23 +3,48 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Simulador Confluência Multi-Fator | Forex/Cripto</title>
-    <!-- Chart.js vendorizado localmente (funciona 100% offline) -->
-    <script src="chart.umd.min.js"></script>
+    <title>Simulador Confluência Multi-Fator | Candles estilo TradingView</title>
+    <!-- TradingView Lightweight Charts vendorizado localmente (100% offline) -->
+    <script src="lightweight-charts.standalone.production.js"></script>
     <link rel="stylesheet" href="styles.css">
 </head>
 <body>
     <div class="container">
         <!-- HEADER -->
         <header class="header">
-            <h1>📊 Simulador: Confluência Multi-Fator [Forex/Cripto]</h1>
-            <p class="subtitle">Visualizador interativo do indicador Pine Script v5 — EMAs, RSI, Sinais de Confluência</p>
+            <h1>📊 Simulador Confluência Multi-Fator — Candles estilo TradingView</h1>
+            <p class="subtitle">Velas japonesas + EMAs + RSI + ATR • Avisos de entrada com expiração (1m/5m/15m/30m/1h)</p>
         </header>
 
         <main class="main-content">
             <!-- SIDEBAR CONTROLES -->
             <aside class="sidebar">
                 <h2>⚙️ Controles</h2>
+
+                <!-- Gráfico & Expiração -->
+                <section class="control-group">
+                    <h3>🕒 Gráfico & Expiração</h3>
+                    <label>
+                        Timeframe do gráfico
+                        <select id="timeframe">
+                            <option value="1">M1 (1 min)</option>
+                            <option value="5" selected>M5 (5 min)</option>
+                            <option value="15">M15 (15 min)</option>
+                            <option value="30">M30 (30 min)</option>
+                            <option value="60">H1 (1 hora)</option>
+                        </select>
+                    </label>
+                    <label>
+                        Expiração da entrada
+                        <select id="expiracao">
+                            <option value="1">1 min</option>
+                            <option value="5" selected>5 min</option>
+                            <option value="15">15 min</option>
+                            <option value="30">30 min</option>
+                            <option value="60">1 hora</option>
+                        </select>
+                    </label>
+                </section>
 
                 <!-- Dados -->
                 <section class="control-group">
@@ -38,134 +63,97 @@
                 <!-- Tendência -->
                 <section class="control-group">
                     <h3>📌 Tendência (EMAs)</h3>
-                    <label>
-                        <input type="checkbox" id="useTendencia" checked>
-                        <span>Ativar EMA</span>
-                    </label>
-                    <label>
-                        EMA Rápida
-                        <input type="number" id="emaRapida" value="9" min="1" max="50">
-                    </label>
-                    <label>
-                        EMA Lenta
-                        <input type="number" id="emaLenta" value="21" min="1" max="50">
-                    </label>
-                    <label>
-                        <input type="checkbox" id="useEma200" checked>
-                        <span>EMA 200 (viés macro)</span>
-                    </label>
+                    <label><input type="checkbox" id="useTendencia" checked> <span>Ativar EMA</span></label>
+                    <label>EMA Rápida <input type="number" id="emaRapida" value="9" min="1" max="50"></label>
+                    <label>EMA Lenta <input type="number" id="emaLenta" value="21" min="1" max="50"></label>
+                    <label><input type="checkbox" id="useEma200" checked> <span>EMA 200 (viés macro)</span></label>
                 </section>
 
                 <!-- Momentum -->
                 <section class="control-group">
                     <h3>🔥 Momentum (RSI)</h3>
-                    <label>
-                        <input type="checkbox" id="useMomentum" checked>
-                        <span>Ativar RSI</span>
-                    </label>
-                    <label>
-                        Período RSI
-                        <input type="number" id="rsiLen" value="14" min="1" max="50">
-                    </label>
-                    <label>
-                        Sobrevenda
-                        <input type="number" id="rsiSobrevenda" value="30" min="1" max="50">
-                    </label>
-                    <label>
-                        Sobrecompra
-                        <input type="number" id="rsiSobrecompra" value="70" min="50" max="99">
-                    </label>
+                    <label><input type="checkbox" id="useMomentum" checked> <span>Ativar RSI</span></label>
+                    <label>Período RSI <input type="number" id="rsiLen" value="14" min="1" max="50"></label>
+                    <label>Sobrevenda <input type="number" id="rsiSobrevenda" value="30" min="1" max="50"></label>
+                    <label>Sobrecompra <input type="number" id="rsiSobrecompra" value="70" min="50" max="99"></label>
                 </section>
 
                 <!-- Volatilidade -->
                 <section class="control-group">
                     <h3>⚡ Volatilidade (ATR)</h3>
-                    <label>
-                        <input type="checkbox" id="useVolatilidade" checked>
-                        <span>Ativar ATR</span>
-                    </label>
-                    <label>
-                        Período ATR
-                        <input type="number" id="atrLen" value="14" min="1" max="50">
-                    </label>
-                    <label>
-                        Média ATR
-                        <input type="number" id="atrMediaLen" value="50" min="1" max="100">
-                    </label>
+                    <label><input type="checkbox" id="useVolatilidade" checked> <span>Ativar ATR</span></label>
+                    <label>Período ATR <input type="number" id="atrLen" value="14" min="1" max="50"></label>
+                    <label>Média ATR <input type="number" id="atrMediaLen" value="50" min="1" max="100"></label>
                 </section>
 
                 <!-- Estrutura -->
                 <section class="control-group">
                     <h3>🏗️ Estrutura</h3>
-                    <label>
-                        <input type="checkbox" id="useEstrutura" checked>
-                        <span>Ativar rompimento</span>
-                    </label>
-                    <label>
-                        Lookback (velas)
-                        <input type="number" id="estruturaLookback" value="20" min="2" max="100">
-                    </label>
+                    <label><input type="checkbox" id="useEstrutura" checked> <span>Ativar rompimento</span></label>
+                    <label>Lookback (velas) <input type="number" id="estruturaLookback" value="20" min="2" max="100"></label>
                 </section>
 
                 <!-- Anti-Ruído -->
                 <section class="control-group">
                     <h3>🚫 Anti-Ruído</h3>
-                    <label>
-                        <input type="checkbox" id="confirmarFechamento" checked>
-                        <span>Confirmação de fechamento</span>
-                    </label>
-                    <label>
-                        Cooldown (velas)
-                        <input type="number" id="cooldownVelas" value="5" min="0" max="50">
-                    </label>
+                    <label><input type="checkbox" id="confirmarFechamento" checked> <span>Confirmação de fechamento</span></label>
+                    <label>Cooldown (velas) <input type="number" id="cooldownVelas" value="5" min="0" max="50"></label>
                 </section>
 
-                <!-- Action Button -->
-                <button id="btnRecalcular" class="btn-primary" style="width: 100%; margin-top: 20px;">🔄 Recalcular Sinais</button>
+                <button id="btnRecalcular" class="btn-primary" style="width:100%; margin-top:20px;">🔄 Recalcular Sinais</button>
             </aside>
 
             <!-- MAIN CHART AREA -->
             <section class="charts-area">
-                <!-- Gráfico de Preço + EMAs -->
+                <!-- Gráfico de Velas (Candlestick) + EMAs -->
                 <div class="chart-container">
-                    <h2>💹 Preço & Tendência (EMAs)</h2>
-                    <canvas id="chartPreco"></canvas>
+                    <h2>💹 Preço (Velas) & EMAs</h2>
+                    <div id="chartPreco" class="tv-chart tv-chart-main"></div>
+                    <div class="chart-legend" id="legendPreco"></div>
                 </div>
 
                 <!-- Gráfico de RSI -->
                 <div class="chart-container">
                     <h2>📊 RSI (Momentum)</h2>
-                    <canvas id="chartRsi"></canvas>
+                    <div id="chartRsi" class="tv-chart tv-chart-sub"></div>
                 </div>
 
                 <!-- Gráfico de ATR -->
                 <div class="chart-container">
                     <h2>⚡ ATR (Volatilidade)</h2>
-                    <canvas id="chartAtr"></canvas>
+                    <div id="chartAtr" class="tv-chart tv-chart-sub"></div>
                 </div>
 
-                <!-- Status da Confluência -->
+                <!-- Avisos de Entrada com Expiração -->
+                <div class="chart-container">
+                    <h2>🔔 Avisos de Entrada (com expiração)</h2>
+                    <div class="entry-summary" id="entrySummary"></div>
+                    <div class="entry-table-wrap">
+                        <table class="entry-table" id="entryTable">
+                            <thead>
+                                <tr>
+                                    <th>#</th>
+                                    <th>Hora da vela</th>
+                                    <th>Direção</th>
+                                    <th>Preço entrada</th>
+                                    <th>Expiração</th>
+                                    <th>Hora expiração</th>
+                                    <th>Resultado</th>
+                                </tr>
+                            </thead>
+                            <tbody id="entryTableBody"></tbody>
+                        </table>
+                    </div>
+                    <p id="entryHint" class="signal-hint"></p>
+                </div>
+
+                <!-- Status resumido -->
                 <div class="chart-container status-container">
-                    <h2>🎯 Status de Sinais</h2>
-                    <div id="statusPanel" class="status-panel">
-                        <div class="stat-row">
-                            <span>Total de Sinais LONG:</span>
-                            <strong id="countLong">0</strong>
-                        </div>
-                        <div class="stat-row">
-                            <span>Total de Sinais SHORT:</span>
-                            <strong id="countShort">0</strong>
-                        </div>
-                        <div class="stat-row">
-                            <span>Último sinal:</span>
-                            <strong id="lastSignal">–</strong>
-                        </div>
-                        <div class="stat-row">
-                            <span>Viés atual:</span>
-                            <strong id="currentBias">NEUTRO</strong>
-                        </div>
-                        <p id="signalHint" class="signal-hint"></p>
-                        <hr>
+                    <h2>🎯 Status</h2>
+                    <div class="status-panel">
+                        <div class="stat-row"><span>Sinais LONG (CALL):</span><strong id="countLong">0</strong></div>
+                        <div class="stat-row"><span>Sinais SHORT (PUT):</span><strong id="countShort">0</strong></div>
+                        <div class="stat-row"><span>Viés atual:</span><strong id="currentBias">NEUTRO</strong></div>
                         <div class="filters-status">
                             <h3>Status dos Filtros</h3>
                             <div id="filtersStatus"></div>
@@ -177,7 +165,7 @@
 
         <!-- FOOTER -->
         <footer class="footer">
-            <p>⚠️ <strong>FERRAMENTA DE ESTUDO.</strong> Não é recomendação. Sinais exigem backtest e validação antes de qualquer uso real.</p>
+            <p>⚠️ <strong>FERRAMENTA DE ESTUDO.</strong> Não é recomendação. Opções binárias/expirações curtas (1m/5m) são de altíssimo risco — spread e taxas corroem o edge. Sinais exigem backtest e validação antes de qualquer uso real.</p>
             <p>Indicador Pine Script v5 em: <code>pinescript/Confluencia_Multi_Fator_Forex_Cripto.pine</code></p>
         </footer>
     </div>
