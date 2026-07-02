@@ -72,7 +72,30 @@ Macro, Volatilidade e Estrutura, 4 de 5) na tabela e no marcador do gráfico. O 
 de status tem um **medidor de confluência ao vivo** (CALL e PUT) da última vela.
 
 Legenda dos fatores: `T` Tendência (EMA), `Ma` Macro (EMA200), `Mo` Momentum (RSI),
-`V` Volatilidade (ATR), `E` Estrutura (rompimento).
+`V` Volatilidade (ATR), `E` Estrutura (rompimento), `F` Fluxo (delta compra×venda),
+`C` Correlação (pares de referência).
+
+## 🔄 Fluxo de Volume — compra × venda entre pares
+
+Dois fatores de confluência baseados em **fluxo real de ordens** (keyless, da própria
+Binance — campo *taker buy volume* dos klines/WS):
+
+- **Fator Fluxo (`F`)**: em cada vela, `compra = volume agressor (taker buy)` e
+  `venda = volume − compra`. O **delta acumulado** na *janela do fluxo* (default 10
+  velas) precisa apontar na direção da entrada: compra dominante favorece CALL,
+  venda dominante favorece PUT. Desequilíbrios menores que 5% do volume total contam
+  como equilíbrio (neutro).
+- **Fator Correlação (`C`)**: busca os mesmos klines para **pares de referência**
+  (default `BTCUSDT,ETHUSDT`, editável — até 4) e vota pela **maioria**: se a maior
+  parte dos pares mostra o mesmo lado do fluxo na mesma janela, o fator aponta
+  naquela direção. A ideia: o BTC lidera o mercado — pressão compradora nele
+  reforça CALLs nas altcoins. Os pares renovam via REST a cada 60s no modo ao vivo.
+
+O painel **Fluxo de Volume** mostra o **histograma do delta por vela** (verde =
+compra dominante, vermelho = venda) sincronizado com o gráfico de preço, e as
+**barras de pressão por par** (par atual + referências) com % de compra/venda e a
+direção na janela. No modo simulado, o fluxo e os pares de referência são
+sintetizados com correlação parcial, só para exercitar a mecânica.
 
 ### Filtro de notícias (evitar operar no susto)
 

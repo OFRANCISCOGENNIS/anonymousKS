@@ -126,7 +126,7 @@
                             <option value="estrita">Estrita (todos os filtros)</option>
                         </select>
                     </label>
-                    <label>Mín. de fatores (X) <input type="number" id="minScore" value="3" min="1" max="5"></label>
+                    <label>Mín. de fatores (X) <input type="number" id="minScore" value="3" min="1" max="7"></label>
                     <label>Janela de confluência (velas) <input type="number" id="confJanela" value="3" min="1" max="20"></label>
                     <label><input type="checkbox" id="useNewsFilter"> <span>Filtro de notícias (evitar entradas perto de notícia)</span></label>
                     <label>Janela de notícia (min) <input type="number" id="newsJanela" value="15" min="1" max="240"></label>
@@ -144,6 +144,19 @@
                     <h3>🔔 Alertas</h3>
                     <label><input type="checkbox" id="somAtivo" checked> <span>Som quando o veredito virar CALL/PUT</span></label>
                     <button id="btnTestarSom" class="btn-mini" style="width:100%; margin-top:4px;">🔊 Testar som</button>
+                </section>
+
+                <!-- Fluxo de Volume -->
+                <section class="control-group">
+                    <h3>🔄 Fluxo de Volume</h3>
+                    <label><input type="checkbox" id="useFluxo" checked> <span>Fator Fluxo (delta compra×venda do par)</span></label>
+                    <label>Janela do fluxo (velas) <input type="number" id="fluxoJanela" value="10" min="2" max="100"></label>
+                    <label><input type="checkbox" id="useCorrelacao"> <span>Fator Correlação (pares de referência)</span></label>
+                    <label>
+                        Pares de referência
+                        <input type="text" id="refPairs" value="BTCUSDT,ETHUSDT" spellcheck="false" style="width:100%;">
+                    </label>
+                    <p class="group-note">Compra = volume agressor (taker buy) da Binance; venda = restante. Correlação vota pela maioria dos pares de referência na mesma janela.</p>
                 </section>
 
                 <!-- Anti-Ruído -->
@@ -201,6 +214,21 @@
                     <div class="chart-container">
                         <h2>⚡ ATR (Volatilidade)</h2>
                         <div id="chartAtr" class="tv-chart tv-chart-sub"></div>
+                    </div>
+                </div>
+
+                <!-- Fluxo de Volume: delta compra×venda + pressão por par -->
+                <div class="chart-container">
+                    <h2>🔄 Fluxo de Volume — compra × venda</h2>
+                    <div class="fluxo-cols">
+                        <div>
+                            <h3 class="fluxo-sub">Delta por vela (par atual)</h3>
+                            <div id="chartFluxo" class="tv-chart tv-chart-sub"></div>
+                        </div>
+                        <div>
+                            <h3 class="fluxo-sub">Pressão na janela <span id="pressaoJanelaLbl"></span></h3>
+                            <div id="pressaoPares" class="pressao-list"></div>
+                        </div>
                     </div>
                 </div>
 

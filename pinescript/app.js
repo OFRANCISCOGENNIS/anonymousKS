@@ -24,7 +24,12 @@ let chartPreco = null, chartRsi = null, chartAtr = null;
 let serieVelas = null, serieEma9 = null, serieEma21 = null, serieEma200 = null;
 let serieRsi = null, serieAtr = null, serieAtrMedia = null;
 let chartEquity = null, serieEquity = null;
+let chartFluxo = null, serieFluxo = null;
 let graficosMontados = false;
+
+// Fluxo de volume entre pares: [{ symbol, dados:[{time,volume,buyVol,close,open}], mapa: Map(time->idx) }]
+let refPares = [];
+let refTimer = null;
 
 // WebSocket ao vivo
 let ws = null;
@@ -99,15 +104,50 @@ function gerarDadosSim(numCandles, volatilidade) {
         const close = open + (Math.random() - 0.5) * volatilidade;
         const high = Math.max(open, close) * (1 + Math.random() * 0.01);
         const low = Math.min(open, close) * (1 - Math.random() * 0.01);
+        const volume = Math.floor(Math.random() * 1e6) + 1e5;
+        // Compra agressora simulada: velas de alta tendem a ter mais compra
+        const vies = (close > open ? 1 : -1) * (0.10 + Math.random() * 0.15);
+        const fracaoCompra = Math.min(0.95, Math.max(0.05, 0.5 + vies + (Math.random() - 0.5) * 0.1));
         out.push({
             time: baseTime - (numCandles - 1 - i) * stepSec,
             open: +open.toFixed(4), high: +high.toFixed(4),
             low: +low.toFixed(4), close: +close.toFixed(4),
-            volume: Math.floor(Math.random() * 1e6) + 1e5
+            volume, buyVol: Math.floor(volume * fracaoCompra)
         });
         preco = close;
     }
     return out;
+}
+
+// Pares de referência simulados: seguem parcialmente o par principal (correlação ~0.6)
+function gerarRefParesSim(principal) {
+    const nomes = paresReferencia();
+    return nomes.map(symbol => {
+        let preco = 100;
+        const serie = principal.map(c => {
+            const mainChange = c.close - c.open;
+            const open = preco;
+            const close = open + mainChange * 0.6 + (Math.random() - 0.5) * Math.abs(mainChange || 0.5) * 0.8;
+            const volume = Math.floor(Math.random() * 1e6) + 1e5;
+            const vies = (close > open ? 1 : -1) * (0.10 + Math.random() * 0.15);
+            const fracaoCompra = Math.min(0.95, Math.max(0.05, 0.5 + vies));
+            preco = close;
+            return { time: c.time, open, close, volume, buyVol: Math.floor(volume * fracaoCompra) };
+        });
+        return montarRefPar(symbol, serie);
+    });
+}
+
+function montarRefPar(symbol, serie) {
+    const mapa = new Map();
+    serie.forEach((c, i) => mapa.set(c.time, i));
+    return { symbol, dados: serie, mapa };
+}
+
+function paresReferencia() {
+    const atual = symbolAtual();
+    return (document.getElementById('refPairs').value || '')
+        .split(',').map(s => s.trim().toUpperCase()).filter(s => s && s !== atual).slice(0, 4);
 }
 
 // ============================================================================
@@ -140,6 +180,37 @@ function recomputarIndicadores() {
 
 let confLive = { long: 0, short: 0, enabled: 0 };  // pontuação de confluência na última vela
 
+// ---- Fluxo de volume (delta compra×venda) ----
+
+function deltaPorVela(c) { return (c.buyVol || 0) * 2 - (c.volume || 0); }   // compra − venda
+
+// Delta acumulado nas últimas n velas terminando em endIdx.
+// dir: 1 compra dominante, -1 venda dominante, 0 equilibrado (<5% do volume)
+function deltaNaJanela(arr, endIdx, n) {
+    let buy = 0, tot = 0;
+    for (let j = Math.max(0, endIdx - n + 1); j <= endIdx; j++) {
+        buy += arr[j].buyVol || 0;
+        tot += arr[j].volume || 0;
+    }
+    const delta = buy * 2 - tot;
+    const dir = (tot <= 0 || Math.abs(delta) < tot * 0.05) ? 0 : (delta > 0 ? 1 : -1);
+    return { dir, delta, buy, sell: tot - buy, tot };
+}
+
+// Voto de correlação no timestamp t: maioria dos pares de referência com o
+// delta na mesma direção na mesma janela. 0 = sem maioria / sem dados.
+function votoCorrelacao(t, janela) {
+    let soma = 0, votos = 0;
+    refPares.forEach(par => {
+        const j = par.mapa.get(t);
+        if (j === undefined) return;
+        const d = deltaNaJanela(par.dados, j, janela).dir;
+        if (d !== 0) { soma += d; votos++; }
+    });
+    if (!votos) return 0;
+    return soma > 0 ? 1 : soma < 0 ? -1 : 0;
+}
+
 function rotuloFatores(fat) {
     const ok = fat.filter(f => f.on && f.ok).map(f => f.k);
     return ok.length ? ok.join('·') : '—';
@@ -158,6 +229,9 @@ function recomputarSinais() {
     const confMode = document.getElementById('confMode').value;              // 'score' | 'estrita'
     const minScore = parseInt(document.getElementById('minScore').value);
     const janela = Math.max(1, parseInt(document.getElementById('confJanela').value));
+    const useFluxo = document.getElementById('useFluxo').checked;
+    const useCorrelacao = document.getElementById('useCorrelacao').checked;
+    const fluxoJanela = Math.max(2, parseInt(document.getElementById('fluxoJanela').value));
 
     const { closes, emaR, emaL, ema200, rsiValues, atrValues, atrMedia, highs, lows } = computed;
 
@@ -180,7 +254,7 @@ function recomputarSinais() {
     }
     const recente = (arr, i) => { for (let j = Math.max(0, i - janela + 1); j <= i; j++) if (arr[j]) return true; return false; };
 
-    const enabledCount = [useTendencia, useEma200, useMomentum, useVolatilidade, useEstrutura].filter(Boolean).length;
+    const enabledCount = [useTendencia, useEma200, useMomentum, useVolatilidade, useEstrutura, useFluxo, useCorrelacao].filter(Boolean).length;
 
     sinaisLong = []; sinaisShort = [];
     let barras = 999999;
@@ -196,15 +270,22 @@ function recomputarSinais() {
         const eL = closes[i] > maxRec[i - 1];
         const eS = closes[i] < minRec[i - 1];
 
+        // Fluxo de volume: delta compra×venda do par na janela
+        const fluxoDir = useFluxo ? deltaNaJanela(dados, i, fluxoJanela).dir : 0;
+        // Correlação: maioria dos pares de referência na mesma direção
+        const corrDir = useCorrelacao ? votoCorrelacao(dados[i].time, fluxoJanela) : 0;
+
         const fatL = [
             { k: 'T', on: useTendencia, ok: tL }, { k: 'Ma', on: useEma200, ok: maL },
             { k: 'Mo', on: useMomentum, ok: moL }, { k: 'V', on: useVolatilidade, ok: vo },
-            { k: 'E', on: useEstrutura, ok: eL }
+            { k: 'E', on: useEstrutura, ok: eL },
+            { k: 'F', on: useFluxo, ok: fluxoDir === 1 }, { k: 'C', on: useCorrelacao, ok: corrDir === 1 }
         ];
         const fatS = [
             { k: 'T', on: useTendencia, ok: tS }, { k: 'Ma', on: useEma200, ok: maS },
             { k: 'Mo', on: useMomentum, ok: moS }, { k: 'V', on: useVolatilidade, ok: vo },
-            { k: 'E', on: useEstrutura, ok: eS }
+            { k: 'E', on: useEstrutura, ok: eS },
+            { k: 'F', on: useFluxo, ok: fluxoDir === -1 }, { k: 'C', on: useCorrelacao, ok: corrDir === -1 }
         ];
         const longScore = fatL.filter(f => f.on && f.ok).length;
         const shortScore = fatS.filter(f => f.on && f.ok).length;
@@ -236,7 +317,9 @@ function recomputarSinais() {
                     { nome: 'EMA 200', on: useEma200, dir: maL ? 1 : maS ? -1 : 0 },
                     { nome: 'RSI', on: useMomentum, dir: moL ? 1 : moS ? -1 : 0 },
                     { nome: 'ATR', on: useVolatilidade, dir: vo ? 2 : 0 },   // 2 = ok (não direcional)
-                    { nome: 'Estrutura', on: useEstrutura, dir: eL ? 1 : eS ? -1 : 0 }
+                    { nome: 'Estrutura', on: useEstrutura, dir: eL ? 1 : eS ? -1 : 0 },
+                    { nome: 'Fluxo', on: useFluxo, dir: fluxoDir },
+                    { nome: 'Correlação', on: useCorrelacao, dir: corrDir }
                 ]
             };
         }
@@ -325,8 +408,17 @@ function montarGraficos() {
         priceLineVisible: false
     });
 
-    sincronizarTempo([chartPreco, chartRsi, chartAtr]);
+    // Fluxo de volume: histograma do delta compra−venda por vela
+    chartFluxo = LightweightCharts.createChart(document.getElementById('chartFluxo'), { ...opcoesBase(), height: 190 });
+    serieFluxo = chartFluxo.addHistogramSeries({ priceFormat: { type: 'volume' }, priceLineVisible: false });
+
+    sincronizarTempo([chartPreco, chartRsi, chartAtr, chartFluxo]);
     graficosMontados = true;
+}
+
+function barraFluxo(c) {
+    const d = deltaPorVela(c);
+    return { time: c.time, value: d, color: d >= 0 ? 'rgba(38,166,154,0.75)' : 'rgba(239,83,80,0.75)' };
 }
 
 let sincronizando = false;
@@ -363,6 +455,7 @@ function redesenharTudo(ajustarZoom) {
     serieRsi.setData(toLine(times, computed.rsiValues));
     serieAtr.setData(toLine(times, computed.atrValues));
     serieAtrMedia.setData(toLine(times, computed.atrMedia));
+    serieFluxo.setData(dados.map(barraFluxo));
 
     atualizarMarcadores();
     atualizarPaineis();
@@ -372,6 +465,7 @@ function redesenharTudo(ajustarZoom) {
         chartPreco.timeScale().fitContent();
         chartRsi.timeScale().fitContent();
         chartAtr.timeScale().fitContent();
+        chartFluxo.timeScale().fitContent();
     }
 }
 
@@ -388,6 +482,7 @@ function atualizarUltimoCandle(fechou) {
     upd(serieRsi, computed.rsiValues[last]);
     upd(serieAtr, computed.atrValues[last]);
     upd(serieAtrMedia, computed.atrMedia[last]);
+    serieFluxo.update(barraFluxo(dados[last]));
     atualizarLegenda();
 
     if (fechou) {
@@ -515,6 +610,59 @@ function atualizarPaineis() {
 
     // Painel de Decisão (depende de confLive + byScoreGlobal recém-calculados)
     atualizarDecisao();
+
+    // Pressão de compra×venda por par (janela do fluxo)
+    atualizarPressaoPares();
+}
+
+// ============================================================================
+// PRESSÃO POR PAR — compra×venda do par atual e dos pares de referência
+// ============================================================================
+
+function atualizarPressaoPares() {
+    const el = document.getElementById('pressaoPares');
+    if (!el) return;
+    const jan = Math.max(2, parseInt(document.getElementById('fluxoJanela').value));
+    document.getElementById('pressaoJanelaLbl').textContent = `(últimas ${jan} velas)`;
+
+    const linhas = [];
+    const render = (symbol, arr, endIdx) => {
+        const d = deltaNaJanela(arr, endIdx, jan);
+        if (d.tot <= 0) return;
+        const pctBuy = Math.round(d.buy / d.tot * 100);
+        const seta = d.dir === 1 ? '<span class="chip-dir-up">▲ compra</span>'
+                   : d.dir === -1 ? '<span class="chip-dir-down">▼ venda</span>'
+                   : '<span class="chip-dir-none">— equilíbrio</span>';
+        linhas.push(
+            `<div class="pressao-item">` +
+            `<span class="pressao-sym">${symbol}</span>` +
+            `<div class="pressao-bar"><div class="pressao-buy" style="width:${pctBuy}%"></div></div>` +
+            `<span class="pressao-pct">C ${pctBuy}% · V ${100 - pctBuy}%</span>` +
+            `<span class="pressao-dir">${seta}</span></div>`
+        );
+    };
+
+    if (dados.length) render(symbolAtual() + ' (atual)', dados, dados.length - 1);
+    refPares.forEach(par => { if (par.dados.length) render(par.symbol, par.dados, par.dados.length - 1); });
+
+    el.innerHTML = linhas.length ? linhas.join('') :
+        '<div class="news-empty">Sem dados de fluxo ainda. Ative a Correlação e informe pares de referência para comparar.</div>';
+}
+
+// Carrega klines dos pares de referência (Binance) para o fator Correlação
+async function carregarRefPares() {
+    if (fonte() === 'sim') { refPares = gerarRefParesSim(dados); return; }
+    const interval = binanceInterval();
+    const limit = Math.min(1000, Math.max(50, parseInt(document.getElementById('numCandles').value) || 300));
+    const nomes = paresReferencia();
+    const out = [];
+    for (const symbol of nomes) {
+        try {
+            const serie = await carregarHistoricoBinance(symbol, interval, limit);
+            out.push(montarRefPar(symbol, serie));
+        } catch (e) { /* par inválido/indisponível: ignora */ }
+    }
+    refPares = out;
 }
 
 // ============================================================================
@@ -969,10 +1117,13 @@ async function carregarHistoricoBinance(symbol, interval, limit) {
         throw new Error('HTTP ' + resp.status + ' ' + t.slice(0, 120));
     }
     const arr = await resp.json();
-    // Binance kline: [openTime, open, high, low, close, volume, closeTime, ...]
+    // Binance kline: [openTime, open, high, low, close, volume, closeTime,
+    //  quoteVol, nTrades, takerBuyBaseVol, ...] — k[9] é o volume COMPRADO a
+    // mercado (agressor); venda = volume total − k[9].
     return arr.map(k => ({
         time: Math.floor(k[0] / 1000),
-        open: +k[1], high: +k[2], low: +k[3], close: +k[4], volume: +k[5]
+        open: +k[1], high: +k[2], low: +k[3], close: +k[4],
+        volume: +k[5], buyVol: +k[9]
     }));
 }
 
@@ -1009,7 +1160,8 @@ function conectarWS(symbol, interval) {
 // Trata cada mensagem de kline do WebSocket
 function onKline(k) {
     const t = Math.floor(k.t / 1000);
-    const bar = { time: t, open: +k.o, high: +k.h, low: +k.l, close: +k.c, volume: +k.v };
+    // k.V = taker buy base volume (compra agressora) do stream de klines
+    const bar = { time: t, open: +k.o, high: +k.h, low: +k.l, close: +k.c, volume: +k.v, buyVol: +(k.V || 0) };
     const last = dados.length ? dados[dados.length - 1] : null;
 
     if (last && t === last.time) {
@@ -1033,12 +1185,15 @@ async function carregar() {
         document.getElementById('btnTreinar').textContent = 'Treinar leitura (replay)';
     }
     fecharWS();
+    if (refTimer) { clearInterval(refTimer); refTimer = null; }
+
     if (fonte() === 'sim') {
         conexaoAtual = '';
         setStatus('off', 'Simulado (offline)');
         const numCandles = parseInt(document.getElementById('numCandles').value);
         const volatilidade = parseFloat(document.getElementById('volatility').value);
         dados = gerarDadosSim(numCandles, volatilidade);
+        refPares = gerarRefParesSim(dados);
         redesenharTudo(true);
         return;
     }
@@ -1051,13 +1206,21 @@ async function carregar() {
     try {
         dados = await carregarHistoricoBinance(symbol, interval, limit);
         if (!dados.length) throw new Error('sem dados para ' + symbol);
+        await carregarRefPares();          // pares de referência p/ fluxo/correlação
         redesenharTudo(true);
         conectarWS(symbol, interval);
+        // Pares de referência não têm WS próprio: renova via REST a cada 60s
+        refTimer = setInterval(async () => {
+            if (fonte() !== 'binance' || treino) return;
+            await carregarRefPares();
+            recalcularSinaisApenas();
+        }, 60000);
     } catch (err) {
         setStatus('err', 'Falha: ' + (err.message || err));
         console.error('Erro ao carregar Binance:', err);
         // fallback visual: gera simulado para não deixar a tela vazia
         dados = gerarDadosSim(parseInt(document.getElementById('numCandles').value), 2);
+        refPares = gerarRefParesSim(dados);
         redesenharTudo(true);
     }
 }
@@ -1296,8 +1459,14 @@ document.addEventListener('click', function desbloquear() {
 }, { once: true });
 document.getElementById('newsSoMoeda').addEventListener('change', renderNoticias);
 // Confluência: mudar modo/pontuação/janela recalcula os sinais na hora
-['confMode', 'minScore', 'confJanela'].forEach(id =>
+['confMode', 'minScore', 'confJanela', 'useFluxo', 'fluxoJanela'].forEach(id =>
     document.getElementById(id).addEventListener('change', recalcularSinaisApenas));
+// Correlação/pares de referência: recarrega os pares e recalcula
+['useCorrelacao', 'refPairs'].forEach(id =>
+    document.getElementById(id).addEventListener('change', async function () {
+        await carregarRefPares();
+        recalcularSinaisApenas();
+    }));
 // Filtro de notícias + payout: só reavalia o painel/métricas (não recarrega dados)
 ['useNewsFilter', 'newsJanela', 'payout'].forEach(id =>
     document.getElementById(id).addEventListener('change', atualizarPaineis));
@@ -1313,6 +1482,7 @@ window.addEventListener('resize', function () {
     if (chartRsi) chartRsi.applyOptions({ width: document.getElementById('chartRsi').clientWidth });
     if (chartAtr) chartAtr.applyOptions({ width: document.getElementById('chartAtr').clientWidth });
     if (chartEquity) chartEquity.applyOptions({ width: document.getElementById('chartEquity').clientWidth });
+    if (chartFluxo) chartFluxo.applyOptions({ width: document.getElementById('chartFluxo').clientWidth });
 });
 
 // Inicializa em DOMContentLoaded (NÃO em 'load') para não depender do tv.js:
