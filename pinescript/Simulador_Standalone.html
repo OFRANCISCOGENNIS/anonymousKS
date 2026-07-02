@@ -1387,7 +1387,17 @@ const BINANCE_REST = _params.get('rest') || 'https://data-api.binance.vision';
 const BINANCE_WS   = _params.get('ws')   || 'wss://data-stream.binance.vision';
 
 // ---- Forex / Índices / Ouro via Yahoo Finance (keyless, sem CORS -> via proxy) ----
-const YAHOO_PROXY = _params.get('yproxy') || 'https://api.allorigins.win/get?url=';
+// Yahoo não libera CORS; passamos por proxies CORS públicos. Como cada um é
+// instável (allorigins às vezes cai com 500/522), tentamos VÁRIOS em sequência.
+// ?yproxy= força um único proxy no formato {contents:...} (usado nos testes).
+const YAHOO_PROXY_OVERRIDE = _params.get('yproxy');
+const YAHOO_PROXIES = YAHOO_PROXY_OVERRIDE
+    ? [{ nome: 'override', montar: u => YAHOO_PROXY_OVERRIDE + encodeURIComponent(u), texto: async r => JSON.parse(await r.text()).contents }]
+    : [
+        { nome: 'allorigins-raw', montar: u => 'https://api.allorigins.win/raw?url=' + encodeURIComponent(u), texto: r => r.text() },
+        { nome: 'codetabs', montar: u => 'https://api.codetabs.com/v1/proxy/?quest=' + encodeURIComponent(u), texto: r => r.text() },
+        { nome: 'allorigins-get', montar: u => 'https://api.allorigins.win/get?url=' + encodeURIComponent(u), texto: async r => JSON.parse(await r.text()).contents }
+    ];
 const PARES_YAHOO = {
     EURUSD: { yahoo: 'EURUSD=X', tv: 'FX:EURUSD', label: 'EUR/USD' },
     USDJPY: { yahoo: 'USDJPY=X', tv: 'FX:USDJPY', label: 'USD/JPY' },
@@ -2582,23 +2592,25 @@ function pararPollYahoo() { if (yahooPollTimer) { clearInterval(yahooPollTimer);
 // Yahoo não tem CORS liberado nem WS público: usamos um proxy que embrulha a
 // resposta em {contents:"..."} (mesmo mecanismo das notícias), com retry —
 // esse proxy público é instável e às vezes devolve 500/522 transitórios.
-async function fetchYahooJson(url, tentativas) {
-    tentativas = tentativas || 3;
+async function fetchYahooJson(url, rodadas) {
+    rodadas = rodadas || 3;
     let ultimoErro;
-    for (let i = 0; i < tentativas; i++) {
-        try {
-            const resp = await fetch(YAHOO_PROXY + encodeURIComponent(url));
-            if (!resp.ok) throw new Error('HTTP ' + resp.status);
-            const wrap = await resp.json();
-            const inner = JSON.parse(wrap.contents);
-            if (inner.chart.error) throw new Error(inner.chart.error.description || 'erro Yahoo');
-            return inner.chart.result[0];
-        } catch (e) {
-            ultimoErro = e;
-            if (i < tentativas - 1) await new Promise(r => setTimeout(r, 700 * (i + 1)));
+    for (let r = 0; r < rodadas; r++) {
+        for (const p of YAHOO_PROXIES) {
+            try {
+                const resp = await fetch(p.montar(url));
+                if (!resp.ok) throw new Error(p.nome + ' HTTP ' + resp.status);
+                const inner = JSON.parse(await p.texto(resp));
+                if (inner.chart && inner.chart.error) throw new Error(inner.chart.error.description || 'erro Yahoo');
+                if (!inner.chart || !inner.chart.result || !inner.chart.result[0]) throw new Error('resposta vazia');
+                return inner.chart.result[0];
+            } catch (e) {
+                ultimoErro = e;   // tenta o próximo proxy
+            }
         }
+        if (r < rodadas - 1) await new Promise(res => setTimeout(res, 600 * (r + 1)));  // backoff entre rodadas
     }
-    throw ultimoErro;
+    throw ultimoErro || new Error('nenhum proxy respondeu');
 }
 
 function yahooIntervalStr(min) { return (min === 60 ? '60' : String(min)) + 'm'; }
@@ -2710,7 +2722,7 @@ async function carregar() {
             setStatus('err', `Par "${codigo}" não está na lista de Forex/Índices/Ouro`);
             return;
         }
-        setStatus('connecting', 'Carregando histórico (Yahoo)…');
+        setStatus('connecting', `Carregando ${PARES_YAHOO[codigo].label} (Yahoo, testando proxies)…`);
         const limit = Math.min(500, Math.max(50, parseInt(document.getElementById('numCandles').value) || 300));
         try {
             dados = await carregarHistoricoYahoo(codigo, tfMinutes(), limit);
@@ -2720,8 +2732,9 @@ async function carregar() {
             setStatus('on', `AO VIVO (polling 15s) • ${PARES_YAHOO[codigo].label}`);
             iniciarPollYahoo(codigo, tfMinutes());
         } catch (err) {
-            setStatus('err', 'Falha: ' + (err.message || err));
             console.error('Erro ao carregar Yahoo:', err);
+            // Proxies indisponíveis: mostra SIMULADO (deixando claro) e permite retry
+            setStatus('err', 'Proxy indisponível — mostrando SIMULADO. Clique em "Recarregar / Gerar" p/ tentar de novo.');
             dados = gerarDadosSim(parseInt(document.getElementById('numCandles').value) || 300, 2);
             refPares = [];
             redesenharTudo(true);
