@@ -12,6 +12,27 @@ const _params = new URLSearchParams(location.search);
 const BINANCE_REST = _params.get('rest') || 'https://data-api.binance.vision';
 const BINANCE_WS   = _params.get('ws')   || 'wss://data-stream.binance.vision';
 
+// ---- Forex / Índices / Ouro via Yahoo Finance (keyless, sem CORS -> via proxy) ----
+const YAHOO_PROXY = _params.get('yproxy') || 'https://api.allorigins.win/get?url=';
+const PARES_YAHOO = {
+    EURUSD: { yahoo: 'EURUSD=X', tv: 'FX:EURUSD', label: 'EUR/USD' },
+    USDJPY: { yahoo: 'USDJPY=X', tv: 'FX:USDJPY', label: 'USD/JPY' },
+    GBPUSD: { yahoo: 'GBPUSD=X', tv: 'FX:GBPUSD', label: 'GBP/USD' },
+    AUDUSD: { yahoo: 'AUDUSD=X', tv: 'FX:AUDUSD', label: 'AUD/USD' },
+    USDCAD: { yahoo: 'USDCAD=X', tv: 'FX:USDCAD', label: 'USD/CAD' },
+    USDCHF: { yahoo: 'USDCHF=X', tv: 'FX:USDCHF', label: 'USD/CHF' },
+    EURJPY: { yahoo: 'EURJPY=X', tv: 'FX:EURJPY', label: 'EUR/JPY' },
+    GBPJPY: { yahoo: 'GBPJPY=X', tv: 'FX:GBPJPY', label: 'GBP/JPY' },
+    EURGBP: { yahoo: 'EURGBP=X', tv: 'FX:EURGBP', label: 'EUR/GBP' },
+    NZDUSD: { yahoo: 'NZDUSD=X', tv: 'FX:NZDUSD', label: 'NZD/USD' },
+    XAUUSD: { yahoo: 'XAUUSD=X', tv: 'TVC:GOLD', label: 'XAU/USD (Ouro)' },
+    NAS100: { yahoo: '^NDX', tv: 'TVC:NDX', label: 'NAS100 (Índice Nasdaq)' },
+    US30: { yahoo: '^DJI', tv: 'TVC:DJI', label: 'US30 (Dow Jones)' },
+    GER40: { yahoo: '^GDAXI', tv: 'TVC:DEU40', label: 'GER40 (DAX)' }
+};
+let yahooPollTimer = null;
+let fluxoStateAntesYahoo = null;   // guarda os toggles de Fluxo/Correlação ao entrar em Yahoo
+
 // ---- Estado global ----
 let dados = [];              // candles: {time(seg), open, high, low, close, volume}
 let sinaisLong = [];         // [{index, preco}]
@@ -783,6 +804,7 @@ function atualizarPainelTreino(feedback) {
 function iniciarTreino() {
     if (dados.length < 120) { alert('Carregue pelo menos 120 velas para treinar (aumente o Nº de velas).'); return; }
     fecharWS();                       // pausa o ao-vivo durante o treino
+    pararPollYahoo();
     conexaoAtual = '';
     setStatus('off', 'Treino de leitura (replay)');
     const full = dados.slice();
@@ -1177,6 +1199,113 @@ function onKline(k) {
 // BLOCO 9 — ORQUESTRAÇÃO / CARGA
 // ============================================================================
 
+// ============================================================================
+// FOREX / ÍNDICES / OURO — Yahoo Finance (keyless, sem CORS -> via proxy)
+// ============================================================================
+
+function pararPollYahoo() { if (yahooPollTimer) { clearInterval(yahooPollTimer); yahooPollTimer = null; } }
+
+// Yahoo não tem CORS liberado nem WS público: usamos um proxy que embrulha a
+// resposta em {contents:"..."} (mesmo mecanismo das notícias), com retry —
+// esse proxy público é instável e às vezes devolve 500/522 transitórios.
+async function fetchYahooJson(url, tentativas) {
+    tentativas = tentativas || 3;
+    let ultimoErro;
+    for (let i = 0; i < tentativas; i++) {
+        try {
+            const resp = await fetch(YAHOO_PROXY + encodeURIComponent(url));
+            if (!resp.ok) throw new Error('HTTP ' + resp.status);
+            const wrap = await resp.json();
+            const inner = JSON.parse(wrap.contents);
+            if (inner.chart.error) throw new Error(inner.chart.error.description || 'erro Yahoo');
+            return inner.chart.result[0];
+        } catch (e) {
+            ultimoErro = e;
+            if (i < tentativas - 1) await new Promise(r => setTimeout(r, 700 * (i + 1)));
+        }
+    }
+    throw ultimoErro;
+}
+
+function yahooIntervalStr(min) { return (min === 60 ? '60' : String(min)) + 'm'; }
+function yahooRangeFor(min) {
+    if (min <= 1) return '5d';
+    if (min <= 15) return '1mo';
+    if (min <= 30) return '3mo';
+    return '6mo';
+}
+
+function parseYahooResult(r) {
+    const ts = r.timestamp || [];
+    const q = (r.indicators.quote || [{}])[0] || {};
+    const out = [];
+    for (let i = 0; i < ts.length; i++) {
+        const o = q.open[i], h = q.high[i], l = q.low[i], c = q.close[i];
+        if (o == null || h == null || l == null || c == null) continue;   // vela sem pregão (mercado fechado)
+        // Forex/índices via Yahoo não têm volume agressor real: sem dado -> 0
+        // e buyVol = metade (neutro), para não simular fluxo inexistente.
+        const vol = (q.volume && q.volume[i] != null) ? q.volume[i] : 0;
+        out.push({ time: ts[i], open: +o, high: +h, low: +l, close: +c, volume: vol, buyVol: vol / 2 });
+    }
+    return out;
+}
+
+async function carregarHistoricoYahoo(codigo, intervalMin, limit) {
+    const par = PARES_YAHOO[codigo];
+    if (!par) throw new Error('par não suportado nesta fonte: ' + codigo);
+    const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(par.yahoo)}` +
+        `?interval=${yahooIntervalStr(intervalMin)}&range=${yahooRangeFor(intervalMin)}`;
+    const r = await fetchYahooJson(url);
+    const candles = parseYahooResult(r);
+    return candles.slice(Math.max(0, candles.length - limit));
+}
+
+// Yahoo não oferece WebSocket público: aproximamos "tempo real" reconsultando
+// as últimas velas por polling (REST) a cada 15s.
+function iniciarPollYahoo(codigo, intervalMin) {
+    pararPollYahoo();
+    yahooPollTimer = setInterval(async () => {
+        if (fonte() !== 'yahoo' || treino) return;
+        try {
+            const recentes = await carregarHistoricoYahoo(codigo, intervalMin, 3);
+            recentes.forEach(bar => {
+                const last = dados.length ? dados[dados.length - 1] : null;
+                if (last && bar.time === last.time) {
+                    dados[dados.length - 1] = bar;
+                    atualizarUltimoCandle(false);
+                } else if (!last || bar.time > last.time) {
+                    dados.push(bar);
+                    atualizarUltimoCandle(true);
+                }
+            });
+            setStatus('on', `AO VIVO (polling 15s) • ${PARES_YAHOO[codigo].label}`);
+        } catch (e) {
+            setStatus('err', 'Falha ao atualizar (Yahoo): ' + (e.message || e));
+        }
+    }, 15000);
+}
+
+// Fluxo/Correlação dependem de volume real (indisponível no Yahoo). Desativa
+// os controles nessa fonte e restaura o estado anterior ao voltar p/ cripto.
+function atualizarDisponibilidadeFluxo() {
+    const isYahoo = fonte() === 'yahoo';
+    const elFluxo = document.getElementById('useFluxo');
+    const elCorr = document.getElementById('useCorrelacao');
+    if (isYahoo) {
+        if (fluxoStateAntesYahoo === null) fluxoStateAntesYahoo = { fluxo: elFluxo.checked, corr: elCorr.checked };
+        elFluxo.checked = false;
+        elCorr.checked = false;
+    } else if (fluxoStateAntesYahoo) {
+        elFluxo.checked = fluxoStateAntesYahoo.fluxo;
+        elCorr.checked = fluxoStateAntesYahoo.corr;
+        fluxoStateAntesYahoo = null;
+    }
+    elFluxo.disabled = isYahoo;
+    elCorr.disabled = isYahoo;
+    document.getElementById('fluxoJanela').disabled = isYahoo;
+    document.getElementById('refPairs').disabled = isYahoo;
+}
+
 async function carregar() {
     // Trocar fonte/par/timeframe ou recarregar encerra um treino em andamento
     if (treino) {
@@ -1185,6 +1314,8 @@ async function carregar() {
         document.getElementById('btnTreinar').textContent = 'Treinar leitura (replay)';
     }
     fecharWS();
+    pararPollYahoo();
+    atualizarDisponibilidadeFluxo();
     if (refTimer) { clearInterval(refTimer); refTimer = null; }
 
     if (fonte() === 'sim') {
@@ -1195,6 +1326,32 @@ async function carregar() {
         dados = gerarDadosSim(numCandles, volatilidade);
         refPares = gerarRefParesSim(dados);
         redesenharTudo(true);
+        return;
+    }
+
+    if (fonte() === 'yahoo') {
+        conexaoAtual = '';
+        const codigo = symbolAtual();
+        if (!PARES_YAHOO[codigo]) {
+            setStatus('err', `Par "${codigo}" não está na lista de Forex/Índices/Ouro`);
+            return;
+        }
+        setStatus('connecting', 'Carregando histórico (Yahoo)…');
+        const limit = Math.min(500, Math.max(50, parseInt(document.getElementById('numCandles').value) || 300));
+        try {
+            dados = await carregarHistoricoYahoo(codigo, tfMinutes(), limit);
+            if (!dados.length) throw new Error('sem dados para ' + codigo);
+            refPares = [];   // correlação não se aplica entre fontes distintas
+            redesenharTudo(true);
+            setStatus('on', `AO VIVO (polling 15s) • ${PARES_YAHOO[codigo].label}`);
+            iniciarPollYahoo(codigo, tfMinutes());
+        } catch (err) {
+            setStatus('err', 'Falha: ' + (err.message || err));
+            console.error('Erro ao carregar Yahoo:', err);
+            dados = gerarDadosSim(parseInt(document.getElementById('numCandles').value) || 300, 2);
+            refPares = [];
+            redesenharTudo(true);
+        }
         return;
     }
 
@@ -1250,7 +1407,11 @@ function recalcularSinaisApenas() {
 
 let tvWidget = null;
 
-function tvSymbolTV() { return 'BINANCE:' + symbolAtual(); }   // ex.: BINANCE:BTCUSDT
+function tvSymbolTV() {
+    const cod = symbolAtual();
+    if (fonte() === 'yahoo' && PARES_YAHOO[cod]) return PARES_YAHOO[cod].tv;   // ex.: FX:EURUSD, TVC:GOLD
+    return 'BINANCE:' + cod;   // ex.: BINANCE:BTCUSDT
+}
 function tvIntervalTV() { return String(tfMinutes()); }         // 1,5,15,30,60
 
 function montarWidgetTV(tentativa) {
@@ -1426,7 +1587,10 @@ function renderNoticias() {
 
 document.getElementById('btnGerar').addEventListener('click', carregar);
 document.getElementById('btnRecalcular').addEventListener('click', recalcularSinaisApenas);
-document.getElementById('fonte').addEventListener('change', carregar);
+document.getElementById('fonte').addEventListener('change', function () {
+    montarWidgetTV();   // sincroniza o widget oficial (prefixo BINANCE:/FX:/TVC: muda com a fonte)
+    carregar();
+});
 document.getElementById('timeframe').addEventListener('change', function () {
     montarWidgetTV();   // sincroniza o widget oficial com o novo timeframe
     carregar();
@@ -1434,7 +1598,15 @@ document.getElementById('timeframe').addEventListener('change', function () {
 document.getElementById('symbol').addEventListener('change', function () {
     montarWidgetTV();   // sincroniza o widget oficial com o novo par
     renderNoticias();   // re-filtra notícias pela nova moeda
-    if (fonte() === 'binance') carregar();
+    if (fonte() === 'binance' || fonte() === 'yahoo') carregar();
+});
+document.getElementById('parPopular').addEventListener('change', function () {
+    const cod = this.value;
+    if (!cod) return;
+    document.getElementById('fonte').value = 'yahoo';
+    document.getElementById('symbol').value = cod;
+    montarWidgetTV();
+    carregar();
 });
 document.getElementById('btnNews').addEventListener('click', carregarNoticias);
 document.getElementById('btnExport').addEventListener('click', exportarCSV);

@@ -75,6 +75,30 @@ Legenda dos fatores: `T` Tendência (EMA), `Ma` Macro (EMA200), `Mo` Momentum (R
 `V` Volatilidade (ATR), `E` Estrutura (rompimento), `F` Fluxo (delta compra×venda),
 `C` Correlação (pares de referência).
 
+## 💱 Forex, Ouro e Índices (Yahoo Finance)
+
+Além de cripto (Binance), o simulador cobre os principais pares de Forex, o ouro
+e três índices, via **Yahoo Finance** (keyless, sem cadastro):
+
+`EUR/USD` `USD/JPY` `GBP/USD` `AUD/USD` `USD/CAD` `USD/CHF` `EUR/JPY` `GBP/JPY`
+`EUR/GBP` `NZD/USD` `XAU/USD (Ouro)` `NAS100 (Nasdaq)` `US30 (Dow Jones)` `GER40 (DAX)`
+
+- Selecione **Fonte → Forex/Índices/Ouro (Yahoo)** ou escolha direto no dropdown
+  **"Pares Forex / Índices / Ouro"** (troca a fonte sozinho).
+- **Histórico + tempo real**: carrega o histórico via REST e depois **atualiza por
+  polling a cada 15s** (Yahoo não oferece WebSocket público — diferente da Binance,
+  que empurra cada tick). O status mostra "AO VIVO (polling 15s)" para deixar claro
+  o mecanismo.
+- Como o dado vem sem CORS liberado, a chamada passa por um proxy público
+  (`allorigins`, mesmo usado nas notícias) — instável ocasionalmente; o app tenta
+  3 vezes antes de cair no modo simulado como último recurso.
+- **Fluxo/Correlação desativados automaticamente**: Forex/índices/ouro no Yahoo não
+  têm volume agressor real, então esses dois fatores ficariam sempre neutros e
+  distorceriam a pontuação — o app desliga e desabilita os controles nessa fonte, e
+  **restaura seu estado anterior** ao voltar para Binance/cripto.
+- O **widget oficial do TradingView** sincroniza para o símbolo correto de cada
+  mercado (ex.: `FX:EURUSD`, `TVC:GOLD`, `TVC:NDX`, `TVC:DJI`, `TVC:DEU40`).
+
 ## 🔄 Fluxo de Volume — compra × venda entre pares
 
 Dois fatores de confluência baseados em **fluxo real de ordens** (keyless, da própria

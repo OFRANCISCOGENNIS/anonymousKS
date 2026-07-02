@@ -29,14 +29,35 @@
                     <label>
                         Fonte
                         <select id="fonte">
-                            <option value="binance" selected>Binance (ao vivo)</option>
+                            <option value="binance" selected>Binance — Cripto (ao vivo)</option>
+                            <option value="yahoo">Forex/Índices/Ouro — Yahoo (ao vivo)</option>
                             <option value="sim">Simulado (offline)</option>
                         </select>
                     </label>
                     <label>
-                        Par / moeda
+                        Par / moeda (cripto)
                         <input type="text" id="symbol" value="BTCUSDT" list="listaSimbolos" autocomplete="off" spellcheck="false">
                         <datalist id="listaSimbolos"></datalist>
+                    </label>
+                    <label>
+                        Pares Forex / Índices / Ouro
+                        <select id="parPopular">
+                            <option value="">— selecionar —</option>
+                            <option value="EURUSD">EUR/USD</option>
+                            <option value="USDJPY">USD/JPY</option>
+                            <option value="GBPUSD">GBP/USD</option>
+                            <option value="AUDUSD">AUD/USD</option>
+                            <option value="USDCAD">USD/CAD</option>
+                            <option value="USDCHF">USD/CHF</option>
+                            <option value="EURJPY">EUR/JPY</option>
+                            <option value="GBPJPY">GBP/JPY</option>
+                            <option value="EURGBP">EUR/GBP</option>
+                            <option value="NZDUSD">NZD/USD</option>
+                            <option value="XAUUSD">XAU/USD (Ouro)</option>
+                            <option value="NAS100">NAS100 (Índice Nasdaq)</option>
+                            <option value="US30">US30 (Dow Jones)</option>
+                            <option value="GER40">GER40 (DAX)</option>
+                        </select>
                     </label>
                     <div class="conn-row">
                         <span id="connDot" class="conn-dot conn-off"></span>
@@ -74,7 +95,7 @@
                     <h3>📈 Dados</h3>
                     <label>
                         <input type="number" id="numCandles" value="300" min="20" max="1000">
-                        <span>Nº de velas (histórico / limite Binance máx 1000)</span>
+                        <span>Nº de velas (histórico / limite Binance 1000, Yahoo ~500)</span>
                     </label>
                     <label>
                         <input type="number" id="volatility" value="2" min="0.5" max="10" step="0.5">
@@ -156,7 +177,7 @@
                         Pares de referência
                         <input type="text" id="refPairs" value="BTCUSDT,ETHUSDT" spellcheck="false" style="width:100%;">
                     </label>
-                    <p class="group-note">Compra = volume agressor (taker buy) da Binance; venda = restante. Correlação vota pela maioria dos pares de referência na mesma janela.</p>
+                    <p class="group-note">Compra = volume agressor (taker buy) da Binance; venda = restante. Correlação vota pela maioria dos pares de referência na mesma janela. <strong>Indisponível para Forex/Índices/Ouro</strong> (sem volume real) — desativado automaticamente nessa fonte.</p>
                 </section>
 
                 <!-- Anti-Ruído -->
