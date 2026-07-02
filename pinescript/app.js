@@ -122,6 +122,22 @@ function fonte() { return document.getElementById('fonte').value; }
 function symbolAtual() { return (document.getElementById('symbol').value || 'BTCUSDT').trim().toUpperCase(); }
 function binanceInterval() { const v = tfMinutes(); return v === 60 ? '1h' : v + 'm'; }
 
+// ---- Carregamento genérico por timeframe (reutilizado por IA multi-TF e filtro HTF) ----
+const TFS_IA = [1, 5, 15, 30, 60];   // timeframes que a IA testa
+function loaderPorFonte(f) {
+    return f === 'binance' ? carregarHistoricoBinance : f === 'twelvedata' ? carregarHistoricoTwelveData : carregarHistoricoYahoo;
+}
+function intervalPorFonte(f, tfMin) {
+    return f === 'binance' ? (tfMin === 60 ? '1h' : tfMin + 'm') : tfMin;
+}
+async function carregarHistoricoTF(symbol, tfMin, limit) {
+    return loaderPorFonte(fonte())(symbol, intervalPorFonte(fonte(), tfMin), limit);
+}
+// TF maior correspondente ao TF de trabalho (para o filtro Multi-Timeframe)
+function htfDeTf(tfMin) {
+    return tfMin <= 5 ? 15 : tfMin <= 15 ? 60 : 60;
+}
+
 // ============================================================================
 // BLOCO 3 — GERAÇÃO SIMULADA (fallback offline)
 // ============================================================================
@@ -211,6 +227,7 @@ function recomputarIndicadores() {
 }
 
 let confLive = { long: 0, short: 0, enabled: 0 };  // pontuação de confluência na última vela
+let htfTrend = [];   // tendência do TF maior alinhada a cada vela (1/-1/0) — filtro multi-timeframe
 
 // ---- Fluxo de volume (delta compra×venda) ----
 
@@ -264,6 +281,8 @@ function recomputarSinais() {
     const useFluxo = document.getElementById('useFluxo').checked;
     const useCorrelacao = document.getElementById('useCorrelacao').checked;
     const fluxoJanela = Math.max(2, parseInt(document.getElementById('fluxoJanela').value));
+    // Filtro Multi-Timeframe: htfTrend[i] = 1 (alta) / -1 (baixa) / 0 no TF maior
+    const useHtf = document.getElementById('useHtf').checked && htfTrend.length === computed.closes.length;
 
     const { closes, emaR, emaL, ema200, rsiValues, atrValues, atrMedia, highs, lows } = computed;
 
@@ -331,6 +350,12 @@ function recomputarSinais() {
             shortSig = shortScore >= minScore && shortScore > longScore;
         }
 
+        // Multi-Timeframe: só permite entrada a favor da tendência do TF maior
+        if (useHtf) {
+            if (htfTrend[i] !== 1) longSig = false;
+            if (htfTrend[i] !== -1) shortSig = false;
+        }
+
         const cool = barras >= cooldownVelas;
         if (longSig && cool) {
             sinaisLong.push({ index: i, preco: closes[i], score: longScore, enabled: enabledCount, fatores: rotuloFatores(fatL) });
@@ -355,6 +380,47 @@ function recomputarSinais() {
                 ]
             };
         }
+    }
+}
+
+// Filtro Multi-Timeframe: carrega o TF maior, calcula a tendência por barra dele
+// (EMA rápida×lenta + posição vs EMA200) e alinha por tempo a cada vela do TF de
+// trabalho, preenchendo htfTrend[]. Sem rede (sim) ou desligado → htfTrend vazio.
+async function carregarHtf() {
+    const info = document.getElementById('htfInfo');
+    htfTrend = [];
+    if (!document.getElementById('useHtf').checked || fonte() === 'sim' || !dados.length) {
+        info.style.display = 'none';
+        return;
+    }
+    const htfMin = htfDeTf(tfMinutes());
+    if (htfMin <= tfMinutes()) { info.style.display = 'none'; return; }
+    try {
+        const hd = await carregarHistoricoTF(symbolAtual(), htfMin, 300);
+        if (!hd || hd.length < 210) throw new Error('histórico curto');
+        const c = hd.map(d => d.close);
+        const eR = ema(c, parseInt(document.getElementById('emaRapida').value));
+        const eL = ema(c, parseInt(document.getElementById('emaLenta').value));
+        const e2 = ema(c, 200);
+        const trend = hd.map((d, j) => {
+            if (eR[j] == null || eL[j] == null || e2[j] == null) return 0;
+            if (eR[j] > eL[j] && c[j] > e2[j]) return 1;
+            if (eR[j] < eL[j] && c[j] < e2[j]) return -1;
+            return 0;
+        });
+        // alinhamento por tempo (ambos ascendentes): cada vela usa a última barra HTF fechada
+        let j = 0;
+        htfTrend = dados.map(d => {
+            while (j + 1 < hd.length && hd[j + 1].time <= d.time) j++;
+            return hd[j].time <= d.time ? trend[j] : 0;
+        });
+        const rot = htfMin === 60 ? 'H1' : 'M' + htfMin;
+        const ult = htfTrend[htfTrend.length - 1];
+        info.textContent = `TF maior: ${rot} · tendência atual ${ult === 1 ? '📈 ALTA' : ult === -1 ? '📉 BAIXA' : '↔ neutra'}`;
+        info.style.display = 'block';
+    } catch (e) {
+        info.textContent = 'TF maior indisponível — filtro inativo nesta carga.';
+        info.style.display = 'block';
     }
 }
 
@@ -498,6 +564,8 @@ function redesenharTudo(ajustarZoom) {
         chartRsi.timeScale().fitContent();
         chartAtr.timeScale().fitContent();
         chartFluxo.timeScale().fitContent();
+        // Carga completa: (re)carrega a tendência do TF maior e reavalia os sinais
+        if (document.getElementById('useHtf').checked) carregarHtf().then(recalcularSinaisApenas);
     }
 }
 
@@ -1504,29 +1572,45 @@ async function escanear() {
     const lista = f === 'binance' ? SCAN_CRIPTO : Object.keys(PARES_YAHOO);
     const arg = f === 'binance' ? binanceInterval() : tfMinutes();
     const confMode = document.getElementById('confMode').value;
-    const minScore = parseInt(document.getElementById('minScore').value);
+    const minScoreG = parseInt(document.getElementById('minScore').value);
     const dSave = dados;
+    // Salva parâmetros e desliga o filtro HTF (não se aplica a outros símbolos no scan)
+    const el = id => document.getElementById(id);
+    const pIds = ['minScore', 'rsiSobrevenda', 'rsiSobrecompra', 'estruturaLookback', 'cooldownVelas', 'useHtf'];
+    const pSave = {}; pIds.forEach(i => pSave[i] = el(i).type === 'checkbox' ? el(i).checked : el(i).value);
+    el('useHtf').checked = false;
+    htfTrend = [];
     const res = [];
     for (const s of lista) {
         try {
             const d = await loader(s, arg, 250);
             if (!d || d.length < 210) continue;
+            // Scanner + IA: aplica os melhores parâmetros já otimizados para este par
+            const cc = iaCache[s];
+            const tuned = !!cc;
+            if (cc) { el('minScore').value = cc.ms; el('rsiSobrevenda').value = cc.sv; el('rsiSobrecompra').value = cc.sc; el('estruturaLookback').value = cc.lk; el('cooldownVelas').value = cc.cd; }
+            else { el('minScore').value = pSave.minScore; el('rsiSobrevenda').value = pSave.rsiSobrevenda; el('rsiSobrecompra').value = pSave.rsiSobrecompra; el('estruturaLookback').value = pSave.estruturaLookback; el('cooldownVelas').value = pSave.cooldownVelas; }
+            const minScore = cc ? cc.ms : minScoreG;
             dados = d; recomputarIndicadores(); recomputarSinais();
             const { long, short, enabled } = confLive;
             const alvo = confMode === 'estrita' ? enabled : Math.min(minScore, enabled);
-            if (long >= alvo && long > short) res.push({ s, dir: 1, score: long, enabled });
-            else if (short >= alvo && short > long) res.push({ s, dir: -1, score: short, enabled });
+            if (long >= alvo && long > short) res.push({ s, dir: 1, score: long, enabled, tuned });
+            else if (short >= alvo && short > long) res.push({ s, dir: -1, score: short, enabled, tuned });
         } catch (e) { }
     }
-    dados = dSave; recomputarIndicadores(); recomputarSinais();
+    pIds.forEach(i => { if (el(i).type === 'checkbox') el(i).checked = pSave[i]; else el(i).value = pSave[i]; });
+    dados = dSave; recomputarIndicadores();
+    if (el('useHtf').checked) { await carregarHtf(); }
+    recomputarSinais();
     res.sort((a, b) => b.score - a.score);
     document.getElementById('scanMeta').textContent = res.length + '/' + lista.length;
-    const el = document.getElementById('scanList');
-    el.innerHTML = res.length ? res.map(r => {
+    const elList = document.getElementById('scanList');
+    elList.innerHTML = res.length ? res.map(r => {
         const lbl = PARES_YAHOO[r.s] ? PARES_YAHOO[r.s].label : r.s;
-        return `<span class="decision-chip scan-item" data-s="${r.s}">${lbl} <span class="${r.dir === 1 ? 'chip-dir-up' : 'chip-dir-down'}">${r.dir === 1 ? '▲ CALL' : '▼ PUT'} ${r.score}/${r.enabled}</span></span>`;
+        const tag = r.tuned ? ' <span class="scan-tuned" title="parâmetros otimizados pela IA">✦</span>' : '';
+        return `<span class="decision-chip scan-item" data-s="${r.s}">${lbl}${tag} <span class="${r.dir === 1 ? 'chip-dir-up' : 'chip-dir-down'}">${r.dir === 1 ? '▲ CALL' : '▼ PUT'} ${r.score}/${r.enabled}</span></span>`;
     }).join('') : '<span class="decision-context">Nenhuma moeda com entrada agora — afrouxe a confluência ou troque o timeframe.</span>';
-    el.querySelectorAll('.scan-item').forEach(x => x.addEventListener('click', () => {
+    elList.querySelectorAll('.scan-item').forEach(x => x.addEventListener('click', () => {
         const s = x.getAttribute('data-s');
         document.getElementById('fonte').value = PARES_YAHOO[s] ? (ehForex() ? f : 'twelvedata') : 'binance';
         document.getElementById('symbol').value = s;
@@ -1593,64 +1677,118 @@ const IA_GRID = {
     estruturaLookback: [10, 20, 30],
     cooldownVelas: [3, 5]
 };
-const IA_MIN_OPS = 6;   // amostra mínima p/ a taxa de acerto ter significado
+const IA_MIN_OPS = 6;    // amostra mínima no TREINO
+const IA_MIN_VAL = 3;    // amostra mínima na VALIDAÇÃO (out-of-sample)
 
-function avaliarTaxaAtual() {
-    recomputarIndicadores(); recomputarSinais(); recomputarEntradas();
-    const av = entradas.filter(e => e.resultado === 'WIN' || e.resultado === 'LOSS');
+// Melhores parâmetros memorizados por par (usados pelo scanner). Persistente.
+let iaCache = JSON.parse(localStorage.getItem('iaCache') || '{}');
+
+function statsEnt(ents) {
+    const av = ents.filter(e => e.resultado === 'WIN' || e.resultado === 'LOSS');
     const w = av.filter(e => e.resultado === 'WIN').length;
     return { ops: av.length, w, wr: av.length ? w / av.length : 0 };
+}
+
+// Avalia a combinação já aplicada (inputs) sobre o `dados` atual, dividindo em
+// treino (primeiros 70% das velas) e validação (30% finais) — walk-forward.
+function avaliarWalkForward() {
+    recomputarIndicadores(); recomputarSinais(); recomputarEntradas();
+    const nCut = Math.floor(dados.length * 0.7);
+    return { treino: statsEnt(entradas.filter(e => e.index < nCut)), val: statsEnt(entradas.filter(e => e.index >= nCut)) };
 }
 
 async function otimizarIA() {
     if (!dados || dados.length < 210) { alert('Carregue um par primeiro (mín. ~210 velas).'); return; }
     const btn = document.getElementById('btnIA');
-    btn.disabled = true; btn.textContent = 'Analisando…';
+    btn.disabled = true; btn.textContent = 'Analisando TFs…';
     const el = id => document.getElementById(id);
-    const ids = ['minScore', 'rsiSobrevenda', 'rsiSobrecompra', 'estruturaLookback', 'cooldownVelas', 'confMode'];
-    const save = {}; ids.forEach(i => save[i] = el(i).value);
+    const isSim = fonte() === 'sim';
+    const symbol = symbolAtual();
+    const ids = ['minScore', 'rsiSobrevenda', 'rsiSobrecompra', 'estruturaLookback', 'cooldownVelas', 'confMode', 'timeframe', 'useHtf'];
+    const save = {}; ids.forEach(i => save[i] = el(i).type === 'checkbox' ? el(i).checked : el(i).value);
     el('confMode').value = 'score';
-    const res = [];
-    for (const ms of IA_GRID.minScore)
-        for (const [sv, sc] of IA_GRID.rsi)
-            for (const lk of IA_GRID.estruturaLookback)
-                for (const cd of IA_GRID.cooldownVelas) {
-                    el('minScore').value = ms; el('rsiSobrevenda').value = sv; el('rsiSobrecompra').value = sc;
-                    el('estruturaLookback').value = lk; el('cooldownVelas').value = cd;
-                    const r = avaliarTaxaAtual();
-                    if (r.ops >= IA_MIN_OPS) res.push({ ms, sv, sc, lk, cd, ...r });
-                    await Promise.resolve();
-                }
-    ids.forEach(i => el(i).value = save[i]);
-    recalcularSinaisApenas();
-    // ranqueia por taxa de acerto e, no empate, por nº de operações (robustez)
-    res.sort((a, b) => b.wr - a.wr || b.ops - a.ops);
-    const top = res.slice(0, 8);
-    const par = PARES_YAHOO[symbolAtual()] ? PARES_YAHOO[symbolAtual()].label : symbolAtual();
+    el('useHtf').checked = false; htfTrend = [];   // HTF não se aplica ao backtest da grade
+    const dSave = dados;
+
+    const tfs = isSim ? [tfMinutes()] : TFS_IA;
+    const porTf = [];   // melhor combo por timeframe
+    let totalCombos = 0;
+    for (const tf of tfs) {
+        let dTf = dSave;
+        if (!isSim) {
+            try { dTf = await carregarHistoricoTF(symbol, tf, 300); } catch (e) { continue; }
+            if (!dTf || dTf.length < 210) continue;
+        }
+        dados = dTf; el('timeframe').value = tf;
+        let best = null;
+        for (const ms of IA_GRID.minScore)
+            for (const [sv, sc] of IA_GRID.rsi)
+                for (const lk of IA_GRID.estruturaLookback)
+                    for (const cd of IA_GRID.cooldownVelas) {
+                        el('minScore').value = ms; el('rsiSobrevenda').value = sv; el('rsiSobrecompra').value = sc;
+                        el('estruturaLookback').value = lk; el('cooldownVelas').value = cd;
+                        const wf = avaliarWalkForward();
+                        totalCombos++;
+                        if (wf.treino.ops < IA_MIN_OPS || wf.val.ops < IA_MIN_VAL) continue;
+                        // robustez = pior das duas janelas (penaliza overfit no treino)
+                        const robust = Math.min(wf.treino.wr, wf.val.wr);
+                        if (!best || robust > best.robust || (robust === best.robust && wf.val.ops > best.val.ops))
+                            best = { tf, ms, sv, sc, lk, cd, robust, treino: wf.treino, val: wf.val };
+                        await Promise.resolve();
+                    }
+        if (best) porTf.push(best);
+    }
+    // restaura estado do usuário
+    ids.forEach(i => { if (el(i).type === 'checkbox') el(i).checked = save[i]; else el(i).value = save[i]; });
+    dados = dSave; recomputarIndicadores();
+    if (el('useHtf').checked) await carregarHtf();
+    recomputarSinais();
+
+    // ranqueia TFs pela taxa fora da amostra (validação) — o que mais importa
+    porTf.sort((a, b) => b.val.wr - a.val.wr || b.robust - a.robust);
+    const par = PARES_YAHOO[symbol] ? PARES_YAHOO[symbol].label : symbol;
     document.getElementById('iaPanel').style.display = 'block';
-    document.getElementById('iaMeta').textContent = res.length + ' combinações testadas';
-    document.getElementById('iaContext').textContent = res.length
-        ? `Melhores parâmetros para ${par} · ${tfMinutes()}m · expiração ${expMinutes()}m (backtest no histórico atual). Clique em uma linha para aplicar.`
-        : `Nenhuma combinação atingiu ${IA_MIN_OPS} operações neste histórico — carregue mais velas ou troque o timeframe.`;
-    document.getElementById('iaList').innerHTML = top.map((r, i) => {
-        const wr = (r.wr * 100).toFixed(1);
-        const cls = r.wr >= 0.6 ? 'chip-dir-up' : r.wr >= 0.5 ? '' : 'chip-dir-down';
+    document.getElementById('iaMeta').textContent = totalCombos + ' combinações · ' + tfs.length + ' timeframes';
+
+    if (!porTf.length) {
+        document.getElementById('iaContext').textContent = `Nenhuma combinação passou na validação fora da amostra para ${par}. Carregue mais velas (300+) ou troque o par.`;
+        document.getElementById('iaList').innerHTML = '';
+        btn.disabled = false; btn.textContent = '🤖 IA: otimizar parâmetros';
+        return;
+    }
+
+    // memoriza o melhor TF/combo deste par para o scanner
+    const rec = porTf[0];
+    iaCache[symbol] = { tf: rec.tf, ms: rec.ms, sv: rec.sv, sc: rec.sc, lk: rec.lk, cd: rec.cd };
+    localStorage.setItem('iaCache', JSON.stringify(iaCache));
+
+    document.getElementById('iaContext').textContent = `${par}: melhor timeframe é ${rotTf(rec.tf)} com ${(rec.val.wr * 100).toFixed(0)}% de acerto fora da amostra. Taxas mostradas: VALIDAÇÃO (treino). Clique para aplicar.`;
+    document.getElementById('iaList').innerHTML = porTf.map((r, i) => {
+        const vwr = (r.val.wr * 100).toFixed(0), twr = (r.treino.wr * 100).toFixed(0);
+        const cls = r.val.wr >= 0.6 ? 'chip-dir-up' : r.val.wr >= 0.5 ? '' : 'chip-dir-down';
+        const star = i === 0 ? '<span class="scan-tuned">✦</span> ' : '';
         return `<div class="reg-row ia-row" data-i="${i}">` +
-            `<span class="reg-hora">#${i + 1}</span>` +
-            `<span class="reg-par"><span class="${cls}">${wr}% acerto</span> · ${r.w}/${r.ops} ops</span>` +
+            `<span class="reg-hora">${star}${rotTf(r.tf)}</span>` +
+            `<span class="reg-par"><span class="${cls}">${vwr}% val</span> <span class="ia-params">(${twr}% treino · ${r.val.w}/${r.val.ops} ops)</span></span>` +
             `<span class="ia-params">score≥${r.ms} · RSI ${r.sv}/${r.sc} · estrut ${r.lk} · cd ${r.cd}</span></div>`;
     }).join('');
     document.getElementById('iaList').querySelectorAll('.ia-row').forEach(row => row.addEventListener('click', () => {
-        const r = top[+row.getAttribute('data-i')];
+        const r = porTf[+row.getAttribute('data-i')];
         el('confMode').value = 'score'; el('minScore').value = r.ms;
         el('rsiSobrevenda').value = r.sv; el('rsiSobrecompra').value = r.sc;
         el('estruturaLookback').value = r.lk; el('cooldownVelas').value = r.cd;
-        recalcularSinaisApenas();
+        iaCache[symbol] = { tf: r.tf, ms: r.ms, sv: r.sv, sc: r.sc, lk: r.lk, cd: r.cd };
+        localStorage.setItem('iaCache', JSON.stringify(iaCache));
         row.parentElement.querySelectorAll('.ia-row').forEach(x => x.classList.remove('ia-sel'));
         row.classList.add('ia-sel');
+        // se o TF recomendado difere do atual, recarrega nesse TF; senão só recalcula
+        if (!isSim && String(r.tf) !== String(tfMinutes())) { el('timeframe').value = r.tf; carregar(); }
+        else recalcularSinaisApenas();
     }));
     btn.disabled = false; btn.textContent = '🤖 IA: otimizar parâmetros';
 }
+
+function rotTf(m) { return m === 60 ? 'H1' : 'M' + m; }
 
 // ============================================================================
 // BLOCO 8.7 — ESTUDOS DE MERCADO (regime, horário e fatores com mais acerto)
@@ -1964,6 +2102,11 @@ document.getElementById('btnTreinoSair').addEventListener('click', () => encerra
 document.getElementById('btnScan').addEventListener('click', escanear);
 document.getElementById('btnIA').addEventListener('click', otimizarIA);
 document.getElementById('btnEstudo').addEventListener('click', renderEstudo);
+document.getElementById('useHtf').addEventListener('change', async function () {
+    if (!dados.length) return;
+    await carregarHtf();
+    recalcularSinaisApenas();
+});
 document.getElementById('btnLimparReg').addEventListener('click', () => {
     registro = []; localStorage.removeItem('registroEntradas');
     document.getElementById('registroPanel').style.display = 'none';
