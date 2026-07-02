@@ -33,6 +33,26 @@ O topo da página é um **painel de decisão** que responde, na vela atual:
 A interface usa tema escuro de trading com paleta validada para daltonismo e
 contraste (tokens em `styles.css`).
 
+## 🎓 Treino de Leitura (replay)
+
+Ferramenta para **melhorar o desempenho em leitura de mercado**: o botão
+**Treinar leitura (replay)** congela o gráfico num ponto **aleatório** do histórico
+(escondendo o futuro) e testa sua leitura vela a vela:
+
+- Você decide **▲ CALL / ▼ PUT / ⏭ Pular** com base na vela e no contexto;
+- O app revela as velas da expiração, mostra o resultado (subiu/caiu, variação %)
+  e mantém o **placar: você vs indicador** (win rate de cada um, sequência de acertos);
+- **Leitura assistida** a cada vela: padrões clássicos detectados automaticamente
+  (Doji, Martelo, Estrela cadente, Engolfo de alta/baixa, corpo cheio) + contexto
+  (preço vs EMA200, zona do RSI, força do ATR) — para você aprender O QUE olhar;
+- O indicador só pontua quando dá veredito CALL/PUT (AGUARDAR não conta), então a
+  comparação é justa;
+- Ao encerrar, o app restaura o gráfico completo e reconecta o ao-vivo.
+
+Funciona com dados reais da Binance (treine a leitura no comportamento do ativo
+que você opera) ou com dados simulados, e respeita o timeframe e a expiração
+configurados.
+
 ## 🎯 Confluência (modos e pontuação)
 
 A confluência ganhou dois modos, no grupo **Confluência** do painel:

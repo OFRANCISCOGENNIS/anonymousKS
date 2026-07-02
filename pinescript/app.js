@@ -558,6 +558,160 @@ function tocarSom(dir) {
 }
 
 // ============================================================================
+// TREINO DE LEITURA (replay) — esconde o futuro, pontua sua leitura vs indicador
+// ============================================================================
+
+let treino = null;   // { full, pos, user:{ok,err}, ind:{ok,err}, streak, melhorStreak }
+
+// Veredito do indicador na última vela visível (mesma regra do Painel de Decisão)
+function verdictDoIndicador() {
+    const { long, short, enabled, minScore, confMode } = confLive;
+    if (!enabled) return 'WAIT';
+    const alvo = confMode === 'estrita' ? enabled : Math.min(minScore, enabled);
+    if (long >= alvo && long > short) return 'CALL';
+    if (short >= alvo && short > long) return 'PUT';
+    return 'WAIT';
+}
+
+// Leitor de padrões da última vela — educa a leitura (martelo, engolfo, doji…)
+function lerVela() {
+    if (dados.length < 2) return [];
+    const c = dados[dados.length - 1], p = dados[dados.length - 2];
+    const corpo = Math.abs(c.close - c.open);
+    const range = Math.max(c.high - c.low, 1e-9);
+    const sombraSup = c.high - Math.max(c.open, c.close);
+    const sombraInf = Math.min(c.open, c.close) - c.low;
+    const alta = c.close > c.open, baixa = c.close < c.open;
+    const pAlta = p.close > p.open, pBaixa = p.close < p.open;
+    const padroes = [];
+
+    if (corpo < range * 0.1) padroes.push('Doji (indecisão)');
+    if (sombraInf > corpo * 2 && sombraSup < corpo) padroes.push('Martelo (rejeição de baixa)');
+    if (sombraSup > corpo * 2 && sombraInf < corpo) padroes.push('Estrela cadente (rejeição de alta)');
+    if (alta && pBaixa && c.close > p.open && c.open < p.close) padroes.push('Engolfo de ALTA');
+    if (baixa && pAlta && c.close < p.open && c.open > p.close) padroes.push('Engolfo de BAIXA');
+    if (corpo > range * 0.7) padroes.push(alta ? 'Corpo cheio de alta (força compradora)' : 'Corpo cheio de baixa (força vendedora)');
+    return padroes;
+}
+
+// Contexto de mercado em texto (a "leitura" que o trader deveria fazer)
+function lerContexto() {
+    const last = computed.closes.length - 1;
+    if (last < 0) return '';
+    const partes = [];
+    const e2 = computed.ema200[last];
+    if (e2 !== null) partes.push(computed.closes[last] > e2 ? 'preço ACIMA da EMA200 (viés de alta)' : 'preço ABAIXO da EMA200 (viés de baixa)');
+    const rsiV = computed.rsiValues[last];
+    if (rsiV !== null) {
+        const zona = rsiV >= 70 ? 'sobrecomprado' : rsiV <= 30 ? 'sobrevendido' : 'neutro';
+        partes.push(`RSI ${rsiV.toFixed(0)} (${zona})`);
+    }
+    if (computed.atrValues[last] !== null && computed.atrMedia[last] !== null)
+        partes.push(computed.atrValues[last] > computed.atrMedia[last] ? 'ATR acima da média (mercado com força)' : 'ATR abaixo da média (lateralização)');
+    return partes.join(' · ');
+}
+
+function atualizarPainelTreino(feedback) {
+    if (!treino) return;
+    const N = Math.max(1, Math.round(expMinutes() / tfMinutes()));
+    document.getElementById('trainPos').textContent =
+        `vela ${treino.pos} de ${treino.full.length} · expiração ${expMinutes()} min (${N} vela${N > 1 ? 's' : ''} à frente)`;
+
+    const padroes = lerVela();
+    document.getElementById('trainReading').innerHTML =
+        `<strong>Leitura da vela:</strong> ${padroes.length ? padroes.join(' · ') : 'sem padrão clássico'} ` +
+        `<br><strong>Contexto:</strong> ${lerContexto() || '—'}`;
+
+    if (feedback !== undefined) document.getElementById('trainFeedback').innerHTML = feedback;
+
+    const u = treino.user, ind = treino.ind;
+    const pct = o => (o.ok + o.err) ? (o.ok / (o.ok + o.err) * 100).toFixed(0) + '%' : '–';
+    document.getElementById('trainStats').innerHTML =
+        `<span class="train-stat">Você: <strong>${u.ok}/${u.ok + u.err}</strong> (${pct(u)})</span>` +
+        `<span class="train-stat">Indicador: <strong>${ind.ok}/${ind.ok + ind.err}</strong> (${pct(ind)})</span>` +
+        `<span class="train-stat">Sequência: <strong>${treino.streak}</strong> (melhor ${treino.melhorStreak})</span>`;
+}
+
+function iniciarTreino() {
+    if (dados.length < 120) { alert('Carregue pelo menos 120 velas para treinar (aumente o Nº de velas).'); return; }
+    fecharWS();                       // pausa o ao-vivo durante o treino
+    conexaoAtual = '';
+    setStatus('off', 'Treino de leitura (replay)');
+    const full = dados.slice();
+    // Corte aleatório: começa entre 100 velas e (fim − 40) p/ sobrar futuro
+    const N = Math.max(1, Math.round(expMinutes() / tfMinutes()));
+    const minPos = Math.max(100, Math.floor(full.length * 0.4));
+    const maxPos = full.length - Math.max(40, N + 5);
+    const pos = minPos + Math.floor(Math.random() * Math.max(1, maxPos - minPos));
+    treino = { full, pos, user: { ok: 0, err: 0 }, ind: { ok: 0, err: 0 }, streak: 0, melhorStreak: 0 };
+    dados = full.slice(0, pos);
+    redesenharTudo(true);
+    document.getElementById('trainPanel').style.display = 'block';
+    document.getElementById('btnTreinar').textContent = 'Treinando…';
+    atualizarPainelTreino('Leia a vela atual e decida: o preço estará mais alto ou mais baixo na expiração?');
+}
+
+function encerrarTreino(restaurar) {
+    if (!treino) return;
+    const full = treino.full;
+    treino = null;
+    document.getElementById('trainPanel').style.display = 'none';
+    document.getElementById('btnTreinar').textContent = 'Treinar leitura (replay)';
+    if (restaurar) { dados = full; carregar(); }   // recarrega e reconecta o ao-vivo
+}
+
+function responderTreino(dir) {   // dir: 1 CALL, -1 PUT, 0 pular
+    if (!treino) return;
+    const N = Math.max(1, Math.round(expMinutes() / tfMinutes()));
+
+    if (treino.pos + N >= treino.full.length) {
+        atualizarPainelTreino('🏁 Fim do histórico! Veja seu placar acima — clique em Encerrar treino.');
+        return;
+    }
+
+    if (dir === 0) {   // pular: revela 1 vela e segue
+        treino.pos += 1;
+        dados = treino.full.slice(0, treino.pos);
+        redesenharTudo(false);
+        atualizarPainelTreino('Vela pulada. Leia a nova vela e decida.');
+        return;
+    }
+
+    // Previsão do indicador ANTES de revelar o futuro
+    const indPrev = verdictDoIndicador();
+
+    const entry = treino.full[treino.pos - 1].close;
+    const alvo = treino.full[treino.pos - 1 + N].close;
+    const varPct = ((alvo - entry) / entry * 100).toFixed(3);
+    const subiu = alvo > entry, caiu = alvo < entry;
+
+    let fb;
+    if (!subiu && !caiu) {
+        fb = `➖ Empate: o preço fechou igual (${entry}). Ninguém pontua.`;
+    } else {
+        const userOk = (dir === 1 && subiu) || (dir === -1 && caiu);
+        if (userOk) { treino.user.ok++; treino.streak++; treino.melhorStreak = Math.max(treino.melhorStreak, treino.streak); }
+        else { treino.user.err++; treino.streak = 0; }
+
+        let indTxt = 'AGUARDAR (não pontua)';
+        if (indPrev === 'CALL' || indPrev === 'PUT') {
+            const indOk = (indPrev === 'CALL' && subiu) || (indPrev === 'PUT' && caiu);
+            if (indOk) treino.ind.ok++; else treino.ind.err++;
+            indTxt = `${indPrev} (${indOk ? 'acertou' : 'errou'})`;
+        }
+        fb = `${userOk ? '✅ <strong>Acertou!</strong>' : '❌ <strong>Errou.</strong>'} ` +
+             `O preço ${subiu ? 'subiu' : 'caiu'} de ${entry} para ${alvo} (${varPct}%) em ${expMinutes()} min. ` +
+             `Indicador dizia: ${indTxt}.`;
+    }
+
+    // Revela as N velas da expiração e segue o replay
+    treino.pos += N;
+    dados = treino.full.slice(0, treino.pos);
+    redesenharTudo(false);
+    atualizarPainelTreino(fb);
+}
+
+// ============================================================================
 // PAINEL DE DECISÃO — o veredito de assertividade da vela atual
 // ============================================================================
 
@@ -616,9 +770,10 @@ function atualizarDecisao() {
     }
     if (painel) painel.style.borderLeftColor = cor;
 
-    // Som apenas na TRANSIÇÃO para CALL/PUT (não repete enquanto o veredito se mantém)
+    // Som apenas na TRANSIÇÃO para CALL/PUT (não repete enquanto o veredito se
+    // mantém; silenciado durante o treino de leitura para não apitar no replay)
     if (verdictKey !== ultimoVerdictSom) {
-        if (document.getElementById('somAtivo').checked) {
+        if (document.getElementById('somAtivo').checked && !treino) {
             if (verdictKey === 'CALL') tocarSom(1);
             else if (verdictKey === 'PUT') tocarSom(-1);
         }
@@ -871,6 +1026,12 @@ function onKline(k) {
 // ============================================================================
 
 async function carregar() {
+    // Trocar fonte/par/timeframe ou recarregar encerra um treino em andamento
+    if (treino) {
+        treino = null;
+        document.getElementById('trainPanel').style.display = 'none';
+        document.getElementById('btnTreinar').textContent = 'Treinar leitura (replay)';
+    }
     fecharWS();
     if (fonte() === 'sim') {
         conexaoAtual = '';
@@ -1114,6 +1275,16 @@ document.getElementById('symbol').addEventListener('change', function () {
 });
 document.getElementById('btnNews').addEventListener('click', carregarNoticias);
 document.getElementById('btnExport').addEventListener('click', exportarCSV);
+// Treino de leitura
+document.getElementById('btnTreinar').addEventListener('click', function () {
+    if (treino) return;   // já treinando
+    iniciarTreino();
+});
+document.getElementById('btnTreinoCall').addEventListener('click', () => responderTreino(1));
+document.getElementById('btnTreinoPut').addEventListener('click', () => responderTreino(-1));
+document.getElementById('btnTreinoPular').addEventListener('click', () => responderTreino(0));
+document.getElementById('btnTreinoSair').addEventListener('click', () => encerrarTreino(true));
+
 document.getElementById('btnTestarSom').addEventListener('click', function () {
     tocarSom(1);
     setTimeout(() => tocarSom(-1), 600);   // demonstra os dois tons: CALL e PUT

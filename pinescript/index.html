@@ -132,6 +132,13 @@
                     <label>Janela de notícia (min) <input type="number" id="newsJanela" value="15" min="1" max="240"></label>
                 </section>
 
+                <!-- Treino de Leitura -->
+                <section class="control-group">
+                    <h3>🎓 Treino</h3>
+                    <button id="btnTreinar" class="btn-primary">Treinar leitura (replay)</button>
+                    <p class="group-note">Esconde o futuro do gráfico e testa sua leitura vela a vela, pontuando você contra o indicador.</p>
+                </section>
+
                 <!-- Alertas -->
                 <section class="control-group">
                     <h3>🔔 Alertas</h3>
@@ -162,6 +169,20 @@
                         <div class="decision-chips" id="decisionChips"></div>
                         <div class="decision-context" id="decisionContext">—</div>
                     </div>
+                </div>
+
+                <!-- Treino de Leitura (replay: futuro escondido, você decide) -->
+                <div class="chart-container train-panel" id="trainPanel" style="display:none;">
+                    <h2>🎓 Treino de Leitura <span class="train-pos" id="trainPos"></span></h2>
+                    <div class="train-reading" id="trainReading">—</div>
+                    <div class="train-actions">
+                        <button id="btnTreinoCall" class="btn-train btn-train-call">▲ CALL — vai subir</button>
+                        <button id="btnTreinoPut" class="btn-train btn-train-put">▼ PUT — vai cair</button>
+                        <button id="btnTreinoPular" class="btn-train btn-train-skip">⏭ Pular vela</button>
+                        <button id="btnTreinoSair" class="btn-mini">Encerrar treino</button>
+                    </div>
+                    <div class="train-feedback" id="trainFeedback"></div>
+                    <div class="train-stats" id="trainStats"></div>
                 </div>
 
                 <!-- Gráfico de Velas (Candlestick) + EMAs (com meus sinais) -->
