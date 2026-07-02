@@ -1394,12 +1394,25 @@ async function carregar() {
             setStatus('on', `AO VIVO (polling 15s) • ${label}`);
             iniciarPollForex(codigo, tfMinutes(), carregarHistoricoTwelveData, label);
         } catch (err) {
-            console.error('Erro Twelve Data:', err);
-            const dica = /api key|apikey|401|limit|grow|plan/i.test(err.message || '') ? ' — confira/atualize sua chave em twelvedata.com' : '';
-            setStatus('err', 'Twelve Data: ' + (err.message || err) + dica);
-            dados = gerarDadosSim(parseInt(document.getElementById('numCandles').value) || 300, 2);
-            refPares = [];
-            redesenharTudo(true);
+            console.warn('Twelve Data falhou, tentando Yahoo…', err);
+            const dica = /api key|apikey|401|limit|grow|plan/i.test(err.message || '') ? ' (chave demo/limite? pegue a sua em twelvedata.com)' : '';
+            setStatus('connecting', `Twelve Data indisponível${dica} — tentando Yahoo…`);
+            // Auto-fallback p/ Yahoo (keyless) antes de desistir
+            try {
+                dados = await carregarHistoricoYahoo(codigo, tfMinutes(), Math.min(500, limit));
+                if (!dados.length) throw new Error('vazio');
+                refPares = [];
+                redesenharTudo(true);
+                const label = PARES_YAHOO[codigo].label + ' · Yahoo (fallback)';
+                setStatus('on', `AO VIVO (polling 15s) • ${label}`);
+                iniciarPollForex(codigo, tfMinutes(), carregarHistoricoYahoo, label);
+            } catch (err2) {
+                console.error('Yahoo também falhou:', err2);
+                setStatus('err', `Twelve Data e Yahoo indisponíveis${dica} — mostrando SIMULADO. Clique em "Recarregar / Gerar".`);
+                dados = gerarDadosSim(parseInt(document.getElementById('numCandles').value) || 300, 2);
+                refPares = [];
+                redesenharTudo(true);
+            }
         }
         return;
     }
@@ -1679,8 +1692,9 @@ document.getElementById('symbol').addEventListener('change', function () {
 document.getElementById('parPopular').addEventListener('change', function () {
     const cod = this.value;
     if (!cod) return;
-    // Mantém a fonte Forex já escolhida (Twelve Data/Yahoo); senão usa Yahoo (keyless, sem setup)
-    if (!ehForex()) document.getElementById('fonte').value = 'yahoo';
+    // Padrão = Twelve Data (mais estável); se falhar, o carregar() cai p/ Yahoo sozinho.
+    // Se a fonte Forex já estiver escolhida, respeita a escolha do usuário.
+    if (!ehForex()) document.getElementById('fonte').value = 'twelvedata';
     document.getElementById('symbol').value = cod;
     montarWidgetTV();
     carregar();
