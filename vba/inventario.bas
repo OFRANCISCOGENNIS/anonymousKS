@@ -227,6 +227,7 @@ Public Sub GerarInventario()
 
     Application.ScreenUpdating = False
     Application.Calculation = xlCalculationManual
+    Application.EnableEvents = False
     On Error GoTo ErrHandler
 
     Application.DisplayAlerts = False
@@ -270,6 +271,7 @@ Public Sub GerarInventario()
 
     Application.ScreenUpdating = True
     Application.Calculation = xlCalculationAutomatic
+    Application.EnableEvents = True
 
     On Error Resume Next
     wsGestor.Activate
@@ -289,6 +291,7 @@ Public Sub GerarInventario()
 ErrHandler:
     Application.ScreenUpdating = True
     Application.Calculation = xlCalculationAutomatic
+    Application.EnableEvents = True
     Application.DisplayAlerts = True
     MsgBox "Erro " & Err.Number & " na etapa [" & mStep & "]:" & vbCrLf & _
            Err.Description, vbCritical, "Analise Inventario"
@@ -686,11 +689,20 @@ Private Sub ProcessarSAPxPRJ(wsBase As Worksheet, wsDet As Worksheet)
         End With
         sR.HorizontalAlignment = xlCenter
 
-        ' APROVACAO: coloracao DIRETA (FC com formula em ingles falha no Excel PT-BR)
-        Dim rrA As Long, avA As String
-        For rrA = DS To lastD
-            With wsDet.Cells(rrA, 14)
-                avA = CStr(.Value)
+        ' APROVACAO: coloracao DIRETA (FC com formula em ingles falha no Excel PT-BR).
+        ' Le o veredito do array em memoria (sem reler a planilha) e pinta BLOCOS
+        ' de linhas consecutivas com o mesmo status - 1 chamada por bloco.
+        Dim rrA As Long, rIni As Long, avA As String
+        wsDet.Range(wsDet.Cells(DS, 14), wsDet.Cells(lastD, 14)).HorizontalAlignment = xlCenter
+        rrA = DS
+        Do While rrA <= lastD
+            avA = CStr(outArr(rrA - DS + 1, 14))
+            rIni = rrA
+            Do While rrA < lastD
+                If CStr(outArr(rrA - DS + 2, 14)) <> avA Then Exit Do
+                rrA = rrA + 1
+            Loop
+            With wsDet.Range(wsDet.Cells(rIni, 14), wsDet.Cells(rrA, 14))
                 If InStr(avA, "REPROVADO") > 0 Then
                     .Interior.Color = RGB(192, 0, 0) : .Font.Color = RGB(255, 255, 255) : .Font.Bold = True
                 ElseIf InStr(avA, "APROVADO") > 0 Then
@@ -698,9 +710,9 @@ Private Sub ProcessarSAPxPRJ(wsBase As Worksheet, wsDet As Worksheet)
                 Else
                     .Interior.Color = RGB(217, 217, 217) : .Font.Color = RGB(64, 64, 64)
                 End If
-                .HorizontalAlignment = xlCenter
             End With
-        Next rrA
+            rrA = rrA + 1
+        Loop
 
         Dim vR As Range : Set vR = wsDet.Range(wsDet.Cells(DS, 6), wsDet.Cells(lastD, 6))
         vR.FormatConditions.Delete
@@ -1129,8 +1141,6 @@ Private Sub ProcessarCOMInventario(wsBase As Worksheet, wsCom As Worksheet)
 
     CabecalhoRacioNT wsCom
 
-    Dim outRow As Long : outRow = 3
-
     Dim keys() As String
     Dim ki As Long : ki = 0
     If liquidQ.Count > 0 Then
@@ -1138,14 +1148,12 @@ Private Sub ProcessarCOMInventario(wsBase As Worksheet, wsCom As Worksheet)
     For Each k In liquidQ.Keys
         keys(ki) = CStr(k) : ki = ki + 1
     Next k
-    Dim i As Long, j As Long, tmp As String
-    For i = 0 To UBound(keys) - 1
-        For j = 0 To UBound(keys) - i - 1
-            If keys(j) > keys(j + 1) Then
-                tmp = keys(j) : keys(j) = keys(j + 1) : keys(j + 1) = tmp
-            End If
-        Next j
-    Next i
+    QuickSortStr keys, 0, UBound(keys)
+
+    ' Saida bufferizada: monta as linhas em array e escreve na planilha UMA vez
+    Dim outA() As Variant : ReDim outA(1 To liquidQ.Count, 1 To 10)
+    Dim stArr() As String : ReDim stArr(1 To liquidQ.Count)
+    Dim i As Long
 
     For i = 0 To UBound(keys)
         k = keys(i)
@@ -1290,11 +1298,17 @@ Private Sub ProcessarCOMInventario(wsBase As Worksheet, wsCom As Worksheet)
             End If
         End If
 
-        EscreverLinhaRacioNT wsCom, outRow, _
-            pepV, inf(1), matV, inf(3), familia, _
-            ligadoTxt, qtdL, previstoTxt, status, obsTxt
-        outRow = outRow + 1
+        Dim bgS As Long, fgS As Long, icoS As String
+        CoresStatusRacio status, bgS, fgS, icoS
+        outA(i + 1, 1) = pepV : outA(i + 1, 2) = inf(1) : outA(i + 1, 3) = matV
+        outA(i + 1, 4) = inf(3) : outA(i + 1, 5) = familia : outA(i + 1, 6) = ligadoTxt
+        outA(i + 1, 7) = qtdL : outA(i + 1, 8) = previstoTxt : outA(i + 1, 9) = icoS
+        outA(i + 1, 10) = obsTxt
+        stArr(i + 1) = status
     Next i
+
+    wsCom.Range(wsCom.Cells(3, 1), wsCom.Cells(2 + liquidQ.Count, 10)).Value = outA
+    FormatarLinhasRacioNT wsCom, stArr, liquidQ.Count
     End If   ' liquidQ.Count > 0
 
     FormatarColunasRacioNT wsCom
@@ -1336,33 +1350,9 @@ Private Sub CabecalhoRacioNT(ws As Worksheet)
     ws.Rows(2).RowHeight = 22
 End Sub
 
-Private Sub EscreverLinhaRacioNT(ws As Worksheet, r As Long, _
-    pep4 As String, pep3 As String, cod As String, descM As String, familia As String, _
-    ligadoA As String, qtdL As Double, previsto As String, status As String, obs As String)
-
-    Dim bg As Long : bg = IIf(r Mod 2 = 0, RGB(244, 247, 250), RGB(255, 255, 255))
-    Dim vals(9) As Variant
-    vals(0) = pep4 : vals(1) = pep3 : vals(2) = cod : vals(3) = descM : vals(4) = familia
-    vals(5) = ligadoA : vals(6) = qtdL : vals(7) = previsto : vals(8) = status : vals(9) = obs
-    Dim c As Long
-    For c = 0 To 9
-        With ws.Cells(r, c + 1)
-            .Value = vals(c)
-            .Font.Name = "Segoe UI" : .Font.Size = 9
-            .Interior.Color = bg
-            .Borders.LineStyle = xlContinuous : .Borders.Color = RGB(225, 225, 225)
-            .VerticalAlignment = xlCenter
-            Select Case c
-                Case 6:          .HorizontalAlignment = xlCenter : .NumberFormat = "#,##0.##"
-                Case 0, 1, 2, 7: .HorizontalAlignment = xlCenter
-                Case Else:       .HorizontalAlignment = xlLeft
-            End Select
-        End With
-    Next c
-
-    ' STATUS com cor semantica + simbolo (col 9)
-    Dim bgS As Long, fgS As Long, ico As String
-    Select Case status
+' Tabela de cores semanticas por STATUS da racionalizacao (fundo, texto e rotulo)
+Private Sub CoresStatusRacio(st As String, ByRef bgS As Long, ByRef fgS As Long, ByRef ico As String)
+    Select Case st
         Case "OK":                bgS = RGB(198, 239, 206) : fgS = RGB(0, 97, 0)   : ico = "OK"
         Case "ANCORA":            bgS = RGB(221, 235, 247) : fgS = RGB(31, 78, 121): ico = "REFERENCIA"
         Case "EXCESSO":           bgS = RGB(255, 235, 156) : fgS = RGB(156, 87, 0) : ico = "EXCESSO"
@@ -1371,23 +1361,76 @@ Private Sub EscreverLinhaRacioNT(ws As Worksheet, r As Long, _
         Case "SEM ANCORA":        bgS = RGB(255, 242, 204) : fgS = RGB(119, 107, 0): ico = "SEM ANCORA"
         Case "QTD ZERO":          bgS = RGB(230, 230, 230) : fgS = RGB(64, 64, 64) : ico = "ZERO"
         Case "ESTORNO SEM ENTRADA": bgS = RGB(230, 230, 230): fgS = RGB(64, 64, 64): ico = "ESTORNO"
-        Case Else:                bgS = RGB(242, 242, 242) : fgS = RGB(89, 89, 89) : ico = status
+        Case Else:                bgS = RGB(242, 242, 242) : fgS = RGB(89, 89, 89) : ico = st
     End Select
-    With ws.Cells(r, 9)
-        .Value = ico
-        .Font.Bold = True : .Font.Color = fgS : .Interior.Color = bgS
-        .HorizontalAlignment = xlCenter
-    End With
+End Sub
 
-    ' OBSERVACAO (col 10) com a mesma cor semantica do status (fundo suave + texto na cor)
-    With ws.Cells(r, 10)
-        .Interior.Color = bgS
-        .Font.Color = fgS
-        .Font.Bold = (status = "EXCESSO EXAGERADO" Or status = "INSUFICIENTE" Or status = "EXCESSO")
+' Formata as linhas de dados da racionalizacao em LOTE: base (fonte/borda/
+' alinhamento) numa chamada so, zebra via formatacao condicional e cores
+' semanticas aplicadas por BLOCOS de linhas consecutivas com o mesmo status.
+Private Sub FormatarLinhasRacioNT(ws As Worksheet, stArr() As String, nRows As Long)
+    If nRows < 1 Then Exit Sub
+    Dim r1 As Long : r1 = 3
+    Dim r2 As Long : r2 = r1 + nRows - 1
+
+    With ws.Range(ws.Cells(r1, 1), ws.Cells(r2, 10))
+        .Font.Name = "Segoe UI" : .Font.Size = 9
+        .Interior.Color = RGB(255, 255, 255)
+        .Borders.LineStyle = xlContinuous : .Borders.Color = RGB(225, 225, 225)
+        .VerticalAlignment = xlCenter
         .HorizontalAlignment = xlLeft
     End With
+    ws.Range(ws.Cells(r1, 1), ws.Cells(r2, 3)).HorizontalAlignment = xlCenter
+    ws.Range(ws.Cells(r1, 7), ws.Cells(r2, 8)).HorizontalAlignment = xlCenter
+    ws.Range(ws.Cells(r1, 7), ws.Cells(r2, 7)).NumberFormat = "#,##0.##"
+    ws.Rows(r1 & ":" & r2).RowHeight = 16
 
-    ws.Rows(r).RowHeight = 16
+    ' zebra nas colunas descritivas (mesma tecnica MOD(ROW(),2) da ANALISE SAP x PRJ)
+    On Error Resume Next
+    Dim zb As Range : Set zb = ws.Range(ws.Cells(r1, 1), ws.Cells(r2, 8))
+    zb.FormatConditions.Delete
+    With zb.FormatConditions.Add(xlExpression, , "MOD(ROW(),2)=0")
+        .Interior.Color = RGB(244, 247, 250)
+    End With
+    On Error GoTo 0
+
+    Dim i As Long, iIni As Long, st As String
+    Dim bgS As Long, fgS As Long, ico As String
+    i = 1
+    Do While i <= nRows
+        st = stArr(i) : iIni = i
+        Do While i < nRows
+            If stArr(i + 1) <> st Then Exit Do
+            i = i + 1
+        Loop
+        CoresStatusRacio st, bgS, fgS, ico
+        With ws.Range(ws.Cells(r1 + iIni - 1, 9), ws.Cells(r1 + i - 1, 9))
+            .Interior.Color = bgS : .Font.Color = fgS : .Font.Bold = True
+            .HorizontalAlignment = xlCenter
+        End With
+        With ws.Range(ws.Cells(r1 + iIni - 1, 10), ws.Cells(r1 + i - 1, 10))
+            .Interior.Color = bgS : .Font.Color = fgS
+            .Font.Bold = (st = "EXCESSO EXAGERADO" Or st = "INSUFICIENTE" Or st = "EXCESSO")
+        End With
+        i = i + 1
+    Loop
+End Sub
+
+' Ordena um vetor de strings in-place (quicksort; substitui o bubble sort O(n^2))
+Private Sub QuickSortStr(a() As String, ByVal lo As Long, ByVal hi As Long)
+    If lo >= hi Then Exit Sub
+    Dim i As Long, j As Long, pv As String, tmp As String
+    i = lo : j = hi : pv = a((lo + hi) \ 2)
+    Do While i <= j
+        Do While a(i) < pv : i = i + 1 : Loop
+        Do While a(j) > pv : j = j - 1 : Loop
+        If i <= j Then
+            tmp = a(i) : a(i) = a(j) : a(j) = tmp
+            i = i + 1 : j = j - 1
+        End If
+    Loop
+    QuickSortStr a, lo, j
+    QuickSortStr a, i, hi
 End Sub
 
 Private Sub FormatarColunasRacioNT(ws As Worksheet)
@@ -1728,48 +1771,68 @@ Finaliza2:
         ws.Columns(c).ColumnWidth = wds(c - 1)
     Next c
 
-    Dim rAlert As Long
-    For rAlert = 2 To outRow - 1
-        Dim tA As String : tA = Trim(CStr(ws.Cells(rAlert, 1).Value))
-        Dim bgA As Long, chip As Long
-        Select Case tA
-            Case "ODI SEM UC":                bgA = RGB(255, 244, 214) : chip = RGB(214, 158, 0)
-            Case "PEP SEM UC":                bgA = RGB(255, 238, 230) : chip = RGB(196, 89, 17)
-            Case "ODI SEM COM":               bgA = RGB(230, 240, 248) : chip = RGB(46, 117, 182)
-            Case "PU ABAIXO MIN":             bgA = RGB(255, 244, 214) : chip = RGB(176, 124, 0)
-            Case "PU ACIMA MAX":              bgA = RGB(252, 226, 228) : chip = RGB(192, 0, 0)
-            Case "MATERIAL NEGATIVO":         bgA = RGB(252, 226, 228) : chip = RGB(192, 0, 0)
-            Case "MATERIAL POSITIVO EM ODD":  bgA = RGB(252, 233, 219) : chip = RGB(214, 99, 0)
-            Case "LACRE x MEDIDOR":           bgA = RGB(225, 223, 245) : chip = RGB(96, 64, 196)
-            Case "POSTE EM PEP .M":           bgA = RGB(222, 236, 250) : chip = RGB(31, 107, 183)
-            Case "POSTE EM PEP .S":           bgA = RGB(220, 245, 240) : chip = RGB(15, 130, 115)
-            Case "UC SUBVALORIZADO":          bgA = RGB(252, 226, 228) : chip = RGB(192, 0, 0)
-            Case "UC - PRECO NAO ENCONTRADO": bgA = RGB(255, 244, 214) : chip = RGB(176, 124, 0)
-            Case "UC - COD MATERIAL VAZIO":   bgA = RGB(238, 238, 238) : chip = RGB(110, 110, 110)
-            Case Else:                        bgA = RGB(245, 245, 245) : chip = RGB(120, 120, 120)
-        End Select
-        With ws.Range(ws.Cells(rAlert, 1), ws.Cells(rAlert, 11))
-            .Interior.Color = bgA
+    ' Formatacao em LOTE: le os dados de volta em array (1 chamada), calcula o
+    ' PU em memoria, aplica a base numa chamada so e pinta BLOCOS de linhas
+    ' consecutivas com o mesmo tipo de alerta.
+    If totAl > 0 Then
+        Dim dA As Variant
+        dA = ws.Range(ws.Cells(2, 1), ws.Cells(outRow - 1, 11)).Value
+
+        ' PRECO UNIT = VALOR / QTD (col 9 = col 7 / col 8), calculado em memoria
+        Dim puCol() As Variant : ReDim puCol(1 To totAl, 1 To 1)
+        Dim rAlert As Long
+        For rAlert = 1 To totAl
+            Dim vAl As Double : vAl = Val0(dA(rAlert, 7))
+            Dim qAl As Double : qAl = Val0(dA(rAlert, 8))
+            If qAl <> 0 Then puCol(rAlert, 1) = vAl / qAl Else puCol(rAlert, 1) = dA(rAlert, 9)
+        Next rAlert
+        ws.Range(ws.Cells(2, 9), ws.Cells(outRow - 1, 9)).Value = puCol
+
+        With ws.Range(ws.Cells(2, 1), ws.Cells(outRow - 1, 11))
             .Font.Name = "Segoe UI" : .Font.Size = 10 : .Font.Color = RGB(45, 52, 64)
             .VerticalAlignment = xlCenter
+            .Borders(xlInsideHorizontal).LineStyle = xlContinuous
+            .Borders(xlInsideHorizontal).Color = RGB(255, 255, 255)
             .Borders(xlEdgeBottom).LineStyle = xlContinuous
             .Borders(xlEdgeBottom).Color = RGB(255, 255, 255)
         End With
-        ' "chip" colorido do tipo de alerta (col 1)
-        With ws.Cells(rAlert, 1)
-            .Interior.Color = chip
-            .Font.Name = "Segoe UI" : .Font.Bold = True : .Font.Size = 9
-            .Font.Color = RGB(255, 255, 255)
-            .HorizontalAlignment = xlCenter
-        End With
+        ws.Range(ws.Cells(2, 7), ws.Cells(outRow - 1, 10)).NumberFormat = "#,##0.00"
 
-        ' PRECO UNIT = VALOR / QTD (col 9 = col 7 / col 8)
-        Dim vAl As Double : vAl = Val0(ws.Cells(rAlert, 7).Value)
-        Dim qAl As Double : qAl = Val0(ws.Cells(rAlert, 8).Value)
-        If qAl <> 0 Then ws.Cells(rAlert, 9).Value = vAl / qAl
-
-        ws.Range(ws.Cells(rAlert, 7), ws.Cells(rAlert, 10)).NumberFormat = "#,##0.00"
-    Next rAlert
+        Dim iA As Long, iIni As Long, tA As String
+        iA = 1
+        Do While iA <= totAl
+            tA = Trim(CStr(dA(iA, 1))) : iIni = iA
+            Do While iA < totAl
+                If Trim(CStr(dA(iA + 1, 1))) <> tA Then Exit Do
+                iA = iA + 1
+            Loop
+            Dim bgA As Long, chip As Long
+            Select Case tA
+                Case "ODI SEM UC":                bgA = RGB(255, 244, 214) : chip = RGB(214, 158, 0)
+                Case "PEP SEM UC":                bgA = RGB(255, 238, 230) : chip = RGB(196, 89, 17)
+                Case "ODI SEM COM":               bgA = RGB(230, 240, 248) : chip = RGB(46, 117, 182)
+                Case "PU ABAIXO MIN":             bgA = RGB(255, 244, 214) : chip = RGB(176, 124, 0)
+                Case "PU ACIMA MAX":              bgA = RGB(252, 226, 228) : chip = RGB(192, 0, 0)
+                Case "MATERIAL NEGATIVO":         bgA = RGB(252, 226, 228) : chip = RGB(192, 0, 0)
+                Case "MATERIAL POSITIVO EM ODD":  bgA = RGB(252, 233, 219) : chip = RGB(214, 99, 0)
+                Case "LACRE x MEDIDOR":           bgA = RGB(225, 223, 245) : chip = RGB(96, 64, 196)
+                Case "POSTE EM PEP .M":           bgA = RGB(222, 236, 250) : chip = RGB(31, 107, 183)
+                Case "POSTE EM PEP .S":           bgA = RGB(220, 245, 240) : chip = RGB(15, 130, 115)
+                Case "UC SUBVALORIZADO":          bgA = RGB(252, 226, 228) : chip = RGB(192, 0, 0)
+                Case "UC - PRECO NAO ENCONTRADO": bgA = RGB(255, 244, 214) : chip = RGB(176, 124, 0)
+                Case "UC - COD MATERIAL VAZIO":   bgA = RGB(238, 238, 238) : chip = RGB(110, 110, 110)
+                Case Else:                        bgA = RGB(245, 245, 245) : chip = RGB(120, 120, 120)
+            End Select
+            ws.Range(ws.Cells(1 + iIni, 1), ws.Cells(1 + iA, 11)).Interior.Color = bgA
+            ' "chip" colorido do tipo de alerta (col 1)
+            With ws.Range(ws.Cells(1 + iIni, 1), ws.Cells(1 + iA, 1))
+                .Interior.Color = chip
+                .Font.Bold = True : .Font.Size = 9 : .Font.Color = RGB(255, 255, 255)
+                .HorizontalAlignment = xlCenter
+            End With
+            iA = iA + 1
+        Loop
+    End If
 
     ' --- Banda de titulo no topo (insere 2 linhas) ---
     ws.Range("1:2").Insert Shift:=xlDown
@@ -1818,10 +1881,12 @@ Private Function CarregarPrecos(wb As Workbook) As Object
         Dim lastRow As Long
         lastRow = wsPrecos.Cells(wsPrecos.Rows.Count, 1).End(xlUp).Row
         If lastRow >= 2 Then
+            ' leitura em array (1 chamada) em vez de celula a celula
+            Dim dPr As Variant : dPr = wsPrecos.Range(wsPrecos.Cells(2, 1), wsPrecos.Cells(lastRow, 2)).Value
             Dim r As Long
-            For r = 2 To lastRow
-                Dim cod As String : cod = NormCod(wsPrecos.Cells(r, 1).Value)
-                Dim preco As Double : preco = Val0(wsPrecos.Cells(r, 2).Value)
+            For r = 1 To UBound(dPr, 1)
+                Dim cod As String : cod = NormCod(dPr(r, 1))
+                Dim preco As Double : preco = Val0(dPr(r, 2))
                 If cod <> "" And preco > 0 Then
                     If Not precos.Exists(cod) Then precos.Add cod, preco
                 End If
@@ -2000,8 +2065,13 @@ Private Sub ProcessarPrecoUnitario(wsBase As Worksheet, ws As Worksheet)
     Dim refCol As Long : refCol = iCod : If refCol = 0 Then refCol = 1
     Dim lastR As Long : lastR = wsBase.Cells(wsBase.Rows.Count, refCol).End(xlUp).Row
     Dim outRow As Long : outRow = 2
+    Dim nOut As Long : nOut = 0
+    Dim stArr() As String
     If lastR >= 2 Then
         Dim d As Variant : d = wsBase.Range(wsBase.Cells(2, 1), wsBase.Cells(lastR, lastC)).Value
+        ' Saida bufferizada: monta as linhas em array e escreve UMA vez no final
+        Dim outA() As Variant : ReDim outA(1 To UBound(d, 1), 1 To 14)
+        ReDim stArr(1 To UBound(d, 1))
         Dim i As Long
         For i = 1 To UBound(d, 1)
             Dim cod As String : cod = "" : If iCod > 0 Then cod = NormCod(d(i, iCod))
@@ -2030,19 +2100,24 @@ Private Sub ProcessarPrecoUnitario(wsBase As Worksheet, ws As Worksheet)
                 obs = "Material sem faixa na BASE PRECOS"
             End If
 
-            ws.Cells(outRow, 1).Value = IIf(iPep3 > 0, d(i, iPep3), "")
-            ws.Cells(outRow, 2).Value = IIf(iPep4 > 0, d(i, iPep4), "")
-            ws.Cells(outRow, 3).Value = IIf(iTipo > 0, d(i, iTipo), "")
-            ws.Cells(outRow, 4).Value = cod
-            ws.Cells(outRow, 5).Value = IIf(iDesc > 0, d(i, iDesc), "")
-            ws.Cells(outRow, 6).Value = IIf(iUml > 0, d(i, iUml), "")
-            ws.Cells(outRow, 7).Value = qtd
-            ws.Cells(outRow, 8).Value = vlrPU
-            ws.Cells(outRow, 9).Value = pu
-            ws.Cells(outRow, 10).Value = IIf(temFx, mn, "")
-            ws.Cells(outRow, 11).Value = IIf(temFx, mx, "")
-            ws.Cells(outRow, 11).Value = st
-            ws.Cells(outRow, 13).Value = obs
+            nOut = nOut + 1
+            outA(nOut, 1) = IIf(iPep3 > 0, d(i, iPep3), "")
+            outA(nOut, 2) = IIf(iPep4 > 0, d(i, iPep4), "")
+            outA(nOut, 3) = IIf(iTipo > 0, d(i, iTipo), "")
+            outA(nOut, 4) = cod
+            outA(nOut, 5) = IIf(iDesc > 0, d(i, iDesc), "")
+            outA(nOut, 6) = IIf(iUml > 0, d(i, iUml), "")
+            outA(nOut, 7) = qtd
+            outA(nOut, 8) = vlrPU
+            outA(nOut, 9) = pu
+            outA(nOut, 10) = IIf(temFx, mn, "")
+            outA(nOut, 11) = IIf(temFx, mx, "")
+            ' CORRECAO: STATUS vai na coluna 12 (antes era escrito na 11 por cima
+            ' do MAX PU, deixando a coluna STATUS vazia - o que quebrava as cores
+            ' da aba, a importacao de alertas de PU, o ranking e o painel)
+            outA(nOut, 12) = st
+            outA(nOut, 13) = obs
+            stArr(nOut) = st
 
             ' TIPO OD: classifica o PEP pelo sufixo do PEP4 (.I/.M/.S/.D) ou pela coluna TIPO PEP
             Dim pep4OD As String : pep4OD = "" : If iPep4 > 0 Then pep4OD = UCase(Trim(CStr(d(i, iPep4))))
@@ -2067,44 +2142,55 @@ Private Sub ProcessarPrecoUnitario(wsBase As Worksheet, ws As Worksheet)
             Else
                 tipoOD = "-"
             End If
-            ws.Cells(outRow, 14).Value = tipoOD
-
-            outRow = outRow + 1
+            outA(nOut, 14) = tipoOD
 Prox:
         Next i
+        If nOut > 0 Then ws.Range(ws.Cells(2, 1), ws.Cells(1 + nOut, 14)).Value = outA
     End If
+    outRow = 2 + nOut
 
     ' Formatacao
     Dim wds As Variant : wds = Array(24, 26, 8, 13, 46, 6, 10, 12, 14, 11, 11, 18, 40, 9)
     For c = 1 To 14 : ws.Columns(c).ColumnWidth = wds(c - 1) : Next c
 
-    Dim rr As Long
-    For rr = 2 To outRow - 1
-        Dim s As String : s = Trim(CStr(ws.Cells(rr, 12).Value))
-        Dim bg As Long, chip As Long
-        Select Case s
-            Case "DENTRO":           bg = RGB(231, 244, 234) : chip = RGB(33, 130, 70)
-            Case "ABAIXO DO MINIMO": bg = RGB(255, 244, 214) : chip = RGB(176, 124, 0)
-            Case "ACIMA DO MAXIMO":  bg = RGB(252, 226, 228) : chip = RGB(192, 0, 0)
-            Case Else:               bg = RGB(238, 238, 238) : chip = RGB(110, 110, 110)
-        End Select
-        With ws.Range(ws.Cells(rr, 1), ws.Cells(rr, 14))
-            .Interior.Color = bg
+    ' Formatacao das linhas em LOTE: base numa chamada so; cores por BLOCOS de
+    ' linhas consecutivas com o mesmo status, lendo do array (sem reler celulas)
+    If nOut > 0 Then
+        With ws.Range(ws.Cells(2, 1), ws.Cells(1 + nOut, 14))
             .Font.Name = "Segoe UI" : .Font.Size = 9 : .Font.Color = RGB(45, 52, 64)
             .VerticalAlignment = xlCenter
+            .Borders(xlInsideHorizontal).LineStyle = xlContinuous
+            .Borders(xlInsideHorizontal).Color = RGB(255, 255, 255)
             .Borders(xlEdgeBottom).LineStyle = xlContinuous
             .Borders(xlEdgeBottom).Color = RGB(255, 255, 255)
         End With
-        With ws.Cells(rr, 12)
-            .Interior.Color = chip : .Font.Color = RGB(255, 255, 255) : .Font.Bold = True
-            .HorizontalAlignment = xlCenter
+        ws.Range(ws.Cells(2, 7), ws.Cells(1 + nOut, 11)).NumberFormat = "#,##0.00"
+        With ws.Range(ws.Cells(2, 14), ws.Cells(1 + nOut, 14))
+            .Font.Bold = True : .HorizontalAlignment = xlCenter : .Font.Color = RGB(31, 41, 59)
         End With
-        With ws.Cells(rr, 14)
-            .Font.Bold = True : .HorizontalAlignment = xlCenter
-            .Font.Color = RGB(31, 41, 59)
-        End With
-        ws.Range(ws.Cells(rr, 7), ws.Cells(rr, 11)).NumberFormat = "#,##0.00"
-    Next rr
+
+        Dim rr As Long, rIni As Long, stB As String, bg As Long, chip As Long
+        rr = 1
+        Do While rr <= nOut
+            stB = stArr(rr) : rIni = rr
+            Do While rr < nOut
+                If stArr(rr + 1) <> stB Then Exit Do
+                rr = rr + 1
+            Loop
+            Select Case stB
+                Case "DENTRO":           bg = RGB(231, 244, 234) : chip = RGB(33, 130, 70)
+                Case "ABAIXO DO MINIMO": bg = RGB(255, 244, 214) : chip = RGB(176, 124, 0)
+                Case "ACIMA DO MAXIMO":  bg = RGB(252, 226, 228) : chip = RGB(192, 0, 0)
+                Case Else:               bg = RGB(238, 238, 238) : chip = RGB(110, 110, 110)
+            End Select
+            ws.Range(ws.Cells(1 + rIni, 1), ws.Cells(1 + rr, 14)).Interior.Color = bg
+            With ws.Range(ws.Cells(1 + rIni, 12), ws.Cells(1 + rr, 12))
+                .Interior.Color = chip : .Font.Color = RGB(255, 255, 255) : .Font.Bold = True
+                .HorizontalAlignment = xlCenter
+            End With
+            rr = rr + 1
+        Loop
+    End If
 
     If outRow > 2 Then ws.Range("A1:N1").AutoFilter
     On Error Resume Next
@@ -2165,15 +2251,18 @@ Private Sub ProcessarRankingRisco(wb As Workbook, wsDet As Worksheet, _
         Next r
     End If
 
-    ' 2) ALERTA CRITICO (dados a partir da linha 4, col 2 = PEP3)
+    ' 2) ALERTA CRITICO (dados a partir da linha 4, col 2 = PEP3) - leitura em array
     Dim lastA As Long : lastA = wsAlertaC.Cells(wsAlertaC.Rows.Count, 1).End(xlUp).Row
-    For r = 4 To lastA
-        p3 = Trim(CStr(wsAlertaC.Cells(r, 2).Value))
-        If p3 <> "" Then
-            If alOb.Exists(p3) Then alOb(p3) = alOb(p3) + 1 Else alOb.Add p3, 1
-            If Not valOb.Exists(p3) Then valOb.Add p3, 0#
-        End If
-    Next r
+    If lastA >= 4 Then
+        Dim aa As Variant : aa = wsAlertaC.Range(wsAlertaC.Cells(4, 1), wsAlertaC.Cells(lastA, 2)).Value
+        For r = 1 To UBound(aa, 1)
+            p3 = Trim(CStr(aa(r, 2)))
+            If p3 <> "" Then
+                If alOb.Exists(p3) Then alOb(p3) = alOb(p3) + 1 Else alOb.Add p3, 1
+                If Not valOb.Exists(p3) Then valOb.Add p3, 0#
+            End If
+        Next r
+    End If
 
     ' 3) PRECO UNITARIO (linha 2+): diverg + sobrepreco potencial
     Dim lastP As Long : lastP = wsPU.Cells(wsPU.Rows.Count, 1).End(xlUp).Row
@@ -2198,18 +2287,21 @@ Private Sub ProcessarRankingRisco(wb As Workbook, wsDet As Worksheet, _
         Next r
     End If
 
-    ' 4) RACIONALIZACAO COM (linha 3+, col 2 = PEP3, col 9 = STATUS rotulo)
+    ' 4) RACIONALIZACAO COM (linha 3+, col 2 = PEP3, col 9 = STATUS rotulo) - array
     Dim lastM As Long : lastM = wsCom.Cells(wsCom.Rows.Count, 1).End(xlUp).Row
-    For r = 3 To lastM
-        p3 = Trim(CStr(wsCom.Cells(r, 2).Value))
-        Dim stC As String : stC = UCase(Trim(CStr(wsCom.Cells(r, 9).Value)))
-        If p3 <> "" Then
-            If stC = "FALTANDO" Or stC = "EXCESSO" Or stC = "EXAGERADO" Or stC = "ZERO" Then
-                If comOb.Exists(p3) Then comOb(p3) = comOb(p3) + 1 Else comOb.Add p3, 1
-                If Not valOb.Exists(p3) Then valOb.Add p3, 0#
+    If lastM >= 3 Then
+        Dim mm As Variant : mm = wsCom.Range(wsCom.Cells(3, 1), wsCom.Cells(lastM, 9)).Value
+        For r = 1 To UBound(mm, 1)
+            p3 = Trim(CStr(mm(r, 2)))
+            Dim stC As String : stC = UCase(Trim(CStr(mm(r, 9))))
+            If p3 <> "" Then
+                If stC = "FALTANDO" Or stC = "EXCESSO" Or stC = "EXAGERADO" Or stC = "ZERO" Then
+                    If comOb.Exists(p3) Then comOb(p3) = comOb(p3) + 1 Else comOb.Add p3, 1
+                    If Not valOb.Exists(p3) Then valOb.Add p3, 0#
+                End If
             End If
-        End If
-    Next r
+        Next r
+    End If
 
     ' ---------------- score + ordenacao ----------------
     Dim nOb As Long : nOb = valOb.Count
@@ -2284,6 +2376,9 @@ Private Sub ProcessarRankingRisco(wb As Workbook, wsDet As Worksheet, _
         ws.Cells(4, 1).Value = "Nenhuma obra encontrada na base."
         ws.Cells(4, 1).Font.Italic = True
     Else
+        ' Saida bufferizada: monta as linhas em array e escreve UMA vez
+        Dim outA() As Variant : ReDim outA(1 To nOb, 1 To 11)
+        Dim rkArr() As String : ReDim rkArr(1 To nOb)
         For ix = 0 To nOb - 1
             p3 = ks(ix)
             Dim nAl As Long : nAl = 0 : If alOb.Exists(p3) Then nAl = alOb(p3)
@@ -2315,59 +2410,77 @@ Private Sub ProcessarRankingRisco(wb As Workbook, wsDet As Worksheet, _
             If nCo > 0 Then diag = diag & IIf(diag <> "", " | ", "") & nCo & " COM fora do previsto"
             If diag = "" Then diag = "Sem apontamentos"
 
-            ws.Cells(outRow, 1).Value = ix + 1
-            ws.Cells(outRow, 2).Value = p3
-            ws.Cells(outRow, 3).Value = valOb(p3)
-            ws.Cells(outRow, 4).Value = IIf(ehRep, "REPROVADO", "APROVADO")
-            ws.Cells(outRow, 5).Value = nAl
-            ws.Cells(outRow, 6).Value = nPu
-            ws.Cells(outRow, 7).Value = vSo
-            ws.Cells(outRow, 8).Value = nCo
-            ws.Cells(outRow, 9).Value = sc(ix)
-            ws.Cells(outRow, 10).Value = risco
-            ws.Cells(outRow, 11).Value = diag
+            outA(ix + 1, 1) = ix + 1
+            outA(ix + 1, 2) = p3
+            outA(ix + 1, 3) = valOb(p3)
+            outA(ix + 1, 4) = IIf(ehRep, "REPROVADO", "APROVADO")
+            outA(ix + 1, 5) = nAl
+            outA(ix + 1, 6) = nPu
+            outA(ix + 1, 7) = vSo
+            outA(ix + 1, 8) = nCo
+            outA(ix + 1, 9) = sc(ix)
+            outA(ix + 1, 10) = risco
+            outA(ix + 1, 11) = diag
+            rkArr(ix + 1) = risco
             outRow = outRow + 1
         Next ix
+        ' escreve tudo de uma vez
+        ws.Range(ws.Cells(4, 1), ws.Cells(3 + nOb, 11)).Value = outA
     End If
 
     ' ---------------- formatacao ----------------
     Dim wds As Variant : wds = Array(5, 26, 14, 13, 9, 13, 14, 15, 8, 9, 70)
     For c = 1 To 11 : ws.Columns(c).ColumnWidth = wds(c - 1) : Next c
 
-    Dim rr As Long
-    For rr = 4 To outRow - 1
-        Dim rsk As String : rsk = Trim(CStr(ws.Cells(rr, 10).Value))
-        Dim bg As Long, chip As Long
-        Select Case rsk
-            Case "ALTO":  bg = RGB(252, 226, 228) : chip = RGB(192, 0, 0)
-            Case "MEDIO": bg = RGB(255, 244, 214) : chip = RGB(176, 124, 0)
-            Case "BAIXO": bg = RGB(234, 242, 250) : chip = RGB(31, 78, 121)
-            Case Else:    bg = RGB(231, 244, 234) : chip = RGB(33, 130, 70)
-        End Select
-        With ws.Range(ws.Cells(rr, 1), ws.Cells(rr, 11))
-            .Interior.Color = bg
+    ' Formatacao em LOTE: base numa chamada so; cores por BLOCOS de risco
+    ' (a lista ja vem ordenada por score, entao os niveis formam blocos contiguos)
+    If nOb > 0 Then
+        With ws.Range(ws.Cells(4, 1), ws.Cells(3 + nOb, 11))
             .Font.Name = "Segoe UI" : .Font.Size = 9 : .Font.Color = RGB(45, 52, 64)
             .VerticalAlignment = xlCenter
+            .Borders(xlInsideHorizontal).LineStyle = xlContinuous
+            .Borders(xlInsideHorizontal).Color = RGB(255, 255, 255)
             .Borders(xlEdgeBottom).LineStyle = xlContinuous
             .Borders(xlEdgeBottom).Color = RGB(255, 255, 255)
         End With
-        With ws.Cells(rr, 10)
-            .Interior.Color = chip : .Font.Color = RGB(255, 255, 255) : .Font.Bold = True
-            .HorizontalAlignment = xlCenter
-        End With
-        With ws.Cells(rr, 9)
-            .Font.Bold = True : .Font.Color = chip : .HorizontalAlignment = xlCenter
-        End With
-        With ws.Cells(rr, 4)
-            .HorizontalAlignment = xlCenter
-            If CStr(.Value) = "REPROVADO" Then .Font.Color = RGB(192, 0, 0) : .Font.Bold = True
-        End With
-        ws.Range(ws.Cells(rr, 5), ws.Cells(rr, 6)).HorizontalAlignment = xlCenter
-        ws.Cells(rr, 8).HorizontalAlignment = xlCenter
-        ws.Cells(rr, 1).HorizontalAlignment = xlCenter
-        ws.Cells(rr, 3).NumberFormat = "#,##0.00"
-        ws.Cells(rr, 7).NumberFormat = "#,##0.00"
-    Next rr
+        ws.Range(ws.Cells(4, 1), ws.Cells(3 + nOb, 1)).HorizontalAlignment = xlCenter
+        ws.Range(ws.Cells(4, 4), ws.Cells(3 + nOb, 6)).HorizontalAlignment = xlCenter
+        ws.Range(ws.Cells(4, 8), ws.Cells(3 + nOb, 10)).HorizontalAlignment = xlCenter
+        ws.Range(ws.Cells(4, 9), ws.Cells(3 + nOb, 9)).Font.Bold = True
+        ws.Range(ws.Cells(4, 3), ws.Cells(3 + nOb, 3)).NumberFormat = "#,##0.00"
+        ws.Range(ws.Cells(4, 7), ws.Cells(3 + nOb, 7)).NumberFormat = "#,##0.00"
+
+        Dim rr As Long, rIni As Long, rsk As String, bg As Long, chip As Long
+        rr = 1
+        Do While rr <= nOb
+            rsk = rkArr(rr) : rIni = rr
+            Do While rr < nOb
+                If rkArr(rr + 1) <> rsk Then Exit Do
+                rr = rr + 1
+            Loop
+            Select Case rsk
+                Case "ALTO":  bg = RGB(252, 226, 228) : chip = RGB(192, 0, 0)
+                Case "MEDIO": bg = RGB(255, 244, 214) : chip = RGB(176, 124, 0)
+                Case "BAIXO": bg = RGB(234, 242, 250) : chip = RGB(31, 78, 121)
+                Case Else:    bg = RGB(231, 244, 234) : chip = RGB(33, 130, 70)
+            End Select
+            ws.Range(ws.Cells(3 + rIni, 1), ws.Cells(3 + rr, 11)).Interior.Color = bg
+            With ws.Range(ws.Cells(3 + rIni, 10), ws.Cells(3 + rr, 10))
+                .Interior.Color = chip : .Font.Color = RGB(255, 255, 255) : .Font.Bold = True
+            End With
+            ws.Range(ws.Cells(3 + rIni, 9), ws.Cells(3 + rr, 9)).Font.Color = chip
+            rr = rr + 1
+        Loop
+
+        ' destaque de SITUACAO reprovada (poucas obras - pode ser por linha)
+        For rr = 1 To nOb
+            If CStr(outA(rr, 4)) = "REPROVADO" Then
+                With ws.Cells(3 + rr, 4)
+                    .Font.Color = RGB(192, 0, 0) : .Font.Bold = True
+                End With
+            End If
+        Next rr
+    End If
 
     If outRow > 4 Then ws.Range(ws.Cells(3, 1), ws.Cells(3, 11)).AutoFilter
 
@@ -2518,11 +2631,14 @@ Private Sub AplicarDesignGlobal(wb As Workbook)
         ws.Rows("1:2").Insert
         Dim lastP As Long : lastP = ws.Cells(ws.Rows.Count, 1).End(xlUp).Row
         Dim nIt As Long, nDv As Long
-        For r = 4 To lastP
-            nIt = nIt + 1
-            Dim stP As String : stP = UCase(Trim(CStr(ws.Cells(r, 12).Value)))
-            If stP = "ABAIXO DO MINIMO" Or stP = "ACIMA DO MAXIMO" Then nDv = nDv + 1
-        Next r
+        If lastP >= 4 Then
+            Dim dP As Variant : dP = ws.Range(ws.Cells(4, 1), ws.Cells(lastP, 12)).Value
+            For r = 1 To UBound(dP, 1)
+                nIt = nIt + 1
+                Dim stP As String : stP = UCase(Trim(CStr(dP(r, 12))))
+                If stP = "ABAIXO DO MINIMO" Or stP = "ACIMA DO MAXIMO" Then nDv = nDv + 1
+            Next r
+        End If
         With ws.Range("A1:N2")
             .Merge
             .Value = "PRECO UNITARIO  -  " & Format(nIt, "#,##0") & " itens  |  " & _
@@ -2550,11 +2666,14 @@ Private Sub AplicarDesignGlobal(wb As Workbook)
     If Not ws Is Nothing Then
         Dim lastC As Long : lastC = ws.Cells(ws.Rows.Count, 1).End(xlUp).Row
         Dim nFora As Long : nFora = 0
-        For r = 3 To lastC
-            Select Case UCase(Trim(CStr(ws.Cells(r, 9).Value)))
-                Case "FALTANDO", "EXCESSO", "EXAGERADO", "ZERO" : nFora = nFora + 1
-            End Select
-        Next r
+        If lastC >= 3 Then
+            Dim dC As Variant : dC = ws.Range(ws.Cells(3, 1), ws.Cells(lastC, 9)).Value
+            For r = 1 To UBound(dC, 1)
+                Select Case UCase(Trim(CStr(dC(r, 9))))
+                    Case "FALTANDO", "EXCESSO", "EXAGERADO", "ZERO" : nFora = nFora + 1
+                End Select
+            Next r
+        End If
         ws.Range("A1").Value = ws.Range("A1").Value & "  -  " & _
                                Format(nFora, "#,##0") & " fora do previsto"
     End If
@@ -2684,13 +2803,17 @@ Private Function ProcessarPainelGestor(wb As Workbook, wsBase As Worksheet, _
     ' Alertas criticos (le ALERTA CRITICO, dados a partir da linha 4) + ranking por tipo
     Dim tipos As Object : Set tipos = CreateObject("Scripting.Dictionary")
     Dim lastA As Long : lastA = wsAlertaC.Cells(wsAlertaC.Rows.Count, 1).End(xlUp).Row
-    For r = 4 To lastA
-        Dim tA As String : tA = Trim(CStr(wsAlertaC.Cells(r, 1).Value))
-        If tA <> "" Then
-            nAlertas = nAlertas + 1
-            If tipos.Exists(tA) Then tipos(tA) = tipos(tA) + 1 Else tipos.Add tA, 1
-        End If
-    Next r
+    If lastA >= 4 Then
+        Dim aa As Variant : aa = wsAlertaC.Range(wsAlertaC.Cells(4, 1), wsAlertaC.Cells(lastA, 2)).Value
+        For r = 1 To UBound(aa, 1)
+            Dim tA As String : tA = Trim(CStr(aa(r, 1)))
+            ' ignora a linha informativa "Nenhum alerta..." da aba sem apontamentos
+            If tA <> "" And InStr(UCase(tA), "NENHUM ALERTA") = 0 Then
+                nAlertas = nAlertas + 1
+                If tipos.Exists(tA) Then tipos(tA) = tipos(tA) + 1 Else tipos.Add tA, 1
+            End If
+        Next r
+    End If
 
     ' Divergencias de preco + sobrepreco potencial (le PRECO UNITARIO, dados linha 2+)
     Dim lastP As Long : lastP = wsPU.Cells(wsPU.Rows.Count, 1).End(xlUp).Row
