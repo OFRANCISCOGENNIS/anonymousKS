@@ -28,5 +28,17 @@ por `:`) como código válido.
 ## Limitações
 
 Não cobre erros de runtime dependentes de dados (divisão por zero, `Subscript
-out of range`, índice de array) nem a correção da lógica de negócio — isso exige
-executar o módulo sobre uma planilha real no Excel.
+out of range`, índice de array) — isso exige executar o módulo sobre uma
+planilha real no Excel.
+
+## Testes de lógica de negócio (dentro do Excel)
+
+A correção das regras de negócio é validada por um harness que roda **dentro do
+Excel**, sobre as funções puras do módulo (aderência, COM crítico, cabo isento,
+unidade contável, razões NT.006):
+
+1. `Alt+F8` → `TestarLogicaInventario` → Executar.
+2. O resultado aparece num `MsgBox` (`X de Y testes passaram`) e na aba
+   `TESTES`, com cada asserção pintada de verde (passou) ou vermelho (falhou).
+
+Assim regressões na lógica ficam detectáveis sem depender de inspeção manual.
