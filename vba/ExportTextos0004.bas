@@ -3701,6 +3701,25 @@ Public Sub ExportarTextosParaExcel()
                         Call ClassificarComConfianca(conteudo, lname, famTmp, scoreTmp)
                     End If
 
+                    ' --- Regra CABO por COR (planilha RECLASSIFICAR) --------
+                    ' Magenta (ACI 6) = CABO INSTALADO / familia COND PROT.
+                    ' Branco/Preto (ACI 7) = CABO EXISTENTE.
+                    ' So se aplica quando o texto tem padrao de metragem
+                    ' (numero + sufixo "m", ex: "18m 3 #3X70(70)"); cabos sem
+                    ' esse padrao NAO sao classificados como instalados so
+                    ' pela cor.
+                    Dim statusCorCabo As String
+                    statusCorCabo = ""
+                    If Not ehRamalLayer And ExtrairMetrosCabo(conteudo) > 0 Then
+                        If corFinal = 6 Then
+                            famTmp = "COND PROT"
+                            scoreTmp = 90
+                            statusCorCabo = "MATERIAIS INSTALADOS"
+                        ElseIf corFinal = 7 Then
+                            statusCorCabo = "MATERIAIS EXISTENTES"
+                        End If
+                    End If
+
                     ' Extrai codigo de estrutura: Mid(texto, 10, 7)
                     Dim codEst As String, nomeBaseEst As String
                     codEst = ""
@@ -3722,7 +3741,11 @@ Public Sub ExportarTextosParaExcel()
                     arrFam(n)       = famTmp
                     arrScore(n)     = scoreTmp
                     arrConfianca(n) = NivelConfianca(scoreTmp)
-                    arrStatus(n)    = StatusPorLayer(lname)
+                    If Len(statusCorCabo) > 0 Then
+                        arrStatus(n) = statusCorCabo
+                    Else
+                        arrStatus(n) = StatusPorLayer(lname)
+                    End If
                     arrNomeBase(n)  = ExtrairNomeBasePoste(conteudo)
                     arrCodEst(n)    = codEst
                 End If
