@@ -572,7 +572,7 @@ function opcoesBase() {
         layout: { background: { color: '#1a1a19' }, textColor: '#c3c2b7' },
         grid: { vertLines: { color: '#2c2c2a' }, horzLines: { color: '#2c2c2a' } },
         rightPriceScale: { borderColor: '#383835' },
-        timeScale: { borderColor: '#383835', timeVisible: true, secondsVisible: false },
+        timeScale: { borderColor: '#383835', timeVisible: true, secondsVisible: false, tickMarkFormatter: t => fmtHora(t) },
         crosshair: { mode: LightweightCharts.CrosshairMode.Normal },
         localization: { timeFormatter: t => fmtHora(t) }
     };
@@ -1168,6 +1168,15 @@ function atualizarDecisao() {
     // Som apenas na TRANSIÇÃO para CALL/PUT (não repete enquanto o veredito se
     // mantém; silenciado durante o treino de leitura para não apitar no replay)
     if (verdictKey !== ultimoVerdictSom) {
+        // Registro em tempo real: a virada do veredito para CALL/PUT entra na
+        // timeline do Registro de Entradas com o selo A/B/C do momento
+        if ((verdictKey === 'CALL' || verdictKey === 'PUT') && !treino && dados.length) {
+            const dirN = verdictKey === 'CALL' ? 1 : -1;
+            const lbl = PARES_YAHOO[symbolAtual()] ? PARES_YAHOO[symbolAtual()].label : symbolAtual();
+            const g = usaGrade ? calcularGrade(dirN).grade : null;
+            registrarEntrada(lbl, dirN, Math.max(long, short), enabled, { grade: g, live: 1 });
+            renderRegistro();
+        }
         if (document.getElementById('somAtivo').checked && !treino) {
             if (verdictKey === 'CALL') tocarSom(1);
             else if (verdictKey === 'PUT') tocarSom(-1);
@@ -1774,10 +1783,10 @@ async function escanear() {
 let registro = JSON.parse(localStorage.getItem('registroEntradas') || '[]');
 let chartRegistro = null, serieRegistro = null;
 
-function registrarEntrada(par, dir, score, enabled) {
+function registrarEntrada(par, dir, score, enabled, extra) {
     let t = Math.floor(Date.now() / 1000);
     if (registro.length && t <= registro[registro.length - 1].t) t = registro[registro.length - 1].t + 1;
-    registro.push({ t, par, dir, score, enabled });
+    registro.push(Object.assign({ t, par, dir, score, enabled }, extra || {}));
     if (registro.length > 200) registro = registro.slice(-200);
     localStorage.setItem('registroEntradas', JSON.stringify(registro));
 }
@@ -1791,19 +1800,30 @@ function renderRegistro() {
         serieRegistro = chartRegistro.addLineSeries({ color: 'rgba(120,120,120,0.35)', lineWidth: 1, priceLineVisible: false, lastValueVisible: false });
         chartRegistro.priceScale('right').applyOptions({ visible: false });
     }
-    serieRegistro.setData(registro.map(r => ({ time: r.t, value: 0 })));
-    serieRegistro.setMarkers(registro.map(r => ({
-        time: r.t,
-        position: r.dir === 1 ? 'aboveBar' : 'belowBar',
-        color: r.dir === 1 ? '#26a69a' : '#ef5350',
-        shape: r.dir === 1 ? 'arrowUp' : 'arrowDown',
-        text: r.par
-    })));
+    // Notícias dentro da janela do registro entram como marcadores ⚡ na timeline
+    const tMin = registro[0].t - 3600, tMax = registro[registro.length - 1].t + 3600;
+    const news = noticias
+        .map(n => ({ t: Math.floor(n.date.getTime() / 1000), title: n.title }))
+        .filter(n => n.t >= tMin && n.t <= tMax);
+    const times = [...new Set([...registro.map(r => r.t), ...news.map(n => n.t)])].sort((a, b) => a - b);
+    serieRegistro.setData(times.map(t => ({ time: t, value: 0 })));
+    serieRegistro.setMarkers([
+        ...registro.map(r => ({
+            time: r.t,
+            position: r.dir === 1 ? 'aboveBar' : 'belowBar',
+            color: r.dir === 1 ? '#26a69a' : '#ef5350',
+            shape: r.dir === 1 ? 'arrowUp' : 'arrowDown',
+            text: r.par + (r.grade ? ' [' + r.grade + ']' : '')
+        })),
+        ...news.map(n => ({ time: n.t, position: 'inBar', color: '#fab219', shape: 'circle', text: '⚡' }))
+    ].sort((a, b) => a.time - b.time));
     chartRegistro.timeScale().fitContent();
-    document.getElementById('registroMeta').textContent = registro.length + ' entrada' + (registro.length > 1 ? 's' : '');
+    document.getElementById('registroMeta').textContent =
+        registro.length + ' entrada' + (registro.length > 1 ? 's' : '') + (news.length ? ' · ⚡ ' + news.length + ' notícias' : '');
     document.getElementById('registroBody').innerHTML = registro.slice().reverse().map(r =>
         `<div class="reg-row"><span class="reg-hora">${fmtHora(r.t)}</span>` +
-        `<span class="reg-par">${r.par}</span>` +
+        `<span class="reg-par">${r.par}${r.live ? ' <span class="reg-tag">IA ao vivo</span>' : ''}</span>` +
+        (r.grade ? `<span class="reg-grade grade-${r.grade}">${r.grade}</span>` : '') +
         `<span class="${r.dir === 1 ? 'chip-dir-up' : 'chip-dir-down'}">${r.dir === 1 ? '▲ CALL' : '▼ PUT'} ${r.score}/${r.enabled}</span></div>`
     ).join('');
 }
@@ -2170,6 +2190,7 @@ async function carregarNoticias() {
         status.textContent = 'Atualizado ' + fmtHora(Math.floor(Date.now() / 1000));
         renderNoticias();
         atualizarPaineis();   // atualiza banner/flags de risco de notícia com as novas manchetes
+        if (registro.length) renderRegistro();   // notícias novas entram na timeline do registro
     } catch (err) {
         status.textContent = 'Indisponível (requer internet)';
         document.getElementById('newsList').innerHTML =
