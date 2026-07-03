@@ -310,13 +310,13 @@ Private Sub ProcessarSAPxPRJ(wsBase As Worksheet, wsDet As Worksheet)
 
     Dim outHdr As Variant
     outHdr = Array("PEP3NIVEL", "PEP4NIVEL", "NOTA", "CLASSE", "COD MAT", "VALOR", _
-                   "DESC MAT", "UND", "MAT LIB SAP", "MAT PRJ CAD", "TIPO", "FAMILIA", "SIT MAT", "APROVACAO", "MOTIVO")
-    Dim nCols As Long : nCols = 15
+                   "DESC MAT", "UND", "MAT LIB SAP", "MAT PRJ CAD", "TIPO", "FAMILIA", "SIT MAT", "APROVACAO", "MOTIVO", "MOTIVO DEVOLUCAO PEP3")
+    Dim nCols As Long : nCols = 16
 
     Dim lastC As Long
     lastC = wsBase.Cells(1, wsBase.Columns.Count).End(xlToLeft).Column
 
-    Dim srcIdx(1 To 15) As Long
+    Dim srcIdx(1 To 16) As Long
     Dim oc As Long, c As Long, hb As String, ho As String
     For oc = 1 To nCols
         ho = NormStr(CStr(outHdr(oc - 1)))
@@ -470,6 +470,7 @@ Private Sub ProcessarSAPxPRJ(wsBase As Worksheet, wsDet As Worksheet)
                 motivo = "Todos os itens avaliados do PEP3 aderentes"
             End If
             outArr(i, 15) = motivo
+            outArr(i, 16) = IIf(p3Reprovado, "Devolvido por divergencia de " & pep3RepFam(p3row), "")
 
             ' --- helpers dos KPIs dinamicos ---
             Dim p4key As String : p4key = ""
@@ -492,7 +493,7 @@ Private Sub ProcessarSAPxPRJ(wsBase As Worksheet, wsDet As Worksheet)
         Next i
         wsDet.Range(wsDet.Cells(DS, 1), wsDet.Cells(DS + nRows - 1, nCols)).Value = outArr
 
-        ' Colunas auxiliares OCULTAS (fora do AutoFilter A:O):
+        ' Colunas auxiliares OCULTAS (fora do AutoFilter A:P):
         ' AD=VIS (1 se a linha esta visivel no filtro), AE..AH = helpers acima.
         ' VIS usa SUBTOTAL(102) sobre AE, que e sempre numerica (robusto a vazios).
         wsDet.Range(wsDet.Cells(DS, 31), wsDet.Cells(DS + nRows - 1, 34)).Value = hlp
@@ -507,7 +508,7 @@ Private Sub ProcessarSAPxPRJ(wsBase As Worksheet, wsDet As Worksheet)
 
     On Error Resume Next
 
-    With wsDet.Range("A1:O2")
+    With wsDet.Range("A1:P2")
         .Merge
         .Value = ChrW(&H26A1) & " ANALISE SAP x PROJETO"
         .Font.Name = "Segoe UI" : .Font.Size = 20 : .Font.Bold = True
@@ -516,7 +517,7 @@ Private Sub ProcessarSAPxPRJ(wsBase As Worksheet, wsDet As Worksheet)
         .HorizontalAlignment = xlLeft : .VerticalAlignment = xlCenter
         .IndentLevel = 1
     End With
-    With wsDet.Range("A3:O3")
+    With wsDet.Range("A3:P3")
         .Merge
         .Value = "Inventario Inteligente  |  Atualizacao: " & Format(Now, "dd" & Chr(47) & "mm" & Chr(47) & "yyyy hh:nn") & "  |  Os cards reagem aos filtros"
         .Font.Name = "Segoe UI" : .Font.Size = 9 : .Font.Italic = True
@@ -627,6 +628,7 @@ Private Sub ProcessarSAPxPRJ(wsBase As Worksheet, wsDet As Worksheet)
                 Case 10: .Interior.Color = RGB(255, 25, 25)
                 Case 13: .Interior.Color = RGB(89, 89, 89)
                 Case 15: .Interior.Color = RGB(112, 48, 160)
+                Case 16: .Interior.Color = RGB(192, 0, 0)
                 Case Else: .Interior.Color = azul
             End Select
             .HorizontalAlignment = xlCenter : .VerticalAlignment = xlCenter
@@ -636,7 +638,7 @@ Private Sub ProcessarSAPxPRJ(wsBase As Worksheet, wsDet As Worksheet)
     wsDet.Rows(HR).RowHeight = 26
 
     Dim widths As Variant
-    widths = Array(24.6, 26.6, 10.6, 11.7, 10.6, 11, 50.8, 5.2, 13.4, 14.5, 5.5, 24.3, 18, 15, 48)
+    widths = Array(24.6, 26.6, 10.6, 11.7, 10.6, 11, 50.8, 5.2, 13.4, 14.5, 5.5, 24.3, 18, 15, 48, 48)
     For oc = 1 To nCols
         wsDet.Columns(oc).ColumnWidth = widths(oc - 1)
     Next oc
