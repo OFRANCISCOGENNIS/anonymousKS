@@ -18,7 +18,20 @@ dinheiro. Zero automação de conta.**
 5. Por tudo acima, **nenhuma oportunidade é "risk-free"** — o código recusa
    esse rótulo por design e anexa flags de risco não quantificável a cada uma.
 
-## Uso (modo mock, sem credencial)
+## Site (interface web)
+
+```bash
+python -m football_arb.webapp                # http://127.0.0.1:8000
+python -m football_arb.webapp --port 9000 --host 0.0.0.0
+```
+
+Servidor **stdlib apenas, sem dependências**. O backend reutiliza exatamente
+o mesmo núcleo testado (`math_core` via `ArbitrageDetector`) — a matemática
+**não** é reimplementada no navegador; o front só coleta odds e desenha o
+resultado que o Python calcula. Digite as odds de um mercado (1X2 ou 2-way),
+banca e margem mínima, ou clique em *Carregar exemplo (mock)*.
+
+## Uso (CLI, modo mock, sem credencial)
 
 ```bash
 python -m football_arb                       # tabela, dados mock
