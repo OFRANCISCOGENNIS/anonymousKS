@@ -17,6 +17,13 @@ Private mT0 As Double        ' Timer no inicio da execucao
 Private mTolAder As Double   ' tolerancia de aderencia (fracao) - hot path
 Private mCaboMax As Double   ' cabo isolado isento de UC abaixo deste comprimento
 
+' Motor de classificacao por SCORE (regras ponderadas, editaveis na aba REGRAS CLASSIF)
+Private mRegMode() As String  ' P=palavra inteira | S=substring | C=combo (tokens com +)
+Private mRegTok()  As String
+Private mRegFam()  As String
+Private mRegPeso() As Double
+Private mRegN      As Long
+
 ' Estrutura de dados para NT.006
 Private Type tMaterial
     Familia     As String   ' familia NT.006 (CRUZETA, ISOLADOR PILAR, ...)
@@ -236,6 +243,7 @@ Public Sub GerarInventario()
 
     LogInit
     Call GarantirConfig(wb)
+    Call CarregarRegrasScore(wb)
     Dim faltam As String : faltam = ValidarBase(wsBase)
     If faltam <> "" Then
         Application.ScreenUpdating = True
@@ -259,6 +267,8 @@ Public Sub GerarInventario()
     wb.Worksheets("SUBSTITUICOES").Delete
     wb.Worksheets("PRECO UNITARIO").Delete
     wb.Worksheets("RANKING DE RISCO").Delete
+    wb.Worksheets("AUDITORIA CLASSIF").Delete
+    wb.Worksheets("TENDENCIA").Delete
     On Error GoTo ErrHandler
     Application.DisplayAlerts = True
 
@@ -301,6 +311,10 @@ Public Sub GerarInventario()
     Call ProcessarRankingRisco(wb, wsDet, wsCom, wsPU, wsAlertaC)
     FimEtapa Err.Number, Err.Description, mStep, tt : On Error GoTo ErrHandler
 
+    mStep = "AUDITORIA CLASSIF" : tt = Timer : On Error Resume Next : Err.Clear
+    Call ProcessarAuditoriaClassif(wb, wsBase)
+    FimEtapa Err.Number, Err.Description, mStep, tt : On Error GoTo ErrHandler
+
     mStep = "PAINEL DO GESTOR" : tt = Timer : On Error Resume Next : Err.Clear
     Set wsGestor = ProcessarPainelGestor(wb, wsBase, wsDet, wsPU, wsAlertaC)
     FimEtapa Err.Number, Err.Description, mStep, tt : On Error GoTo ErrHandler
@@ -311,6 +325,10 @@ Public Sub GerarInventario()
 
     mStep = "HISTORICO" : tt = Timer : On Error Resume Next : Err.Clear
     Call AtualizarHistorico(wb)
+    FimEtapa Err.Number, Err.Description, mStep, tt : On Error GoTo ErrHandler
+
+    mStep = "TENDENCIA" : tt = Timer : On Error Resume Next : Err.Clear
+    Call ProcessarTendencia(wb)
     FimEtapa Err.Number, Err.Description, mStep, tt : On Error GoTo ErrHandler
 
     mStep = "NOMES DEFINIDOS" : tt = Timer : On Error Resume Next : Err.Clear
@@ -338,7 +356,9 @@ Public Sub GerarInventario()
            "  - PRECO UNITARIO (faixa MIN/MAX)" & vbCrLf & _
            "  - ALERTA CRITICO" & vbCrLf & _
            "  - RANKING DE RISCO (score por obra)" & vbCrLf & _
-           "  - CONFIG / HISTORICO (parametros e evolucao)" & vbCrLf & vbCrLf & _
+           "  - AUDITORIA CLASSIF (qualidade da classificacao + confianca)" & vbCrLf & _
+           "  - TENDENCIA (reincidencia e risco futuro por obra)" & vbCrLf & _
+           "  - CONFIG / REGRAS CLASSIF / HISTORICO (parametros e evolucao)" & vbCrLf & vbCrLf & _
            "Base: " & wsBase.Name
     If mFalhas <> "" Then
         MsgBox msgFim & vbCrLf & vbCrLf & _
@@ -1855,6 +1875,80 @@ ProxLinha2:
         End If
     End If
 
+    ' --- PU ANOMALO (ESTATISTICO): materiais SEM faixa de referencia com 5+
+    ' lancamentos; flag PU fora de [Q1-1,5*IQR ; Q3+1,5*IQR] (deteccao de
+    ' anomalia robusta a outliers), com materialidade minima da CONFIG ---
+    If idxCod > 0 And idxValor > 0 And idxQtd > 0 Then
+        Dim fxA As Object : Set fxA = CarregarFaixaPrecos(wsBase.Parent)
+        Dim pusCod As Object : Set pusCod = CreateObject("Scripting.Dictionary")
+        Dim anCod As String, anQ As Double, anV As Double, anPu As Double
+        For i = 1 To n
+            anCod = NormCod(d(i, idxCod))
+            anQ = Val0(d(i, idxQtd)) : anV = Val0(d(i, idxValor))
+            If anCod <> "" And anQ > 0 And anV > 0 Then
+                If Not fxA.Exists(anCod) Then
+                    anPu = anV / anQ
+                    If pusCod.Exists(anCod) Then
+                        pusCod(anCod) = pusCod(anCod) & "|" & Trim$(Str$(anPu))
+                    Else
+                        pusCod.Add anCod, Trim$(Str$(anPu))
+                    End If
+                End If
+            End If
+        Next i
+        Dim limCod As Object : Set limCod = CreateObject("Scripting.Dictionary")  ' cod -> "li|ls|mediana"
+        Dim kAn As Variant, pvAn() As String, arrAn() As Double, npAn As Long, jAn As Long
+        Dim q1An As Double, q3An As Double, iqrAn As Double, medAn As Double
+        For Each kAn In pusCod.Keys
+            pvAn = Split(CStr(pusCod(kAn)), "|")
+            npAn = UBound(pvAn) + 1
+            If npAn >= 5 Then
+                ReDim arrAn(0 To npAn - 1)
+                For jAn = 0 To npAn - 1
+                    arrAn(jAn) = Val(pvAn(jAn))
+                Next jAn
+                QuickSortDbl arrAn, 0, npAn - 1
+                q1An = Percentil(arrAn, 0.25) : q3An = Percentil(arrAn, 0.75)
+                medAn = Percentil(arrAn, 0.5)
+                iqrAn = q3An - q1An
+                If iqrAn > 0 Then
+                    limCod.Add kAn, Trim$(Str$(q1An - 1.5 * iqrAn)) & "|" & _
+                                    Trim$(Str$(q3An + 1.5 * iqrAn)) & "|" & Trim$(Str$(medAn))
+                End If
+            End If
+        Next kAn
+        Dim minDivAn As Double : minDivAn = CfgD("MIN_DIVERG_RS", 100)
+        Dim plAn() As String, liAn As Double, lsAn As Double, mdAn As Double
+        For i = 1 To n
+            anCod = NormCod(d(i, idxCod))
+            If limCod.Exists(anCod) Then
+                anQ = Val0(d(i, idxQtd)) : anV = Val0(d(i, idxValor))
+                If anQ > 0 And anV > 0 Then
+                    anPu = anV / anQ
+                    plAn = Split(CStr(limCod(anCod)), "|")
+                    liAn = Val(plAn(0)) : lsAn = Val(plAn(1)) : mdAn = Val(plAn(2))
+                    If (anPu < liAn Or anPu > lsAn) And Abs(anPu - mdAn) * anQ >= minDivAn Then
+                        ws.Cells(outRow, 1).Value = "PU ANOMALO (ESTATISTICO)"
+                        If idxPep3 > 0 Then ws.Cells(outRow, 2).Value = d(i, idxPep3)
+                        If idxPep4 > 0 Then ws.Cells(outRow, 3).Value = d(i, idxPep4)
+                        ws.Cells(outRow, 4).Value = anCod
+                        If idxDesc > 0 Then ws.Cells(outRow, 5).Value = d(i, idxDesc)
+                        If idxFam > 0 Then ws.Cells(outRow, 6).Value = d(i, idxFam)
+                        ws.Cells(outRow, 7).Value = anV
+                        ws.Cells(outRow, 8).Value = anQ
+                        ws.Cells(outRow, 9).Value = anPu
+                        ws.Cells(outRow, 10).Value = mdAn
+                        ws.Cells(outRow, 11).Value = "PU " & Format(anPu, "#,##0.00") & _
+                            IIf(anPu > lsAn, " acima", " abaixo") & " da faixa estatistica do proprio material (" & _
+                            Format(liAn, "#,##0.00") & " a " & Format(lsAn, "#,##0.00") & _
+                            "; mediana " & Format(mdAn, "#,##0.00") & ") - material sem faixa de referencia"
+                        outRow = outRow + 1
+                    End If
+                End If
+            End If
+        Next i
+    End If
+
 Finaliza2:
     Dim totAl As Long : totAl = outRow - 2
     Dim wds As Variant
@@ -2825,7 +2919,7 @@ Private Function AcharBaseInventario(wb As Workbook) As Worksheet
 
     For Each ws In wb.Worksheets
         Select Case ws.Name
-            Case "PAINEL DO GESTOR", "ANALISE SAP x PRJ", "RESUMO SAP x PRJ", "RACIONALIZACAO COM", "ALERTA CRITICO", "PRECO UNITARIO", "RANKING DE RISCO", "CONFIG", "HISTORICO", "LOG EXECUCAO", "TESTES"
+            Case "PAINEL DO GESTOR", "ANALISE SAP x PRJ", "RESUMO SAP x PRJ", "RACIONALIZACAO COM", "ALERTA CRITICO", "PRECO UNITARIO", "RANKING DE RISCO", "CONFIG", "HISTORICO", "LOG EXECUCAO", "TESTES", "AUDITORIA CLASSIF", "TENDENCIA", "REGRAS CLASSIF"
                 ' aba de saida / apoio - ignora
             Case Else
                 If ws.UsedRange.Rows.Count > 1 Then
@@ -3555,6 +3649,28 @@ Public Sub TestarLogicaInventario()
     ClassificarDesc NormStr("PINO,ISOL,CRUZETA MAD,CHUMBO,15KV,140MM"), tmc
     RegTest nomes, oks, det, cnt, "ClassificarDesc PINO ISOL CRUZETA = PINO (nao CRUZETA)", (tmc.Familia = "PINO")
 
+    ' ---- Motor de SCORE: familia vencedora, confianca e explicabilidade ----
+    Dim fSc As String, cSc As Double, mSc As String, okSc As Boolean
+    okSc = ClassificarDescScore(NormStr("CONECTOR,TERM,PINO,1X35-185,M16,D71060"), fSc, cSc, mSc)
+    RegTest nomes, oks, det, cnt, "Score CONECTOR TERM PINO = CONECTOR", (okSc And fSc = "CONECTOR")
+    RegTest nomes, oks, det, cnt, "Score conf > 50% e motivos preenchidos", (cSc > 50 And mSc <> "")
+    okSc = ClassificarDescScore(NormStr("PINO,ISOL,CRUZETA MAD,CHUMBO,15KV,140MM"), fSc, cSc, mSc)
+    RegTest nomes, oks, det, cnt, "Score PINO ISOL CRUZETA = PINO", (okSc And fSc = "PINO")
+    okSc = ClassificarDescScore(NormStr("TD 1F FN 13,8KV 50KVA 220V 3 OV PDE"), fSc, cSc, mSc)
+    RegTest nomes, oks, det, cnt, "Score TD ... KVA = TRAFO (nova cobertura)", (okSc And fSc = "TRAFO")
+    okSc = ClassificarDescScore(NormStr("ALCA,PREF,DUPLA,CB CAA 4 AWG,102MM,BLQ"), fSc, cSc, mSc)
+    RegTest nomes, oks, det, cnt, "Score ALCA PREF = ALCA PREFORMADA", (okSc And fSc = "ALCA PREFORMADA")
+    okSc = ClassificarDescScore(NormStr("CHAVE FUSIVEL 15KV 100A BASE C"), fSc, cSc, mSc)
+    RegTest nomes, oks, det, cnt, "Score CHAVE FUSIVEL = CHAVE FUSIVEL", (okSc And fSc = "CHAVE FUSIVEL")
+    okSc = ClassificarDescScore(NormStr("XYZ SEM NENHUM TOKEN CONHECIDO 123"), fSc, cSc, mSc)
+    RegTest nomes, oks, det, cnt, "Score sem token conhecido = False", (okSc = False)
+
+    ' ---- Estatistica: percentil interpolado ----
+    Dim aPc(0 To 4) As Double
+    aPc(0) = 1 : aPc(1) = 2 : aPc(2) = 3 : aPc(3) = 4 : aPc(4) = 5
+    RegTest nomes, oks, det, cnt, "Percentil 50% de 1..5 = 3", (Percentil(aPc, 0.5) = 3)
+    RegTest nomes, oks, det, cnt, "Percentil 25% de 1..5 = 2", (Percentil(aPc, 0.25) = 2)
+
     Dim ws As Worksheet
     On Error Resume Next
     Set ws = ActiveWorkbook.Worksheets("TESTES")
@@ -3589,3 +3705,636 @@ Private Sub RegTest(nomes() As String, oks() As Boolean, det() As String, _
     cnt = cnt + 1
     nomes(cnt) = nome : oks(cnt) = ok : det(cnt) = IIf(ok, "PASSOU", "FALHOU")
 End Sub
+
+' ===========================================================================
+'  MOTOR DE CLASSIFICACAO POR SCORE
+'  Regras ponderadas (token -> familia -> peso) com confianca e explicabilidade.
+'  Editaveis na aba REGRAS CLASSIF; fallback embutido se a aba nao existir.
+'  MODO: P = palavra inteira | S = substring | C = combo (todos os tokens com +)
+' ===========================================================================
+Private Function RegrasScoreEmbutidas() As Variant
+    RegrasScoreEmbutidas = Array( _
+        "S|CONECTOR|CONECTOR|60", "S|CONEC|CONECTOR|35", "P|TERM|CONECTOR|25", _
+        "S|CON PER|CONECTOR|45", "S|CONEX|CONECTOR|40", _
+        "C|CONEC+HASTE|CONEC HASTE|75", "C|CONEC+ATERR|CONEC HASTE|75", "C|CONEC+CUNHA|CONEC HASTE|70", _
+        "P|LUVA|LUVA EMENDA|50", "P|EME|LUVA EMENDA|20", "S|EMENDA|LUVA EMENDA|30", _
+        "S|CABO IS|CABO ISOLADO|55", "C|CABO+PVC|CABO ISOLADO|60", "C|FIO+PVC|CABO ISOLADO|60", _
+        "S|CABO|CABO/CONDUTOR|30", "S|CONDUTOR|CABO/CONDUTOR|40", "P|FIO|CABO/CONDUTOR|35", _
+        "P|CAA|CABO/CONDUTOR|20", "P|CAZ|CABO/CONDUTOR|20", _
+        "S|TRAFO|TRAFO|60", "S|TRANSFORMADOR|TRAFO|60", "P|TD|TRAFO|30", "S|KVA|TRAFO|25", _
+        "P|TP|TP|45", _
+        "S|POSTE|POSTE|35", "S|DAN|POSTE|20", _
+        "S|PLACA|PLACA IDENTIFICACAO|50", "S|IDENTIF|PLACA IDENTIFICACAO|25", _
+        "P|PINO|PINO|40", "C|PINO+ISOL|PINO|30", _
+        "S|CRUZETA|CRUZETA|40", _
+        "P|SUP|SUPORTE|30", "S|SUPORTE|SUPORTE|40", "C|SUP+CH FACA|SUPORTE|20", _
+        "S|BYPASS|SUPORTE|15", "S|BY PASS|SUPORTE|15", _
+        "C|SUP+PARARAIO|SUP PARA-RAIO|70", "C|SUPORTE+PARARAIO|SUP PARA-RAIO|70", _
+        "S|PARARAIO|PARA-RAIO|60", "S|PARA RAIO|PARA-RAIO|60", _
+        "C|CHAVE+FUS|CHAVE FUSIVEL|70", "S|CH FUS|CHAVE FUSIVEL|60", _
+        "S|CHAVE|CHAVE FACA/SECC|30", "C|CHAVE+SECCION|CHAVE FACA/SECC|70", _
+        "C|ISOLADOR+PILAR|ISOLADOR PILAR|70", _
+        "C|ISOLADOR+SUSPENS|ISOL SUSPENSAO|70", "C|ISOLADOR+DISCO|ISOL SUSPENSAO|70", _
+        "C|HASTE+TERRA|HASTE TERRA|70", "C|HASTE+ATERR|HASTE TERRA|70", "C|HASTE+COBR|HASTE TERRA|60", _
+        "S|CORDOALHA|ESTAI|50", "S|ESTICADOR|ESTAI|50", "S|SAPATA|ESTAI|50", "C|HASTE+ANCORA|ESTAI|60", _
+        "C|PARAFUSO+OLHAL|PARAFUSO OLHAL|70", "S|PARAFUSO|PARAFUSO|45", _
+        "C|GANCHO+OLHAL|GANCHO OLHAL|70", "S|OLHAL|OLHAL|35", "S|MANILHA|MANILHA|50", _
+        "S|ARRUELA|ARRUELA|50", "S|PORCA|PORCA|50", "P|SELA|SELA CRUZETA|55", _
+        "S|MAO FRANCESA|MAO FRANCESA|70", _
+        "P|ELO|ELO FUSIVEL|50", "S|FUSIVEL|ELO FUSIVEL|25", _
+        "P|CINTA|CINTA POSTE|55", "S|ARMACAO|ARMACAO SEC|50", "S|ROLDANA|ROLDANA|50", _
+        "S|GRAMPO|GRAMPO|50", "S|ESTRIBO|ESTRIBO|50", _
+        "P|DPS|DPS|55", "C|PROTETOR+SURTO|DPS|60", _
+        "C|CAIXA+MEDI|CAIXA MEDICAO|60", "C|CAIXA+POLICARB|CAIXA MEDICAO|55", "S|CAIXA|CAIXA|30", _
+        "S|MEDIDOR|MEDIDOR|50", "S|LACRE|LACRE|55", _
+        "S|RELIGADOR|EQUIP MANOBRA|55", "S|SECCIONA|EQUIP MANOBRA|45", _
+        "S|DISJUNTOR|EQUIP MANOBRA|55", "S|REGULADOR|EQUIP MANOBRA|55", _
+        "P|BUCHA|BUCHA|50", _
+        "S|ESPACADOR|REDE COMPACTA|55", "S|LOSANGULAR|REDE COMPACTA|55", "S|BRACO|REDE COMPACTA|40", _
+        "P|ANEL|REDE COMPACTA|35", "P|LACO|REDE COMPACTA|35", "P|ALCA|REDE COMPACTA|30", _
+        "C|ALCA+PREF|ALCA PREFORMADA|75", _
+        "S|TERMINAL|TERMINAL/MUFLA|50", "S|MUFLA|TERMINAL/MUFLA|55", "S|CABECOTE|TERMINAL/MUFLA|50", _
+        "S|ELETRODUTO|ELETRODUTO|55", _
+        "S|ABRACADEIRA|FERRAGEM|45", "S|CANTONEIRA|FERRAGEM|45", "S|PERFIL|FERRAGEM|40", "S|CHAPA|FERRAGEM|40", _
+        "P|ARAME|ARAME|50", "P|FITA|FITA/FECHO|45", "S|FECHO|FITA/FECHO|40", "S|FIVELA|FITA/FECHO|45")
+End Function
+
+Private Sub CarregarRegrasEmbutidas()
+    Dim rg As Variant : rg = RegrasScoreEmbutidas()
+    Dim n As Long : n = UBound(rg) - LBound(rg) + 1
+    ReDim mRegMode(1 To n) : ReDim mRegTok(1 To n)
+    ReDim mRegFam(1 To n) : ReDim mRegPeso(1 To n)
+    mRegN = 0
+    Dim i As Long, p() As String
+    For i = LBound(rg) To UBound(rg)
+        p = Split(CStr(rg(i)), "|")
+        If UBound(p) = 3 Then
+            mRegN = mRegN + 1
+            mRegMode(mRegN) = p(0) : mRegTok(mRegN) = p(1)
+            mRegFam(mRegN) = p(2) : mRegPeso(mRegN) = Val(p(3))
+        End If
+    Next i
+End Sub
+
+' Garante a aba REGRAS CLASSIF (cria com as regras embutidas na 1a execucao)
+' e carrega as regras dela - o usuario pode ajustar tokens/pesos sem reprogramar.
+Private Sub CarregarRegrasScore(wb As Workbook)
+    Dim ws As Worksheet
+    On Error Resume Next
+    Set ws = wb.Worksheets("REGRAS CLASSIF")
+    On Error GoTo 0
+    If ws Is Nothing Then
+        Set ws = wb.Worksheets.Add(After:=wb.Worksheets(wb.Worksheets.Count))
+        ws.Name = "REGRAS CLASSIF"
+        ws.Cells(1, 1).Value = "MODO" : ws.Cells(1, 2).Value = "TOKEN"
+        ws.Cells(1, 3).Value = "FAMILIA" : ws.Cells(1, 4).Value = "PESO"
+        ws.Cells(1, 5).Value = "MODO: P=palavra inteira | S=substring | C=combo (tokens separados por +). Tokens sem acento/pontuacao."
+        Dim rg As Variant : rg = RegrasScoreEmbutidas()
+        Dim i As Long, p() As String, rr As Long : rr = 2
+        For i = LBound(rg) To UBound(rg)
+            p = Split(CStr(rg(i)), "|")
+            If UBound(p) = 3 Then
+                ws.Cells(rr, 1).Value = p(0) : ws.Cells(rr, 2).Value = p(1)
+                ws.Cells(rr, 3).Value = p(2) : ws.Cells(rr, 4).Value = Val(p(3))
+                rr = rr + 1
+            End If
+        Next i
+        With ws.Range("A1:E1")
+            .Font.Bold = True : .Font.Color = RGB(255, 255, 255)
+            .Interior.Color = RGB(17, 24, 39)
+        End With
+        ws.Columns(1).ColumnWidth = 7 : ws.Columns(2).ColumnWidth = 22
+        ws.Columns(3).ColumnWidth = 22 : ws.Columns(4).ColumnWidth = 7
+        ws.Columns(5).ColumnWidth = 95
+        ws.Tab.Color = RGB(90, 90, 90)
+    End If
+
+    Dim lastR As Long : lastR = ws.Cells(ws.Rows.Count, 2).End(xlUp).Row
+    If lastR < 2 Then CarregarRegrasEmbutidas : Exit Sub
+    ReDim mRegMode(1 To lastR) : ReDim mRegTok(1 To lastR)
+    ReDim mRegFam(1 To lastR) : ReDim mRegPeso(1 To lastR)
+    mRegN = 0
+    Dim r As Long, tok As String, fam As String, pes As Double
+    For r = 2 To lastR
+        tok = NormStr(CStr(ws.Cells(r, 2).Value))
+        fam = Trim(CStr(ws.Cells(r, 3).Value))
+        pes = Val0(ws.Cells(r, 4).Value)
+        If tok <> "" And fam <> "" And pes <> 0 Then
+            mRegN = mRegN + 1
+            mRegMode(mRegN) = UCase(Trim(CStr(ws.Cells(r, 1).Value)))
+            mRegTok(mRegN) = tok : mRegFam(mRegN) = fam : mRegPeso(mRegN) = pes
+        End If
+    Next r
+    If mRegN = 0 Then CarregarRegrasEmbutidas
+End Sub
+
+' Classifica por SCORE: soma pesos das regras que casam, por familia.
+' Retorna a familia vencedora, a confianca (0-100, top1/(top1+top2)) e os
+' motivos (explicabilidade: "TOKEN(+peso), ..." das regras da vencedora).
+Private Function ClassificarDescScore(descNorm As String, ByRef fam As String, _
+        ByRef conf As Double, ByRef motivos As String) As Boolean
+    fam = "" : conf = 0 : motivos = ""
+    If mRegN = 0 Then CarregarRegrasEmbutidas
+
+    Dim sc As Object : Set sc = CreateObject("Scripting.Dictionary")
+    Dim mo As Object : Set mo = CreateObject("Scripting.Dictionary")
+    Dim r As Long, hit As Boolean, j As Long, parts() As String
+    For r = 1 To mRegN
+        hit = False
+        Select Case mRegMode(r)
+            Case "P"
+                hit = TemPalavra(descNorm, mRegTok(r))
+            Case "C"
+                parts = Split(mRegTok(r), "+")
+                hit = True
+                For j = LBound(parts) To UBound(parts)
+                    If InStr(descNorm, parts(j)) = 0 Then hit = False : Exit For
+                Next j
+            Case Else
+                hit = (InStr(descNorm, mRegTok(r)) > 0)
+        End Select
+        If hit Then
+            If sc.Exists(mRegFam(r)) Then
+                sc(mRegFam(r)) = sc(mRegFam(r)) + mRegPeso(r)
+                mo(mRegFam(r)) = mo(mRegFam(r)) & ", " & mRegTok(r) & "(" & IIf(mRegPeso(r) >= 0, "+", "") & Format(mRegPeso(r), "0") & ")"
+            Else
+                sc.Add mRegFam(r), mRegPeso(r)
+                mo.Add mRegFam(r), mRegTok(r) & "(" & IIf(mRegPeso(r) >= 0, "+", "") & Format(mRegPeso(r), "0") & ")"
+            End If
+        End If
+    Next r
+
+    If sc.Count = 0 Then ClassificarDescScore = False : Exit Function
+
+    Dim k As Variant, top1 As Double, top2 As Double
+    For Each k In sc.Keys
+        If sc(k) > top1 Then
+            top2 = top1 : top1 = sc(k) : fam = CStr(k)
+        ElseIf sc(k) > top2 Then
+            top2 = sc(k)
+        End If
+    Next k
+    If top1 <= 0 Then ClassificarDescScore = False : fam = "" : Exit Function
+    If top2 < 0 Then top2 = 0
+    conf = 100 * top1 / (top1 + top2)
+    motivos = mo(fam)
+    ClassificarDescScore = True
+End Function
+
+' ===========================================================================
+'  AUDITORIA DE CLASSIFICACAO - qualidade da FAMILIA da base
+'  Compara a FAMILIA informada na base com a sugerida pelo motor de score.
+'  Gera metricas (taxa de concordancia/divergencia/ambiguidade/revisao manual)
+'  e os TOP pares de divergencia (matriz de confusao acionavel).
+' ===========================================================================
+Private Sub ProcessarAuditoriaClassif(wb As Workbook, wsBase As Worksheet)
+    Dim ws As Worksheet
+    Set ws = wb.Worksheets.Add(After:=wb.Worksheets(wb.Worksheets.Count))
+    ws.Name = "AUDITORIA CLASSIF"
+
+    Dim lastC As Long : lastC = wsBase.Cells(1, wsBase.Columns.Count).End(xlToLeft).Column
+    Dim iCod As Long, iDesc As Long, iFam As Long, iVal As Long
+    Dim c As Long, h As String
+    For c = 1 To lastC
+        h = NormStr(CStr(wsBase.Cells(1, c).Value))
+        Select Case h
+            Case "COD MAT":  iCod = c
+            Case "DESC MAT": iDesc = c
+            Case "FAMILIA":  iFam = c
+            Case "VALOR":    iVal = c
+        End Select
+    Next c
+
+    Dim refCol As Long : refCol = iCod : If refCol = 0 Then refCol = 1
+    Dim lastR As Long : lastR = wsBase.Cells(wsBase.Rows.Count, refCol).End(xlUp).Row
+
+    ' ---- agrega por material unico (cod; fallback descricao) ----
+    Dim uIdx As Object : Set uIdx = CreateObject("Scripting.Dictionary")
+    Dim nU As Long : nU = 0
+    Dim uCod() As String, uDesc() As String, uFamB() As String
+    Dim uCnt() As Long, uVal() As Double
+    If lastR >= 2 Then
+        Dim d As Variant : d = wsBase.Range(wsBase.Cells(2, 1), wsBase.Cells(lastR, lastC)).Value
+        Dim n As Long : n = UBound(d, 1)
+        ReDim uCod(1 To n) : ReDim uDesc(1 To n) : ReDim uFamB(1 To n)
+        ReDim uCnt(1 To n) : ReDim uVal(1 To n)
+        Dim i As Long, ky As String, cd As String, dsc As String, fb As String
+        For i = 1 To n
+            cd = "" : dsc = "" : fb = ""
+            If iCod > 0 Then cd = NormCod(d(i, iCod))
+            If iDesc > 0 Then dsc = Trim(CStr(d(i, iDesc)))
+            If iFam > 0 Then fb = Trim(CStr(d(i, iFam)))
+            If cd = "" And dsc = "" Then GoTo ProxU
+            ky = IIf(cd <> "", cd, NormStr(dsc))
+            If Not uIdx.Exists(ky) Then
+                nU = nU + 1 : uIdx.Add ky, nU
+                uCod(nU) = cd : uDesc(nU) = dsc : uFamB(nU) = fb
+            End If
+            Dim ux As Long : ux = uIdx(ky)
+            If uFamB(ux) = "" And fb <> "" Then uFamB(ux) = fb
+            If uDesc(ux) = "" And dsc <> "" Then uDesc(ux) = dsc
+            uCnt(ux) = uCnt(ux) + 1
+            If iVal > 0 Then uVal(ux) = uVal(ux) + Abs(Val0(d(i, iVal)))
+ProxU:
+        Next i
+    End If
+
+    ' ---- classifica cada material e atribui status ----
+    Dim confMin As Double : confMin = CfgD("CONF_MINIMA", 60)
+    Dim uFamS() As String, uConf() As Double, uMot() As String, uStat() As String
+    Dim nConf As Long, nDiv As Long, nAmb As Long, nSem As Long, nSug As Long
+    If nU > 0 Then
+        ReDim uFamS(1 To nU) : ReDim uConf(1 To nU)
+        ReDim uMot(1 To nU) : ReDim uStat(1 To nU)
+        Dim fs As String, cf As Double, mt As String, okS As Boolean
+        Dim fbN As String, fsN As String
+        For i = 1 To nU
+            okS = ClassificarDescScore(NormStr(uDesc(i)), fs, cf, mt)
+            uFamS(i) = fs : uConf(i) = cf : uMot(i) = mt
+            fbN = NormStr(uFamB(i)) : fsN = NormStr(fs)
+            If Not okS Then
+                uStat(i) = "SEM SUGESTAO" : nSem = nSem + 1
+            ElseIf fbN = "" Or fbN = "MAT COM" Or fbN = "COM" Then
+                If cf < confMin Then
+                    uStat(i) = "REVISAR (AMBIGUO)" : nAmb = nAmb + 1
+                Else
+                    uStat(i) = "SUGESTAO (BASE GENERICA)" : nSug = nSug + 1
+                End If
+            ElseIf fbN = fsN Or InStr(fbN, fsN) > 0 Or InStr(fsN, fbN) > 0 Then
+                uStat(i) = "CONFERE" : nConf = nConf + 1
+            ElseIf cf < confMin Then
+                uStat(i) = "REVISAR (AMBIGUO)" : nAmb = nAmb + 1
+            Else
+                uStat(i) = "DIVERGE" : nDiv = nDiv + 1
+            End If
+        Next i
+    End If
+
+    ' ---- TOP pares de divergencia (fam base -> fam sugerida) ----
+    Dim pares As Object : Set pares = CreateObject("Scripting.Dictionary")
+    Dim paresV As Object : Set paresV = CreateObject("Scripting.Dictionary")
+    For i = 1 To nU
+        If uStat(i) = "DIVERGE" Then
+            ky = uFamB(i) & "  ->  " & uFamS(i)
+            If pares.Exists(ky) Then
+                pares(ky) = pares(ky) + 1 : paresV(ky) = paresV(ky) + uVal(i)
+            Else
+                pares.Add ky, 1 : paresV.Add ky, uVal(i)
+            End If
+        End If
+    Next i
+
+    ' ---- titulo + resumo (metricas de qualidade) ----
+    With ws.Range("A1:I2")
+        .Merge
+        .Value = "AUDITORIA DE CLASSIFICACAO  -  FAMILIA da base x motor de score"
+        .Font.Name = "Segoe UI Semibold" : .Font.Size = 15 : .Font.Bold = True
+        .Font.Color = RGB(255, 255, 255) : .Interior.Color = RGB(80, 44, 110)
+        .HorizontalAlignment = xlCenter : .VerticalAlignment = xlCenter
+    End With
+    ws.Rows(1).RowHeight = 20 : ws.Rows(2).RowHeight = 20
+    Dim txm As Double
+    If nU > 0 Then txm = (nDiv + nAmb + nSem) / nU
+    With ws.Range("A3:I3")
+        .Merge
+        .Value = nU & " materiais unicos  |  CONFERE: " & nConf & "  |  DIVERGE: " & nDiv & _
+                 "  |  AMBIGUO: " & nAmb & "  |  SEM SUGESTAO: " & nSem & _
+                 "  |  SUGESTAO (base generica): " & nSug & _
+                 "  |  Taxa de revisao manual: " & Format(txm, "0.0%") & _
+                 "  |  Confianca minima (CONFIG): " & Format(confMin, "0") & "%"
+        .Font.Name = "Segoe UI" : .Font.Size = 9 : .Font.Italic = True
+        .Interior.Color = RGB(240, 236, 246)
+    End With
+
+    Dim rw As Long : rw = 5
+    ws.Cells(rw, 1).Value = "TOP PARES DE DIVERGENCIA (erros sistemicos de familia)"
+    ws.Cells(rw, 1).Font.Bold = True
+    rw = rw + 1
+    ws.Cells(rw, 1).Value = "FAMILIA BASE -> SUGERIDA"
+    ws.Cells(rw, 3).Value = "MATERIAIS"
+    ws.Cells(rw, 4).Value = "VALOR TOTAL"
+    ws.Range(ws.Cells(rw, 1), ws.Cells(rw, 4)).Font.Bold = True
+    rw = rw + 1
+    ' ordena os pares por contagem (selecao simples - lista pequena)
+    Dim nP As Long : nP = pares.Count
+    If nP > 0 Then
+        Dim pk() As String, pc() As Long
+        ReDim pk(0 To nP - 1) : ReDim pc(0 To nP - 1)
+        Dim kk As Variant, ix As Long : ix = 0
+        For Each kk In pares.Keys
+            pk(ix) = CStr(kk) : pc(ix) = pares(kk) : ix = ix + 1
+        Next kk
+        Dim a As Long, b As Long, bst As Long, tS As String, tL As Long
+        For a = 0 To nP - 2
+            bst = a
+            For b = a + 1 To nP - 1
+                If pc(b) > pc(bst) Then bst = b
+            Next b
+            If bst <> a Then
+                tL = pc(a) : pc(a) = pc(bst) : pc(bst) = tL
+                tS = pk(a) : pk(a) = pk(bst) : pk(bst) = tS
+            End If
+        Next a
+        Dim mostraP As Long : mostraP = nP : If mostraP > 10 Then mostraP = 10
+        For ix = 0 To mostraP - 1
+            ws.Range(ws.Cells(rw, 1), ws.Cells(rw, 2)).Merge
+            ws.Cells(rw, 1).Value = pk(ix)
+            ws.Cells(rw, 3).Value = pc(ix)
+            ws.Cells(rw, 4).Value = paresV(pk(ix))
+            ws.Cells(rw, 4).NumberFormat = "#,##0.00"
+            rw = rw + 1
+        Next ix
+    Else
+        ws.Cells(rw, 1).Value = "Nenhuma divergencia sistemica encontrada."
+        ws.Cells(rw, 1).Font.Italic = True
+        rw = rw + 1
+    End If
+    rw = rw + 1
+
+    ' ---- tabela detalhada, agrupada por status (pior primeiro) ----
+    Dim hdrs As Variant
+    hdrs = Array("COD MAT", "DESC MAT", "FAMILIA BASE", "FAMILIA SUGERIDA", _
+                 "CONFIANCA", "STATUS", "MOTIVOS (EXPLICABILIDADE)", "LINHAS", "VALOR TOTAL")
+    For c = 1 To 9
+        With ws.Cells(rw, c)
+            .Value = hdrs(c - 1)
+            .Font.Bold = True : .Font.Color = RGB(255, 255, 255)
+            .Interior.Color = RGB(80, 44, 110)
+            .HorizontalAlignment = xlCenter : .VerticalAlignment = xlCenter
+            .Borders.LineStyle = xlContinuous : .Borders.Color = RGB(170, 170, 170)
+        End With
+    Next c
+    Dim hdrRow As Long : hdrRow = rw
+    rw = rw + 1
+
+    If nU > 0 Then
+        Dim grupos As Variant
+        grupos = Array("DIVERGE", "REVISAR (AMBIGUO)", "SEM SUGESTAO", "SUGESTAO (BASE GENERICA)", "CONFERE")
+        Dim outA() As Variant : ReDim outA(1 To nU, 1 To 9)
+        Dim stRow() As String : ReDim stRow(1 To nU)
+        Dim ro As Long : ro = 0
+        Dim g As Long
+        For g = 0 To UBound(grupos)
+            For i = 1 To nU
+                If uStat(i) = CStr(grupos(g)) Then
+                    ro = ro + 1
+                    outA(ro, 1) = uCod(i)
+                    outA(ro, 2) = uDesc(i)
+                    outA(ro, 3) = uFamB(i)
+                    outA(ro, 4) = uFamS(i)
+                    outA(ro, 5) = IIf(uFamS(i) <> "", Format(uConf(i), "0") & "%", "")
+                    outA(ro, 6) = uStat(i)
+                    outA(ro, 7) = uMot(i)
+                    outA(ro, 8) = uCnt(i)
+                    outA(ro, 9) = uVal(i)
+                    stRow(ro) = uStat(i)
+                End If
+            Next i
+        Next g
+        ws.Range(ws.Cells(rw, 1), ws.Cells(rw + nU - 1, 9)).Value = outA
+
+        With ws.Range(ws.Cells(rw, 1), ws.Cells(rw + nU - 1, 9))
+            .Font.Name = "Segoe UI" : .Font.Size = 9 : .VerticalAlignment = xlCenter
+            .Borders.LineStyle = xlContinuous : .Borders.Color = RGB(225, 225, 225)
+        End With
+        ws.Range(ws.Cells(rw, 9), ws.Cells(rw + nU - 1, 9)).NumberFormat = "#,##0.00"
+        ws.Range(ws.Cells(rw, 5), ws.Cells(rw, 6)).HorizontalAlignment = xlCenter
+        ws.Range(ws.Cells(rw, 5), ws.Cells(rw + nU - 1, 6)).HorizontalAlignment = xlCenter
+
+        ' cores por BLOCO de status (linhas ja agrupadas -> blocos contiguos)
+        Dim rr As Long, rIni As Long, stB As String, bg As Long, chip As Long
+        rr = 1
+        Do While rr <= nU
+            stB = stRow(rr) : rIni = rr
+            Do While rr < nU
+                If stRow(rr + 1) <> stB Then Exit Do
+                rr = rr + 1
+            Loop
+            Select Case stB
+                Case "DIVERGE":                  bg = RGB(252, 226, 228) : chip = RGB(192, 0, 0)
+                Case "REVISAR (AMBIGUO)":        bg = RGB(255, 244, 214) : chip = RGB(176, 124, 0)
+                Case "SEM SUGESTAO":             bg = RGB(238, 238, 238) : chip = RGB(110, 110, 110)
+                Case "SUGESTAO (BASE GENERICA)": bg = RGB(234, 242, 250) : chip = RGB(31, 78, 121)
+                Case Else:                       bg = RGB(231, 244, 234) : chip = RGB(33, 130, 70)
+            End Select
+            ws.Range(ws.Cells(rw + rIni - 1, 1), ws.Cells(rw + rr - 1, 9)).Interior.Color = bg
+            With ws.Range(ws.Cells(rw + rIni - 1, 6), ws.Cells(rw + rr - 1, 6))
+                .Interior.Color = chip : .Font.Color = RGB(255, 255, 255) : .Font.Bold = True
+            End With
+            rr = rr + 1
+        Loop
+        ws.Range(ws.Cells(hdrRow, 1), ws.Cells(hdrRow, 9)).AutoFilter
+    Else
+        ws.Cells(rw, 1).Value = "Nenhum material encontrado na base."
+        ws.Cells(rw, 1).Font.Italic = True
+    End If
+
+    Dim wds As Variant : wds = Array(13, 46, 20, 20, 11, 24, 52, 8, 14)
+    For c = 1 To 9 : ws.Columns(c).ColumnWidth = wds(c - 1) : Next c
+    ws.Tab.Color = RGB(80, 44, 110)
+    On Error Resume Next
+    ws.Activate
+    ActiveWindow.DisplayGridlines = False
+    ws.Cells(hdrRow + 1, 1).Select
+    ActiveWindow.FreezePanes = True
+    On Error GoTo 0
+End Sub
+
+' ===========================================================================
+'  TENDENCIA HISTORICA - inteligencia preditiva sobre a aba HISTORICO
+'  Reincidencia de reprovacao por obra, tendencia (melhorou/piorou) e
+'  risco futuro projetado.
+' ===========================================================================
+Private Sub ProcessarTendencia(wb As Workbook)
+    Dim wsH As Worksheet
+    On Error Resume Next
+    Set wsH = wb.Worksheets("HISTORICO")
+    On Error GoTo 0
+    If wsH Is Nothing Then Exit Sub
+    Dim lastH As Long : lastH = wsH.Cells(wsH.Rows.Count, 2).End(xlUp).Row
+    If lastH < 2 Then Exit Sub
+
+    Dim ws As Worksheet
+    On Error Resume Next
+    Set ws = wb.Worksheets("TENDENCIA")
+    On Error GoTo 0
+    If ws Is Nothing Then
+        Set ws = wb.Worksheets.Add(After:=wsH)
+        ws.Name = "TENDENCIA"
+    Else
+        ws.Cells.Clear
+    End If
+
+    ' HISTORICO e append-only -> a ordem das linhas e cronologica
+    Dim hh As Variant : hh = wsH.Range(wsH.Cells(2, 1), wsH.Cells(lastH, 5)).Value
+    Dim seqs As Object : Set seqs = CreateObject("Scripting.Dictionary")  ' pep3 -> "R;A;R..."
+    Dim vNAd As Object : Set vNAd = CreateObject("Scripting.Dictionary")  ' pep3 -> ultimo valor nao ader
+    Dim i As Long, p3 As String, si As String
+    For i = 1 To UBound(hh, 1)
+        p3 = Trim(CStr(hh(i, 2)))
+        si = IIf(InStr(UCase(CStr(hh(i, 3))), "REPROVADO") > 0, "R", "A")
+        If p3 <> "" Then
+            If seqs.Exists(p3) Then seqs(p3) = seqs(p3) & ";" & si Else seqs.Add p3, si
+            vNAd(p3) = Val0(hh(i, 4))
+        End If
+    Next i
+
+    Dim nOb As Long : nOb = seqs.Count
+    Dim outA() As Variant : ReDim outA(1 To nOb, 1 To 9)
+    Dim rkN() As Long : ReDim rkN(1 To nOb)
+    Dim k As Variant, ro As Long : ro = 0
+    For Each k In seqs.Keys
+        Dim sq() As String : sq = Split(CStr(seqs(k)), ";")
+        Dim nEx As Long : nEx = UBound(sq) + 1
+        Dim nRep As Long : nRep = 0
+        For i = 0 To UBound(sq)
+            If sq(i) = "R" Then nRep = nRep + 1
+        Next i
+        Dim streak As Long : streak = 0
+        For i = UBound(sq) To 0 Step -1
+            If sq(i) = "R" Then streak = streak + 1 Else Exit For
+        Next i
+        Dim atual As String : atual = IIf(sq(UBound(sq)) = "R", "REPROVADO", "APROVADO")
+        Dim tend As String
+        If nEx = 1 Then
+            tend = "PRIMEIRA EXECUCAO"
+        ElseIf sq(UBound(sq)) = sq(UBound(sq) - 1) Then
+            tend = "ESTAVEL"
+        ElseIf sq(UBound(sq)) = "R" Then
+            tend = "PIOROU"
+        Else
+            tend = "MELHOROU"
+        End If
+        Dim taxa As Double : taxa = nRep / nEx
+        Dim risco As String, rk As Long, recom As String
+        If streak >= 2 Or (atual = "REPROVADO" And taxa >= 0.5 And nEx >= 2) Then
+            risco = "ALTO (REINCIDENTE)" : rk = 3
+            recom = "Priorizar auditoria: " & streak & " reprovacao(oes) consecutiva(s)"
+        ElseIf atual = "REPROVADO" Then
+            risco = "MEDIO" : rk = 2
+            recom = "Acompanhar proxima execucao (devolucao em aberto)"
+        ElseIf nRep > 0 Then
+            risco = "BAIXO" : rk = 1
+            recom = "Regularizada - manter em observacao"
+        Else
+            risco = "MINIMO" : rk = 0
+            recom = "Sem historico de reprovacao"
+        End If
+        ro = ro + 1
+        outA(ro, 1) = CStr(k)
+        outA(ro, 2) = nEx
+        outA(ro, 3) = nRep
+        outA(ro, 4) = taxa
+        outA(ro, 5) = streak
+        outA(ro, 6) = atual
+        outA(ro, 7) = tend
+        outA(ro, 8) = risco
+        outA(ro, 9) = recom
+        rkN(ro) = rk
+    Next k
+
+    ' ordena por risco desc (selecao simples; empate -> maior taxa)
+    Dim a As Long, b As Long, bst As Long, c As Long
+    For a = 1 To nOb - 1
+        bst = a
+        For b = a + 1 To nOb
+            If rkN(b) > rkN(bst) Or (rkN(b) = rkN(bst) And Val0(outA(b, 4)) > Val0(outA(bst, 4))) Then bst = b
+        Next b
+        If bst <> a Then
+            Dim tv As Variant, tk As Long
+            For c = 1 To 9
+                tv = outA(a, c) : outA(a, c) = outA(bst, c) : outA(bst, c) = tv
+            Next c
+            tk = rkN(a) : rkN(a) = rkN(bst) : rkN(bst) = tk
+        End If
+    Next a
+
+    With ws.Range("A1:I2")
+        .Merge
+        .Value = "TENDENCIA HISTORICA  -  reincidencia e risco futuro por obra"
+        .Font.Name = "Segoe UI Semibold" : .Font.Size = 15 : .Font.Bold = True
+        .Font.Color = RGB(255, 255, 255) : .Interior.Color = RGB(120, 60, 20)
+        .HorizontalAlignment = xlCenter : .VerticalAlignment = xlCenter
+    End With
+    ws.Rows(1).RowHeight = 20 : ws.Rows(2).RowHeight = 20
+
+    Dim hdrs As Variant
+    hdrs = Array("PEP3NIVEL", "EXECUCOES", "REPROVACOES", "TAXA REPROV", _
+                 "SEQ REPROV ATUAL", "SITUACAO ATUAL", "TENDENCIA", "RISCO FUTURO", "RECOMENDACAO")
+    For c = 1 To 9
+        With ws.Cells(3, c)
+            .Value = hdrs(c - 1)
+            .Font.Bold = True : .Font.Color = RGB(255, 255, 255)
+            .Interior.Color = RGB(120, 60, 20)
+            .HorizontalAlignment = xlCenter : .VerticalAlignment = xlCenter
+            .Borders.LineStyle = xlContinuous : .Borders.Color = RGB(170, 170, 170)
+        End With
+    Next c
+    ws.Rows(3).RowHeight = 24
+
+    ws.Range(ws.Cells(4, 1), ws.Cells(3 + nOb, 9)).Value = outA
+    With ws.Range(ws.Cells(4, 1), ws.Cells(3 + nOb, 9))
+        .Font.Name = "Segoe UI" : .Font.Size = 9 : .VerticalAlignment = xlCenter
+        .Borders.LineStyle = xlContinuous : .Borders.Color = RGB(225, 225, 225)
+    End With
+    ws.Range(ws.Cells(4, 2), ws.Cells(3 + nOb, 8)).HorizontalAlignment = xlCenter
+    ws.Range(ws.Cells(4, 4), ws.Cells(3 + nOb, 4)).NumberFormat = "0.0%"
+
+    ' cores por BLOCO de risco (ja ordenado)
+    Dim rr As Long, rIni As Long, rsB As String, bg As Long, chip As Long
+    rr = 1
+    Do While rr <= nOb
+        rsB = CStr(outA(rr, 8)) : rIni = rr
+        Do While rr < nOb
+            If CStr(outA(rr + 1, 8)) <> rsB Then Exit Do
+            rr = rr + 1
+        Loop
+        Select Case Left(rsB, 4)
+            Case "ALTO":  bg = RGB(252, 226, 228) : chip = RGB(192, 0, 0)
+            Case "MEDI":  bg = RGB(255, 244, 214) : chip = RGB(176, 124, 0)
+            Case "BAIX":  bg = RGB(234, 242, 250) : chip = RGB(31, 78, 121)
+            Case Else:    bg = RGB(231, 244, 234) : chip = RGB(33, 130, 70)
+        End Select
+        ws.Range(ws.Cells(3 + rIni, 1), ws.Cells(3 + rr, 9)).Interior.Color = bg
+        With ws.Range(ws.Cells(3 + rIni, 8), ws.Cells(3 + rr, 8))
+            .Interior.Color = chip : .Font.Color = RGB(255, 255, 255) : .Font.Bold = True
+        End With
+        rr = rr + 1
+    Loop
+
+    Dim wds As Variant : wds = Array(26, 11, 12, 11, 15, 14, 18, 18, 52)
+    For c = 1 To 9 : ws.Columns(c).ColumnWidth = wds(c - 1) : Next c
+    ws.Range(ws.Cells(3, 1), ws.Cells(3, 9)).AutoFilter
+    ws.Tab.Color = RGB(120, 60, 20)
+End Sub
+
+' ---------- estatistica: quicksort de doubles + percentil interpolado ----------
+Private Sub QuickSortDbl(a() As Double, ByVal lo As Long, ByVal hi As Long)
+    If lo >= hi Then Exit Sub
+    Dim p As Double : p = a((lo + hi) \ 2)
+    Dim i As Long, j As Long, t As Double
+    i = lo : j = hi
+    Do While i <= j
+        Do While a(i) < p : i = i + 1 : Loop
+        Do While a(j) > p : j = j - 1 : Loop
+        If i <= j Then
+            t = a(i) : a(i) = a(j) : a(j) = t
+            i = i + 1 : j = j - 1
+        End If
+    Loop
+    QuickSortDbl a, lo, j
+    QuickSortDbl a, i, hi
+End Sub
+
+Private Function Percentil(a() As Double, p As Double) As Double
+    Dim n As Long : n = UBound(a) - LBound(a) + 1
+    If n = 1 Then Percentil = a(LBound(a)) : Exit Function
+    Dim pos As Double : pos = p * (n - 1)
+    Dim lo As Long : lo = Int(pos)
+    Dim fr As Double : fr = pos - lo
+    If lo >= n - 1 Then
+        Percentil = a(LBound(a) + n - 1)
+    Else
+        Percentil = a(LBound(a) + lo) * (1 - fr) + a(LBound(a) + lo + 1) * fr
+    End If
+End Function
