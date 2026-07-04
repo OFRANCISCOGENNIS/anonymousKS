@@ -53,6 +53,11 @@
   .pill{ font-family:var(--mono); font-size:.7rem; padding:.15rem .55rem; border-radius:999px; }
   .pill.ok{ background:color-mix(in srgb, var(--good) 16%, transparent); color:var(--good); }
   .pill.err{ background:color-mix(in srgb, var(--bad) 16%, transparent); color:var(--bad); }
+  .pill.run{ background:color-mix(in srgb, var(--cyan) 16%, transparent); color:var(--cyan-ink); }
+  .pill.wait{ background:color-mix(in srgb, var(--yellow) 20%, transparent); color:var(--ink); }
+  button.go{ font-family:var(--mono); font-size:.68rem; background:none; border:1px solid var(--rule2);
+    color:var(--cyan-ink); border-radius:3px; padding:.2rem .5rem; cursor:pointer; margin-right:.3rem; }
+  button.go:hover{ border-color:var(--cyan-ink); }
 
   h2{ font-family:var(--display); font-size:1.25rem; margin:0 0 .8rem; }
   h3{ font-size:.95rem; margin:1.4rem 0 .6rem; }
@@ -108,6 +113,7 @@
     <button role="tab" aria-selected="false" data-tab="youtube">YouTube</button>
     <button role="tab" aria-selected="false" data-tab="twitter">Twitter</button>
     <button role="tab" aria-selected="false" data-tab="afm">Afiliados</button>
+    <button role="tab" aria-selected="false" data-tab="jobs">Jobs</button>
     <button role="tab" aria-selected="false" data-tab="config">Config</button>
   </nav>
 
@@ -161,6 +167,19 @@
     </form>
   </section>
 
+  <section class="panel" id="p-jobs">
+    <h2>Jobs de geração</h2>
+    <p style="color:var(--soft); font-size:.85rem; max-width:62ch">
+      Dispare pelo botão <b>▶ gerar</b> nas abas de contas. Cada job roda
+      <code>src/cron.py</code> em segundo plano; clique em <b>log</b> para ver a saída.
+    </p>
+    <div class="twrap"><table>
+      <thead><tr><th>Status</th><th>Plataforma</th><th>Modelo</th><th>Criado</th><th>Código</th><th></th></tr></thead>
+      <tbody id="job-rows"></tbody>
+    </table></div>
+    <pre class="cfg" id="job-log" hidden></pre>
+  </section>
+
   <section class="panel" id="p-config">
     <h2>Configuração <span style="font-family:var(--mono);font-size:.7rem;color:var(--soft)">(segredos mascarados)</span></h2>
     <pre class="cfg" id="cfg-view">carregando…</pre>
@@ -211,7 +230,7 @@ async function loadYouTube(){
   $('#yt-rows').innerHTML = list.length ? list.map(a=>`<tr>
     <td>${esc(a.nickname)}</td><td>${esc(a.niche)}</td><td>${esc(a.language)}</td>
     <td>${(a.videos||[]).length}</td><td class="mono">${a.id}</td>
-    <td><button class="del" data-prov="youtube" data-id="${a.id}">remover</button></td></tr>`).join('')
+    <td><button class="go" data-prov="youtube" data-id="${a.id}">▶ gerar</button><button class="del" data-prov="youtube" data-id="${a.id}">remover</button></td></tr>`).join('')
     : '<tr><td colspan="6" class="empty">Nenhuma conta ainda — crie a primeira abaixo.</td></tr>';
 }
 
@@ -220,7 +239,7 @@ async function loadTwitter(){
   $('#tw-rows').innerHTML = list.length ? list.map(a=>`<tr>
     <td>${esc(a.nickname)}</td><td>${esc(a.topic)}</td>
     <td>${(a.posts||[]).length}</td><td class="mono">${a.id}</td>
-    <td><button class="del" data-prov="twitter" data-id="${a.id}">remover</button></td></tr>`).join('')
+    <td><button class="go" data-prov="twitter" data-id="${a.id}">▶ gerar</button><button class="del" data-prov="twitter" data-id="${a.id}">remover</button></td></tr>`).join('')
     : '<tr><td colspan="5" class="empty">Nenhuma conta ainda — crie a primeira abaixo.</td></tr>';
 }
 
@@ -248,14 +267,53 @@ bindForm('#tw-form','/accounts/twitter', loadTwitter);
 bindForm('#afm-form','/products', loadAfm);
 
 document.addEventListener('click', async e=>{
-  const b = e.target.closest('button.del'); if(!b) return;
-  if(!confirm('Remover esta conta?')) return;
-  try{ await api(`/accounts/${b.dataset.prov}/${b.dataset.id}`, {method:'DELETE'});
-    toast('Removida.'); loadYouTube(); loadTwitter(); loadStatus(); }
-  catch(err){ toast('Erro: '+err.message); }
+  const del = e.target.closest('button.del');
+  if (del){
+    if(!confirm('Remover esta conta?')) return;
+    try{ await api(`/accounts/${del.dataset.prov}/${del.dataset.id}`, {method:'DELETE'});
+      toast('Removida.'); loadYouTube(); loadTwitter(); loadStatus(); }
+    catch(err){ toast('Erro: '+err.message); }
+    return;
+  }
+  const lg = e.target.closest('button.logbtn');
+  const go = !lg && e.target.closest('button.go');
+  if (go){
+    try{ await api(`/jobs/${go.dataset.prov}/${go.dataset.id}`, {method:'POST'});
+      toast('Job enfileirado — acompanhe na aba Jobs.'); loadJobs(); }
+    catch(err){ toast('Erro: '+err.message); }
+    return;
+  }
+  if (lg){
+    try{
+      const j = await api(`/jobs/${lg.dataset.id}`);
+      const pre = $('#job-log');
+      pre.hidden = false;
+      pre.textContent = `# job ${j.id} — ${j.status}\n# ${j.command}\n\n` + (j.log_tail || '(log vazio)');
+      pre.scrollIntoView({behavior:'smooth', block:'nearest'});
+    }catch(err){ toast('Erro: '+err.message); }
+  }
 });
 
-loadStatus(); loadYouTube(); loadTwitter(); loadAfm(); loadConfig();
+const STATUS_PT = {queued:['na fila','wait'], running:['rodando','run'], succeeded:['concluído','ok'], failed:['falhou','err']};
+
+async function loadJobs(){
+  const list = await api('/jobs');
+  $('#job-rows').innerHTML = list.length ? list.map(j=>{
+    const [label, cls] = STATUS_PT[j.status] || [j.status,'wait'];
+    return `<tr>
+      <td><span class="pill ${cls}">${label}</span></td>
+      <td>${esc(j.provider||'')}</td><td class="mono">${esc(j.model||'')}</td>
+      <td class="mono">${esc((j.created_at||'').replace('T',' ').replace('+00:00',' UTC'))}</td>
+      <td class="mono">${j.returncode ?? '—'}</td>
+      <td><button class="logbtn go" data-id="${j.id}">log</button></td></tr>`;
+  }).join('') : '<tr><td colspan="6" class="empty">Nenhum job ainda — use ▶ gerar nas abas de contas.</td></tr>';
+}
+
+setInterval(()=>{
+  if ($('#p-jobs').classList.contains('on')) loadJobs();
+}, 5000);
+
+loadStatus(); loadYouTube(); loadTwitter(); loadAfm(); loadConfig(); loadJobs();
 </script>
 </body>
 </html>

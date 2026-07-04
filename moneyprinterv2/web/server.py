@@ -11,7 +11,6 @@ import os
 import sys
 import json
 import shutil
-import subprocess
 from uuid import uuid4
 
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -45,7 +44,11 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
+from web.jobs import JobManager
+
 app = FastAPI(title="MoneyPrinterV2", docs_url="/api/docs", openapi_url="/api/openapi.json")
+
+jobs = JobManager(log_dir=os.path.join(PROJECT_ROOT, ".mp", "jobs"))
 
 PROVIDERS = {"youtube", "twitter"}
 
@@ -198,7 +201,8 @@ def read_config():
 def run_job(provider: str, account_id: str):
     """
     Fires a one-off generation job (same entry point the CLI scheduler uses).
-    Requires a reachable Ollama server with at least one model.
+    Requires a reachable Ollama server with at least one model. The job runs
+    in the background; track it via GET /api/jobs/{job_id}.
     """
     _require_provider(provider)
     if not any(a["id"] == account_id for a in get_accounts(provider)):
@@ -215,11 +219,24 @@ def run_job(provider: str, account_id: str):
 
     model = mp_config.get_ollama_model() or models[0]
     cron_path = os.path.join(SRC_DIR, "cron.py")
-    process = subprocess.Popen(
+    return jobs.enqueue(
         [sys.executable, cron_path, provider, account_id, model],
         cwd=PROJECT_ROOT,
+        meta={"provider": provider, "account_id": account_id, "model": model},
     )
-    return {"pid": process.pid, "provider": provider, "account_id": account_id, "model": model}
+
+
+@app.get("/api/jobs")
+def list_jobs():
+    return jobs.list()
+
+
+@app.get("/api/jobs/{job_id}")
+def get_job(job_id: str):
+    job = jobs.get(job_id)
+    if job is None:
+        raise HTTPException(status_code=404, detail="Job not found.")
+    return job
 
 
 STATIC_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "static")
