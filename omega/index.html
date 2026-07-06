@@ -163,6 +163,36 @@
   }
   #send:hover{filter:brightness(1.08)}
 
+  /* ---------- aprendizado em tempo real ---------- */
+  .persona-row{display:flex; align-items:center; gap:10px; margin-bottom:14px}
+  .persona-row .plabel{font-size:11px; color:var(--dim); text-transform:uppercase; letter-spacing:1.5px}
+  .persona-row .pval{
+    margin-left:auto; font-weight:700; color:var(--cy2); font-size:13px;
+    background:rgba(95,212,244,.08); border:1px solid var(--line2); padding:4px 11px; border-radius:999px;
+    transition:.3s;
+  }
+  .meters{display:flex; flex-direction:column; gap:8px; margin-bottom:15px}
+  .meter{display:grid; grid-template-columns:98px 1fr 40px; align-items:center; gap:9px}
+  .meter .ml{font-size:11px; color:var(--mut)}
+  .meter .mt{height:6px; border-radius:6px; background:var(--bg2); border:1px solid var(--line); overflow:hidden}
+  .meter .mt i{display:block; height:100%; width:0; border-radius:6px;
+    background:linear-gradient(90deg,#37a9cf,var(--cy)); transition:width .7s cubic-bezier(.2,.7,.2,1)}
+  .meter .mt i.hi{background:linear-gradient(90deg,#2f9d6b,var(--ok))}
+  .meter .mv{font-size:11px; text-align:right; color:var(--ink); font-variant-numeric:tabular-nums}
+  .mem-head{display:flex; align-items:center; justify-content:space-between; font-size:11px;
+    color:var(--dim); text-transform:uppercase; letter-spacing:1.5px; margin:4px 0 9px}
+  .mem-head b{color:var(--cy2)}
+  .memList{display:flex; flex-wrap:wrap; gap:7px; min-height:30px}
+  .mitem{display:flex; align-items:center; gap:7px; background:var(--bg2); border:1px solid var(--line);
+    padding:5px 10px; border-radius:999px; font-size:12px; transition:.3s}
+  .mitem .mn{color:var(--dim); font-size:10.5px}
+  .mitem .mnew{color:var(--ok); font-size:9.5px; text-transform:uppercase; letter-spacing:1px}
+  .mitem.flash{border-color:var(--cy); box-shadow:0 0 0 3px rgba(95,212,244,.14)}
+  .src{margin-top:15px; border-top:1px solid var(--line); padding-top:13px}
+  .src-h{font-size:11px; color:var(--dim); text-transform:uppercase; letter-spacing:1.5px; margin-bottom:8px}
+  .src-i{display:flex; align-items:center; justify-content:space-between; font-size:12px; padding:3px 0; color:var(--mut)}
+  .src-i .st{color:var(--warn); letter-spacing:2px; font-size:11px}
+
   footer{margin-top:22px; color:var(--dim); font-size:11px; text-align:center; letter-spacing:.5px}
 </style>
 
@@ -202,6 +232,21 @@
         <h2>Agentes permanentes</h2>
         <div class="agents" id="agents"><!-- preenchido via JS --></div>
       </section>
+
+      <section class="card">
+        <h2>Aprendizado em Tempo Real</h2>
+        <div class="persona-row">
+          <span class="plabel">Persona ativa</span>
+          <span class="pval" id="persona">Estrategista</span>
+        </div>
+        <div class="meters" id="meters"><!-- autoavaliação via JS --></div>
+        <div class="mem-head">
+          <span>Memória semântica</span>
+          <span><b id="memCount">0</b> conceitos</span>
+        </div>
+        <div class="memList" id="memList"></div>
+        <div class="src" id="srcBox"><!-- fontes validadas via JS --></div>
+      </section>
     </div>
 
     <!-- coluna B: telemetria + console -->
@@ -236,7 +281,7 @@
     </div>
   </div>
 
-  <footer>Protótipo de interface — nenhuma ação externa é executada. As respostas são simuladas.</footer>
+  <footer>Protótipo de interface — nenhuma ação externa é executada; respostas, pesquisa e métricas de autoavaliação são simuladas. A memória semântica é real e persistida localmente no seu navegador (localStorage).</footer>
 </div>
 
 <script>
@@ -305,6 +350,103 @@
   tick();
   if(!reduced) setInterval(tick, 2000);
 
+  /* ---------- aprendizado em tempo real ---------- */
+  var MEMK = "omega.mem.v1", mem = [];
+  try { mem = JSON.parse(localStorage.getItem(MEMK) || "[]") || []; } catch(e){ mem = []; }
+  var memListEl  = document.getElementById("memList"),
+      memCountEl = document.getElementById("memCount"),
+      personaEl  = document.getElementById("persona"),
+      srcBox     = document.getElementById("srcBox");
+
+  function esc(s){ return String(s).replace(/[<>&]/g,function(c){return{"<":"&lt;",">":"&gt;","&":"&amp;"}[c];}); }
+
+  // autoavaliação — as 6 métricas da constituição
+  var METRICS = ["Precisão","Completude","Atualização","Profundidade","Fontes","Confiabilidade"];
+  var metersEl = document.getElementById("meters"), meterRef = {};
+  METRICS.forEach(function(m){
+    var row = document.createElement("div"); row.className = "meter";
+    row.innerHTML = '<span class="ml">'+m+'</span><span class="mt"><i></i></span><span class="mv">—</span>';
+    metersEl.appendChild(row);
+    meterRef[m] = { fill: row.querySelector("i"), val: row.querySelector(".mv") };
+  });
+  function setMeter(m, pct){
+    var r = meterRef[m]; if(!r) return;
+    r.fill.style.width = pct + "%"; r.fill.className = pct>=95 ? "hi" : "";
+    r.val.textContent = pct + "%";
+  }
+  // ciclo: mede -> "se < 95%, pesquise novamente" -> audita e converge >= 95%
+  function runSelfEval(){
+    METRICS.forEach(function(m){ setMeter(m, 72 + Math.floor(Math.random()*17)); });
+    var audit = function(){ METRICS.forEach(function(m){ setMeter(m, 95 + Math.floor(Math.random()*5)); }); };
+    if(reduced) audit(); else setTimeout(audit, 900);
+  }
+
+  // validação cruzada de fontes (classificação por estrelas)
+  var SRC = [
+    ["Documentação oficial",5], ["Papers (peer-review)",5], ["Artigos técnicos",4],
+    ["GitHub / StackOverflow",4], ["Comunidade / fóruns",3], ["Blogs técnicos",3]
+  ];
+  function pickSources(){
+    var pool = SRC.slice(), out = [ pool.shift() ]; // sempre >= 1 fonte oficial 5 estrelas
+    for(var k=0;k<2;k++) out.push(pool.splice(Math.floor(Math.random()*pool.length),1)[0]);
+    return out;
+  }
+  function renderSources(list){
+    srcBox.innerHTML = '<div class="src-h">Fontes validadas · validação cruzada</div>';
+    list.forEach(function(s){
+      var d = document.createElement("div"); d.className = "src-i";
+      d.innerHTML = '<span>'+s[0]+'</span><span class="st">'+ "★".repeat(s[1]) + "☆".repeat(5-s[1]) +'</span>';
+      srcBox.appendChild(d);
+    });
+  }
+
+  // adapta a persona conforme o contexto da solicitação
+  function personaFor(q){
+    if(/custo|financ|fatura|gasto|or[çc]amento/i.test(q))       return { p:"Especialista Financeiro", c:"Gestão de custos" };
+    if(/automa|fluxo|slack|e-?mail|gatilho/i.test(q))           return { p:"Engenheiro de Automação", c:"Orquestração de fluxos" };
+    if(/pesquis|tend[êe]ncia|mercado|artigo|estudo/i.test(q))   return { p:"Pesquisador Científico", c:"Análise de tendências" };
+    if(/api|c[óo]digo|sistema|app|dashboard|site|bug|refator/i.test(q)) return { p:"Engenheiro de Software · Fable 5", c:"Engenharia de software" };
+    if(/sa[úu]de|cl[íi]nic|doen[çc]a|sintoma|m[ée]dic/i.test(q)) return { p:"Especialista em Saúde", c:"Evidência clínica" };
+    if(/jur[íi]dic|lei|contrato|direito|processo/i.test(q))     return { p:"Especialista Jurídico", c:"Análise jurídica" };
+    if(/status|online/i.test(q))                                return { p:"Especialista em IA", c:"Observabilidade" };
+    return { p:"Estrategista", c:"Primeiros princípios" };
+  }
+
+  function renderMem(highlight){
+    memCountEl.textContent = mem.length;
+    memListEl.innerHTML = "";
+    mem.slice(0,10).forEach(function(x){
+      var d = document.createElement("div"); d.className = "mitem" + (x.c===highlight ? " flash" : "");
+      d.innerHTML = '<span class="mc">'+esc(x.c)+'</span>' +
+        (x.n>1 ? '<span class="mn">↺ '+x.n+'</span>' : '<span class="mnew">novo</span>');
+      memListEl.appendChild(d);
+    });
+  }
+  function addMemory(concept){
+    var hit = null, i;
+    for(i=0;i<mem.length;i++){ if(mem[i].c===concept){ hit = mem[i]; break; } }
+    var reuse = false;
+    if(hit){ hit.n = (hit.n||1)+1; hit.ts = Date.now(); mem.splice(i,1); mem.unshift(hit); reuse = true; }
+    else { mem.unshift({ c:concept, n:1, ts:Date.now() }); }
+    if(mem.length > 24) mem.length = 24;
+    try{ localStorage.setItem(MEMK, JSON.stringify(mem)); }catch(e){}
+    renderMem(concept);
+    return reuse;
+  }
+
+  // ciclo de aprendizado disparado a cada interação: persona -> fontes -> autoavaliação -> memória
+  function learn(q){
+    var info = personaFor(q);
+    personaEl.textContent = info.p;
+    renderSources(pickSources());
+    runSelfEval();
+    return { reuse: addMemory(info.c), concept: info.c };
+  }
+
+  // estado inicial: memória persistida entre sessões + primeira autoavaliação
+  renderMem();
+  runSelfEval();
+
   /* ---------- console ---------- */
   var feed = document.getElementById("feed"),
       inp  = document.getElementById("inp"),
@@ -352,7 +494,11 @@
     var b = BRAINS.find(function(x){ return x.k.test(q); });
     b.busy.forEach(function(n){ setAgent(n,"busy"); setTimeout(function(){ setAgent(n,"run"); }, 5000); });
     setAgent("OMEGA PRIME","busy"); setTimeout(function(){ setAgent("OMEGA PRIME","run"); }, 6000);
+    setAgent("ZETA","busy"); setAgent("NU","busy"); // memória vetorial + grafo aprendendo
+    setTimeout(function(){ setAgent("ZETA","run"); setAgent("NU","run"); }, 5000);
     tasks++; tEl.textContent = tasks;
+    var L = learn(q); // ciclo de aprendizado em tempo real
+    if(L.reuse){ el("route","↺ reutilizando memória semântica → <b>"+esc(L.concept)+"</b>"); }
     setTimeout(function(){ jarvis(b.a, b.r); }, reduced?0:400);
   }
   function send(){
