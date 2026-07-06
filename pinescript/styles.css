@@ -1068,3 +1068,29 @@ body {
     .metrics-cols { grid-template-columns: 1fr; }
     .decision-panel { grid-template-columns: 1fr; }
 }
+
+/* ---- Filtro de moedas do Scanner (checklist "🎯 Moedas p/ análise") ---- */
+.scan-fil-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 4px 10px;
+    margin: 6px 0 8px;
+    max-height: 190px;
+    overflow-y: auto;
+    padding-right: 4px;
+}
+.scan-fil {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12.5px;
+    color: var(--ink-2);
+    cursor: pointer;
+    padding: 2px 0;
+    line-height: 1.2;
+    user-select: none;
+}
+.scan-fil input { accent-color: var(--accent); flex: 0 0 auto; }
+.scan-fil span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.scan-fil-actions { display: flex; gap: 8px; }
+.scan-fil-actions .btn-mini { flex: 1; }

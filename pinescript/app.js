@@ -2163,13 +2163,42 @@ function recalcularSinaisApenas() {
 
 const SCAN_CRIPTO = ['BTCUSDT', 'ETHUSDT', 'SOLUSDT', 'BNBUSDT', 'XRPUSDT', 'ADAUSDT', 'DOGEUSDT', 'AVAXUSDT', 'LINKUSDT', 'LTCUSDT', 'DOTUSDT', 'TRXUSDT', 'ATOMUSDT', 'NEARUSDT', 'APTUSDT'];
 
+// ---- FILTRO DE MOEDAS DO SCANNER (checklist "🎯 Moedas p/ análise") ----
+// scanSel guarda só as EXCEÇÕES: uma moeda vale como marcada por padrão;
+// só entra aqui quando o usuário desmarca (false) ou marca de volta (true).
+let scanSel = JSON.parse(localStorage.getItem('scanSel') || '{}');
+function scanChecked(s) { return scanSel[s] !== false; }
+function scanUniverse() { return ehForex() ? Object.keys(PARES_YAHOO) : SCAN_CRIPTO; }
+function scanLabel(s) { return PARES_YAHOO[s] ? PARES_YAHOO[s].label : s; }
+function salvarScanSel() { localStorage.setItem('scanSel', JSON.stringify(scanSel)); }
+function atualizarScanFiltroMeta() {
+    const m = document.getElementById('scanFiltroMeta');
+    if (!m) return;
+    const uni = scanUniverse();
+    m.textContent = uni.filter(scanChecked).length + '/' + uni.length;
+}
+function renderScanFiltro() {
+    const box = document.getElementById('scanFiltro');
+    if (!box) return;
+    box.innerHTML = scanUniverse().map(s =>
+        `<label class="scan-fil"><input type="checkbox" data-sym="${s}"${scanChecked(s) ? ' checked' : ''}> <span>${scanLabel(s)}</span></label>`
+    ).join('');
+    box.querySelectorAll('input[data-sym]').forEach(cb => cb.addEventListener('change', function () {
+        scanSel[this.dataset.sym] = this.checked;
+        salvarScanSel();
+        atualizarScanFiltroMeta();
+    }));
+    atualizarScanFiltroMeta();
+}
+
 async function escanear() {
     const f = fonte();
     if (f === 'sim') { alert('Troque a fonte para Binance ou Forex para escanear.'); return; }
     const btn = document.getElementById('btnScan');
     btn.disabled = true; btn.textContent = 'Escaneando…';
     const loader = f === 'binance' ? carregarHistoricoBinance : f === 'twelvedata' ? carregarHistoricoTwelveData : carregarHistoricoYahoo;
-    const lista = f === 'binance' ? SCAN_CRIPTO : Object.keys(PARES_YAHOO);
+    const lista = (f === 'binance' ? SCAN_CRIPTO : Object.keys(PARES_YAHOO)).filter(scanChecked);
+    if (!lista.length) { alert('Marque ao menos uma moeda no filtro "🎯 Moedas p/ análise".'); btn.disabled = false; btn.textContent = '🔎 Escanear melhores entradas'; return; }
     const arg = f === 'binance' ? binanceInterval() : tfMinutes();
     const confMode = document.getElementById('confMode').value;
     const minScoreG = parseInt(document.getElementById('minScore').value);
@@ -2715,7 +2744,14 @@ document.getElementById('btnGerar').addEventListener('click', carregar);
 document.getElementById('btnRecalcular').addEventListener('click', recalcularSinaisApenas);
 document.getElementById('fonte').addEventListener('change', function () {
     montarWidgetTV();   // sincroniza o widget oficial (prefixo BINANCE:/FX:/TVC: muda com a fonte)
+    renderScanFiltro(); // a lista de moedas do scanner muda entre cripto e forex
     carregar();
+});
+document.getElementById('scanFilTodas').addEventListener('click', function () {
+    scanUniverse().forEach(s => scanSel[s] = true); salvarScanSel(); renderScanFiltro();
+});
+document.getElementById('scanFilLimpar').addEventListener('click', function () {
+    scanUniverse().forEach(s => scanSel[s] = false); salvarScanSel(); renderScanFiltro();
 });
 document.getElementById('timeframe').addEventListener('change', function () {
     montarWidgetTV();   // sincroniza o widget oficial com o novo timeframe
@@ -2812,6 +2848,7 @@ window.addEventListener('resize', function () {
 function iniciar() {
     montarWidgetTV();   // gráfico oficial do TradingView no topo (assíncrono, com retry)
     carregarSimbolos();
+    renderScanFiltro(); // checklist de moedas do scanner
     carregar();
     carregarNoticias(); // notícias em tempo real
     newsTimer = setInterval(carregarNoticias, 60000);  // auto-refresh a cada 60s
