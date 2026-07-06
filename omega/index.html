@@ -530,6 +530,7 @@
     "/agentes":  { d:"lista os agentes e seus estados",              run:cmdAgents },
     "/memoria":  { d:"mostra a memória semântica aprendida",         run:cmdMem },
     "/persona":  { d:"mostra ou fixa a persona — /persona [nome]",   run:cmdPersona },
+    "/prompt":   { d:"mostra o prompt operacional (modo ChatGPT / Claude Code)", run:cmdPrompt },
     "/fontes":   { d:"mostra as fontes validadas mais recentes",     run:cmdSources },
     "/avaliar":  { d:"roda um ciclo de autoavaliação",               run:cmdEval },
     "/tarefas":  { d:"quantas tarefas foram processadas",            run:cmdTasks },
@@ -593,6 +594,18 @@
   function cmdClear(){ feed.innerHTML = ""; sys("Console limpo."); }
   function cmdReset(){ mem = []; try{ localStorage.removeItem(MEMK); }catch(e){} renderMem(); sys("Memória semântica apagada."); }
   function cmdAbout(){ sys("OMEGA — protótipo de orquestração multiagente com aprendizado em tempo real. Respostas e pesquisa são simuladas; a memória é persistida no seu navegador."); }
+  function cmdPrompt(){
+    sys('<b>Prompt operacional — modo ChatGPT / Claude Code:</b>' +
+      '<div class="cmd-list">' +
+        '<div class="cmd-row"><code>Identidade</code><span>assistente geral, útil, honesto e cuidadoso</span></div>' +
+        '<div class="cmd-row"><code>Conversa</code><span>entende a intenção, esclarece o ambíguo, estrutura respostas</span></div>' +
+        '<div class="cmd-row"><code>Honestidade</code><span>não inventa fatos/APIs; separa fato de hipótese; informa confiança</span></div>' +
+        '<div class="cmd-row"><code>Código</code><span>compreender → planejar → implementar → revisar → verificar</span></div>' +
+        '<div class="cmd-row"><code>Segurança</code><span>recusa dano real; pede confirmação em ações irreversíveis</span></div>' +
+      '</div>' +
+      'Prompt completo, pronto para colar num LLM: <b>omega/prompt-assistente.md</b>. ' +
+      'Para o console conversar de verdade, é preciso conectar uma API de modelo.');
+  }
   btn.addEventListener("click", send);
   inp.addEventListener("keydown", function(e){ if(e.key==="Enter") send(); });
   document.querySelectorAll(".chips button").forEach(function(c){
