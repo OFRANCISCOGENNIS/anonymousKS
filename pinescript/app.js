@@ -1565,6 +1565,11 @@ function atualizarDecisao() {
             if (verdictKey === 'CALL') tocarSom(1);
             else if (verdictKey === 'PUT') tocarSom(-1);
         }
+        // Notificação de navegador quando a aba está em segundo plano
+        if ((verdictKey === 'CALL' || verdictKey === 'PUT') && !treino) {
+            const lbl = PARES_YAHOO[symbolAtual()] ? PARES_YAHOO[symbolAtual()].label : symbolAtual();
+            notificar(`${verdictKey === 'CALL' ? '▲ CALL' : '▼ PUT'} — ${lbl}`, `Veredito ${verdictKey} · confluência ${Math.max(long, short)}/${enabled} · exp ${document.getElementById('expiracao').value}m`);
+        }
         ultimoVerdictSom = verdictKey;
     }
 
@@ -3030,9 +3035,36 @@ function aplicarTema(t) {
 }
 document.getElementById('btnTema').addEventListener('click', () => aplicarTema(temaAtual() === 'dark' ? 'light' : 'dark'));
 
-// ---- Atalhos de teclado: C controles · S escanear · R recarregar · I IA · T tema ----
+// ---- Notificação de navegador (aba em 2º plano) ----
+function notificar(titulo, corpo) {
+    if (!document.getElementById('notifAtivo').checked) return;
+    if (!('Notification' in window) || Notification.permission !== 'granted') return;
+    if (!document.hidden) return;   // só quando a aba NÃO está em foco (senão o som já basta)
+    try { new Notification(titulo, { body: corpo, tag: 'quantops-veredito', silent: false }); } catch (e) { }
+}
+document.getElementById('notifAtivo').addEventListener('change', function () {
+    if (!this.checked) return;
+    if (!('Notification' in window)) { showToast('Este navegador não suporta notificações.', 'err'); this.checked = false; return; }
+    Notification.requestPermission().then(perm => {
+        if (perm === 'granted') showToast('🔔 Notificações ativadas — você será avisado com a aba em 2º plano', 'ok');
+        else { showToast('Permissão de notificação negada pelo navegador.', 'err'); this.checked = false; }
+    });
+});
+
+// ---- Painel de ajuda (atalho ?) ----
+function toggleAjuda(mostrar) {
+    const m = document.getElementById('ajudaModal');
+    m.style.display = (mostrar == null ? m.style.display === 'none' : mostrar) ? 'flex' : 'none';
+}
+document.getElementById('btnAjuda').addEventListener('click', () => toggleAjuda());
+document.getElementById('ajudaFechar').addEventListener('click', () => toggleAjuda(false));
+document.getElementById('ajudaModal').addEventListener('click', e => { if (e.target.id === 'ajudaModal') toggleAjuda(false); });
+
+// ---- Atalhos de teclado: C controles · S escanear · R recarregar · I IA · T tema · ? ajuda ----
 document.addEventListener('keydown', e => {
+    if (e.key === 'Escape') { toggleAjuda(false); return; }
     if (e.ctrlKey || e.metaKey || e.altKey) return;
+    if (e.key === '?') { toggleAjuda(); return; }
     const tag = (e.target.tagName || '').toLowerCase();
     if (tag === 'input' || tag === 'select' || tag === 'textarea') return;
     const k = e.key.toLowerCase();

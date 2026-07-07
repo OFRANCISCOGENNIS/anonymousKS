@@ -4,6 +4,12 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>QUANT OPS — Institutional Trading Intelligence</title>
+    <!-- PWA: instalável no celular (Adicionar à tela inicial) e abre em tela cheia -->
+    <meta name="theme-color" content="#0b1220">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="QUANT OPS">
+    <link rel="manifest" href="data:application/manifest+json,%7B%22name%22%3A%22QUANT%20OPS%22%2C%22short_name%22%3A%22QUANT%20OPS%22%2C%22start_url%22%3A%22.%22%2C%22display%22%3A%22standalone%22%2C%22background_color%22%3A%22%230b1220%22%2C%22theme_color%22%3A%22%230b1220%22%2C%22icons%22%3A%5B%7B%22src%22%3A%22data%3Aimage%2Fsvg%2Bxml%2C%253Csvg%2520xmlns%253D%2522http%253A%252F%252Fwww.w3.org%252F2000%252Fsvg%2522%2520viewBox%253D%25220%25200%2520192%2520192%2522%253E%253Crect%2520width%253D%2522192%2522%2520height%253D%2522192%2522%2520fill%253D%2522%25230b1220%2522%252F%253E%253Ctext%2520x%253D%252296%2522%2520y%253D%2522122%2522%2520font-size%253D%2522110%2522%2520text-anchor%253D%2522middle%2522%2520fill%253D%2522%25233987e5%2522%253E%25E2%2597%2588%253C%252Ftext%253E%253C%252Fsvg%253E%22%2C%22sizes%22%3A%22192x192%22%2C%22type%22%3A%22image%2Fsvg%2Bxml%22%7D%5D%7D">
     <!-- TradingView Lightweight Charts vendorizado localmente (100% offline) -->
     <script src="lightweight-charts.standalone.production.js"></script>
     <!-- Widget oficial do TradingView (gráfico real; requer internet) -->
@@ -31,6 +37,7 @@
             <div class="qo-stat"><small>Expectativa Matemática</small><span id="qoExpect">—</span></div>
             <button id="btnControles" class="qo-toggle" type="button" aria-expanded="true" title="Mostrar/ocultar as configurações (atalho C)">⚙️ Controles</button>
             <button id="btnTema" class="qo-toggle qo-toggle-icon" type="button" title="Alternar tema claro/escuro (atalho T)">🌓</button>
+            <button id="btnAjuda" class="qo-toggle qo-toggle-icon" type="button" title="Ajuda e atalhos (atalho ?)">❔</button>
         </header>
 
         <main class="main-content">
@@ -224,6 +231,7 @@
                 <section class="control-group">
                     <h3>🔔 Alertas</h3>
                     <label><input type="checkbox" id="somAtivo" checked> <span>Som quando o veredito virar CALL/PUT</span></label>
+                    <label><input type="checkbox" id="notifAtivo"> <span>Notificação do navegador (aba em 2º plano)</span></label>
                     <button id="btnTestarSom" class="btn-mini" style="width:100%; margin-top:4px;">🔊 Testar som</button>
                     <button id="btnScan" class="btn-primary" style="margin-top:8px;">🔎 Escanear melhores entradas</button>
                     <button id="btnIA" class="btn-primary" style="margin-top:6px;">🤖 IA: otimizar parâmetros</button>
@@ -491,6 +499,61 @@
                 <div id="registroBody" class="reg-list"></div>
             </aside>
         </main>
+
+        <!-- MODAL DE AJUDA (atalho ?) -->
+        <div id="ajudaModal" class="ajuda-overlay" style="display:none;">
+            <div class="ajuda-card">
+                <button id="ajudaFechar" class="ajuda-x" type="button" aria-label="Fechar">✕</button>
+                <h2>❔ Ajuda — QUANT OPS</h2>
+                <div class="ajuda-cols">
+                    <section>
+                        <h3>⌨️ Atalhos de teclado</h3>
+                        <ul class="ajuda-list">
+                            <li><kbd>C</kbd> mostrar/ocultar controles</li>
+                            <li><kbd>S</kbd> escanear melhores entradas</li>
+                            <li><kbd>R</kbd> recarregar / gerar dados</li>
+                            <li><kbd>I</kbd> IA: otimizar parâmetros</li>
+                            <li><kbd>T</kbd> alternar tema claro/escuro</li>
+                            <li><kbd>?</kbd> abrir/fechar esta ajuda</li>
+                        </ul>
+                    </section>
+                    <section>
+                        <h3>🎯 Fatores de confluência</h3>
+                        <ul class="ajuda-list">
+                            <li><strong>Tendência</strong> — cruzamento das EMAs rápida×lenta</li>
+                            <li><strong>EMA 200</strong> — viés macro (preço acima/abaixo)</li>
+                            <li><strong>RSI</strong> — reversão de sobrevenda/sobrecompra</li>
+                            <li><strong>ATR</strong> — expansão de volatilidade</li>
+                            <li><strong>Estrutura</strong> — rompimento de topo/fundo</li>
+                            <li><strong>Fluxo</strong> — delta compra×venda (só cripto)</li>
+                            <li><strong>Correlação</strong> — pares de referência (só cripto)</li>
+                            <li><strong>Padrão</strong> — engolfo / martelo confirmando</li>
+                            <li><strong>MACD</strong> — momentum (histograma)</li>
+                            <li><strong>Bollinger</strong> — reversão nas bandas 2σ</li>
+                        </ul>
+                    </section>
+                    <section>
+                        <h3>🤖 Como a IA trabalha</h3>
+                        <ul class="ajuda-list">
+                            <li>Otimiza as moedas marcadas em <strong>🎯 Moedas p/ análise</strong>, uma a uma.</li>
+                            <li>Valida fora da amostra (walk-forward em 3 janelas) e guarda os melhores parâmetros <strong>por regime</strong> (tendência/lateral/volátil).</li>
+                            <li>O <strong>Scanner</strong> usa esses parâmetros; clique numa moeda pra abri-la afinada.</li>
+                            <li>O <strong>Registro</strong> marca ✓/✗ automaticamente após a expiração e compara o acerto real com o previsto.</li>
+                        </ul>
+                    </section>
+                    <section>
+                        <h3>📡 Fontes de dados</h3>
+                        <ul class="ajuda-list">
+                            <li><strong>Binance</strong> — cripto ao vivo (WebSocket).</li>
+                            <li><strong>Yahoo</strong> — Forex/Índices/Ouro, sem chave.</li>
+                            <li><strong>Twelve Data</strong> — Forex estável (chave grátis; "demo" só EUR/USD).</li>
+                            <li><strong>Simulado</strong> — offline, dados sintéticos.</li>
+                        </ul>
+                    </section>
+                </div>
+                <p class="ajuda-nota">⚠️ Ferramenta de <strong>estudo</strong>. Não é recomendação de investimento. Opções binárias/expirações curtas são de altíssimo risco.</p>
+            </div>
+        </div>
 
         <!-- FOOTER -->
         <footer class="footer">
