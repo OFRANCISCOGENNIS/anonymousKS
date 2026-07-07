@@ -1136,37 +1136,45 @@ body {
 #registroPanel .reg-row { padding: 3px 6px; font-size: 12px; gap: 8px; }
 #registroPanel .reg-hora { min-width: 38px; }
 
-/* ---- Registro de entradas: COLUNA LATERAL DIREITA (tabela alta, lado todo) ---- */
-/* Sobrescreve o estilo anterior de "card pequeno". */
+/* ---- Registro de entradas: DOCK VERTICAL FIXO no canto direito ---- */
+/* Fica sempre encostado na borda direita, na vertical, ocupando a altura toda
+   abaixo da barra superior. É position:fixed, então NÃO empurra o gráfico —
+   o espaço é reservado com padding-right no .main-content (body.tem-registro). */
+:root { --reg-w: 300px; --reg-top: 64px; }
 #registroPanel.registro-col {
-    flex: 0 0 300px;
-    width: 300px;
-    max-width: 300px;
-    margin-left: 0;
-    align-self: flex-start;
-    position: sticky;
-    top: 10px;
-    max-height: calc(100vh - 20px);
-    flex-direction: column;   /* quando visível o JS aplica display:flex */
+    position: fixed;
+    top: var(--reg-top);
+    right: 0;
+    bottom: 0;
+    width: var(--reg-w);
+    max-width: var(--reg-w);
+    margin: 0;
+    z-index: 20;
+    flex-direction: column;         /* quando visível o JS aplica display:flex */
     padding: 14px;
-    box-shadow: none;
+    border-radius: 12px 0 0 0;
+    box-shadow: -12px 0 30px rgba(0, 0, 0, 0.35);
 }
 #registroPanel.registro-col #chartRegistro { height: 70px; flex: 0 0 auto; }
 #registroPanel.registro-col .reg-list {
     flex: 1 1 auto;
-    max-height: none;         /* ocupa toda a altura restante da coluna */
+    max-height: none;               /* ocupa toda a altura restante do dock */
     margin-top: 8px;
 }
 #registroPanel.registro-col .reg-row { padding: 5px 6px; font-size: 12.5px; gap: 8px; }
 
-/* Em telas estreitas o layout já empilha em coluna (media query existente):
-   aí o registro volta a ocupar a largura toda embaixo. */
-@media (max-width: 1200px) {
+/* Reserva o espaço do dock para o conteúdo não ficar escondido atrás dele. */
+body.tem-registro .main-content { padding-right: calc(var(--reg-w) + var(--spacing)); }
+
+/* Telas estreitas: o dock vira faixa mais fina; bem pequenas, empilha embaixo. */
+@media (max-width: 1100px) { :root { --reg-w: 250px; } }
+@media (max-width: 760px) {
     #registroPanel.registro-col {
-        flex-basis: auto; width: 100%; max-width: none;
-        position: static; max-height: none;
+        position: static; width: 100%; max-width: none; border-radius: 12px;
+        box-shadow: none; z-index: auto;
     }
     #registroPanel.registro-col .reg-list { max-height: 260px; }
+    body.tem-registro .main-content { padding-right: var(--spacing); }
 }
 
 /* ---- Toasts (avisos elegantes que substituem os alert()) ---- */

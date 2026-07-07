@@ -2348,9 +2348,18 @@ function registrarEntrada(par, dir, score, enabled, extra) {
     localStorage.setItem('registroEntradas', JSON.stringify(registro));
 }
 
+// Alinha o topo do dock fixo à altura real da barra superior (que pode quebrar linha)
+function ajustarTopoRegistro() {
+    const tb = document.querySelector('.qo-topbar');
+    if (tb) document.documentElement.style.setProperty('--reg-top', (tb.offsetHeight + 8) + 'px');
+}
+window.addEventListener('resize', ajustarTopoRegistro);
+
 function renderRegistro() {
     const panel = document.getElementById('registroPanel');
+    document.body.classList.toggle('tem-registro', registro.length > 0);
     if (!registro.length) { panel.style.display = 'none'; return; }
+    ajustarTopoRegistro();
     panel.style.display = 'flex';
     if (!chartRegistro) {
         chartRegistro = LightweightCharts.createChart(document.getElementById('chartRegistro'), { ...opcoesBase(), height: 70 });
