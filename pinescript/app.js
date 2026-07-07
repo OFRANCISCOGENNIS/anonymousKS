@@ -1604,7 +1604,7 @@ function atualizarDecisao() {
         // timeline do Registro de Entradas com o selo A/B/C do momento
         if (ehEntrada && dados.length) {
             const lbl = PARES_YAHOO[symbolAtual()] ? PARES_YAHOO[symbolAtual()].label : symbolAtual();
-            registrarEntrada(lbl, dirN, Math.max(long, short), enabled, { grade: usaGrade ? gGrade : null, live: 1, exp: parseInt(document.getElementById('expiracao').value) || 5, sym: symbolAtual(), fonte: fonte() });
+            registrarEntrada(lbl, dirN, Math.max(long, short), enabled, { grade: gGrade, live: 1, exp: parseInt(document.getElementById('expiracao').value) || 5, sym: symbolAtual(), fonte: fonte() });
             renderRegistro();
         }
         if (document.getElementById('somAtivo').checked && !treino) {
@@ -2429,20 +2429,24 @@ function renderRegistro() {
     if (!registro.length) { panel.style.display = 'none'; return; }
     ajustarTopoRegistro();
     panel.style.display = 'flex';
+    // Filtro "só nível A": mostra apenas as entradas de maior qualidade (selo A).
+    const soA = (document.getElementById('regSoA') || {}).checked;
+    const lista = soA ? registro.filter(r => r.grade === 'A') : registro;
     // Notícias na janela do registro (contagem exibida no meta)
     const tMin = registro[0].t - 3600, tMax = registro[registro.length - 1].t + 3600;
     const news = noticias
         .map(n => ({ t: Math.floor(n.date.getTime() / 1000), title: n.title }))
         .filter(n => n.t >= tMin && n.t <= tMax);
     // Régua de SETAS NA VERTICAL (mais recentes no topo): direção + resultado WIN/LOSS
-    document.getElementById('regArrows').innerHTML = registro.slice().reverse().slice(0, 12).map(r => {
+    document.getElementById('regArrows').innerHTML = lista.slice().reverse().slice(0, 12).map(r => {
         const up = r.dir === 1;
         const cls = r.resultado === 'WIN' ? 'seta-win' : r.resultado === 'LOSS' ? 'seta-loss' : '';
         return `<span class="reg-seta ${up ? 'seta-up' : 'seta-down'} ${cls}" title="${fmtHora(r.t)} · ${up ? 'CALL' : 'PUT'}${r.resultado ? ' · ' + r.resultado : ''}">${up ? '▲' : '▼'}</span>`;
     }).join('');
-    document.getElementById('registroMeta').textContent =
-        registro.length + ' entrada' + (registro.length > 1 ? 's' : '') + (news.length ? ' · ⚡ ' + news.length + ' notícias' : '');
-    document.getElementById('registroBody').innerHTML = registro.slice().reverse().map(r => {
+    document.getElementById('registroMeta').textContent = soA
+        ? lista.length + ' nível A · ' + registro.length + ' no total' + (news.length ? ' · ⚡ ' + news.length : '')
+        : registro.length + ' entrada' + (registro.length > 1 ? 's' : '') + (news.length ? ' · ⚡ ' + news.length + ' notícias' : '');
+    document.getElementById('registroBody').innerHTML = lista.length ? lista.slice().reverse().map(r => {
         const res = r.resultado === 'WIN' ? '<span class="reg-res reg-win" title="acertou">✓</span>'
             : r.resultado === 'LOSS' ? '<span class="reg-res reg-loss" title="errou">✗</span>'
             : (r.exp && r.t + r.exp * 60 > Math.floor(Date.now() / 1000)) ? '<span class="reg-res reg-open" title="aguardando expiração">⏳</span>' : '';
@@ -2450,7 +2454,7 @@ function renderRegistro() {
             `<span class="reg-par">${r.par}${r.live ? ' <span class="reg-tag" title="IA ao vivo">IA</span>' : ''}</span>` +
             (r.grade ? `<span class="reg-grade grade-${r.grade}">${r.grade}</span>` : '') +
             `<span class="${r.dir === 1 ? 'chip-dir-up' : 'chip-dir-down'}">${r.dir === 1 ? '▲ CALL' : '▼ PUT'} ${r.score}/${r.enabled}</span>${res}</div>`;
-    }).join('');
+    }).join('') : '<div class="metric-empty" style="padding:10px 4px;">Nenhuma entrada nível A ainda. As A são as de maior qualidade (raras). Desmarque “Só nível A” para ver todas.</div>';
     atualizarCalibracaoIA();
 }
 
@@ -3295,6 +3299,11 @@ document.getElementById('btnLimparReg').addEventListener('click', () => {
     registro = []; localStorage.removeItem('registroEntradas');
     document.getElementById('registroPanel').style.display = 'none';
 });
+// Filtro "só nível A" do registro (persistente)
+document.getElementById('regSoA').addEventListener('change', function () {
+    localStorage.setItem('regSoA', this.checked ? '1' : '0');
+    renderRegistro();
+});
 document.getElementById('btnTestarSom').addEventListener('click', function () {
     tocarSom(1);
     setTimeout(() => tocarSom(-1), 600);   // demonstra os dois tons: CALL e PUT
@@ -3348,6 +3357,7 @@ function iniciar() {
     aplicarControles(ctrlPref == null ? window.innerWidth > 900 : ctrlPref !== '0');
     aplicarTema(localStorage.getItem('tema') === 'light' ? 'light' : 'dark');
     document.getElementById('autoReopt').checked = localStorage.getItem('autoReopt') === '1';
+    document.getElementById('regSoA').checked = localStorage.getItem('regSoA') !== '0';   // padrão: só nível A
     configurarAutoReopt();
     carregar();
     carregarNoticias(); // notícias em tempo real

@@ -922,7 +922,7 @@ function atualizarDecisao() {
         // timeline do Registro de Entradas com o selo A/B/C do momento
         if (ehEntrada && dados.length) {
             const lbl = PARES_YAHOO[symbolAtual()] ? PARES_YAHOO[symbolAtual()].label : symbolAtual();
-            registrarEntrada(lbl, dirN, Math.max(long, short), enabled, { grade: usaGrade ? gGrade : null, live: 1, exp: parseInt(document.getElementById('expiracao').value) || 5, sym: symbolAtual(), fonte: fonte() });
+            registrarEntrada(lbl, dirN, Math.max(long, short), enabled, { grade: gGrade, live: 1, exp: parseInt(document.getElementById('expiracao').value) || 5, sym: symbolAtual(), fonte: fonte() });
             renderRegistro();
         }
         if (document.getElementById('somAtivo').checked && !treino) {

@@ -221,6 +221,11 @@ document.getElementById('btnLimparReg').addEventListener('click', () => {
     registro = []; localStorage.removeItem('registroEntradas');
     document.getElementById('registroPanel').style.display = 'none';
 });
+// Filtro "só nível A" do registro (persistente)
+document.getElementById('regSoA').addEventListener('change', function () {
+    localStorage.setItem('regSoA', this.checked ? '1' : '0');
+    renderRegistro();
+});
 document.getElementById('btnTestarSom').addEventListener('click', function () {
     tocarSom(1);
     setTimeout(() => tocarSom(-1), 600);   // demonstra os dois tons: CALL e PUT
@@ -274,6 +279,7 @@ function iniciar() {
     aplicarControles(ctrlPref == null ? window.innerWidth > 900 : ctrlPref !== '0');
     aplicarTema(localStorage.getItem('tema') === 'light' ? 'light' : 'dark');
     document.getElementById('autoReopt').checked = localStorage.getItem('autoReopt') === '1';
+    document.getElementById('regSoA').checked = localStorage.getItem('regSoA') !== '0';   // padrão: só nível A
     configurarAutoReopt();
     carregar();
     carregarNoticias(); // notícias em tempo real

@@ -63,6 +63,7 @@ await p.fill('#iaMinVal', '3');
 await p.evaluate(() => document.activeElement.blur());   // atalhos ignoram teclas com input focado
 
 // 4) Verificador WIN/LOSS + placar real
+await p.evaluate(() => { document.getElementById('regSoA').checked = false; });   // ver todas (entradas de teste sem selo)
 const calib = await p.evaluate(async () => {
   const lbl = symbolAtual();
   const mk = (i, j, dir) => ({ t: dados[i].time, par: lbl, dir, score: 4, enabled: 6, exp: Math.round((dados[j].time - dados[i].time) / 60), sym: lbl, fonte: 'sim' });
@@ -76,6 +77,22 @@ check('verificador resolveu 4 entradas', calib.resolvidos === 4, calib.resolvido
 check('placar real exibido', /Placar real/.test(calib.txt), calib.txt);
 check('placar mostra limite inferior (LB)', /LB\s*\d+%/.test(calib.txt), calib.txt);
 check('selos WIN/LOSS na tabela', await p.$$eval('#registroBody .reg-res', e => e.length) >= 3);
+
+// 4.2) Filtro "só nível A" no registro
+const filtA = await p.evaluate(() => {
+  registro = [
+    { t: dados[10].time, par: 'X', dir: 1, score: 6, enabled: 6, grade: 'A' },
+    { t: dados[11].time, par: 'Y', dir: -1, score: 4, enabled: 6, grade: 'C' },
+    { t: dados[12].time, par: 'Z', dir: 1, score: 5, enabled: 6, grade: 'B' }
+  ];
+  document.getElementById('regSoA').checked = true; renderRegistro();
+  const soA = document.querySelectorAll('#registroBody .reg-row').length;
+  document.getElementById('regSoA').checked = false; renderRegistro();
+  const todas = document.querySelectorAll('#registroBody .reg-row').length;
+  return { soA, todas };
+});
+check('filtro "só nível A" mostra 1 de 3', filtA.soA === 1, 'soA=' + filtA.soA);
+check('sem filtro mostra as 3', filtA.todas === 3, 'todas=' + filtA.todas);
 
 // 4.5) Métricas de assertividade: Wilson LB penaliza amostra pequena; expectativa
 const stat = await p.evaluate(() => ({
