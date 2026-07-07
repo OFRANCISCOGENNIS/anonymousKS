@@ -1294,3 +1294,4 @@ body.carregando #chartPreco::after {
 }
 .reg-filtro input { margin: 0; cursor: pointer; }
 .reg-filtro strong { color: var(--call); }
+.reg-filtro strong.grau-b { color: #e0a52e; }

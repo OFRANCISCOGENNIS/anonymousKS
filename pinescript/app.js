@@ -2429,9 +2429,10 @@ function renderRegistro() {
     if (!registro.length) { panel.style.display = 'none'; return; }
     ajustarTopoRegistro();
     panel.style.display = 'flex';
-    // Filtro "só nível A": mostra apenas as entradas de maior qualidade (selo A).
-    const soA = (document.getElementById('regSoA') || {}).checked;
-    const lista = soA ? registro.filter(r => r.grade === 'A') : registro;
+    // Filtro de qualidade: mostra só as entradas de selo A e B (esconde as C e
+    // as sem selo). Desmarcado, mostra todas.
+    const soAB = (document.getElementById('regSoA') || {}).checked;
+    const lista = soAB ? registro.filter(r => r.grade === 'A' || r.grade === 'B') : registro;
     // Notícias na janela do registro (contagem exibida no meta)
     const tMin = registro[0].t - 3600, tMax = registro[registro.length - 1].t + 3600;
     const news = noticias
@@ -2443,8 +2444,8 @@ function renderRegistro() {
         const cls = r.resultado === 'WIN' ? 'seta-win' : r.resultado === 'LOSS' ? 'seta-loss' : '';
         return `<span class="reg-seta ${up ? 'seta-up' : 'seta-down'} ${cls}" title="${fmtHora(r.t)} · ${up ? 'CALL' : 'PUT'}${r.resultado ? ' · ' + r.resultado : ''}">${up ? '▲' : '▼'}</span>`;
     }).join('');
-    document.getElementById('registroMeta').textContent = soA
-        ? lista.length + ' nível A · ' + registro.length + ' no total' + (news.length ? ' · ⚡ ' + news.length : '')
+    document.getElementById('registroMeta').textContent = soAB
+        ? lista.length + ' nível A/B · ' + registro.length + ' no total' + (news.length ? ' · ⚡ ' + news.length : '')
         : registro.length + ' entrada' + (registro.length > 1 ? 's' : '') + (news.length ? ' · ⚡ ' + news.length + ' notícias' : '');
     document.getElementById('registroBody').innerHTML = lista.length ? lista.slice().reverse().map(r => {
         const res = r.resultado === 'WIN' ? '<span class="reg-res reg-win" title="acertou">✓</span>'
@@ -2454,7 +2455,7 @@ function renderRegistro() {
             `<span class="reg-par">${r.par}${r.live ? ' <span class="reg-tag" title="IA ao vivo">IA</span>' : ''}</span>` +
             (r.grade ? `<span class="reg-grade grade-${r.grade}">${r.grade}</span>` : '') +
             `<span class="${r.dir === 1 ? 'chip-dir-up' : 'chip-dir-down'}">${r.dir === 1 ? '▲ CALL' : '▼ PUT'} ${r.score}/${r.enabled}</span>${res}</div>`;
-    }).join('') : '<div class="metric-empty" style="padding:10px 4px;">Nenhuma entrada nível A ainda. As A são as de maior qualidade (raras). Desmarque “Só nível A” para ver todas.</div>';
+    }).join('') : '<div class="metric-empty" style="padding:10px 4px;">Nenhuma entrada nível A ou B ainda — são as de maior qualidade. Desmarque o filtro para ver todas.</div>';
     atualizarCalibracaoIA();
 }
 

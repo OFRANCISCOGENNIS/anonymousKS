@@ -78,21 +78,22 @@ check('placar real exibido', /Placar real/.test(calib.txt), calib.txt);
 check('placar mostra limite inferior (LB)', /LB\s*\d+%/.test(calib.txt), calib.txt);
 check('selos WIN/LOSS na tabela', await p.$$eval('#registroBody .reg-res', e => e.length) >= 3);
 
-// 4.2) Filtro "só nível A" no registro
+// 4.2) Filtro "só nível A e B" no registro (esconde C e sem-selo)
 const filtA = await p.evaluate(() => {
   registro = [
     { t: dados[10].time, par: 'X', dir: 1, score: 6, enabled: 6, grade: 'A' },
     { t: dados[11].time, par: 'Y', dir: -1, score: 4, enabled: 6, grade: 'C' },
-    { t: dados[12].time, par: 'Z', dir: 1, score: 5, enabled: 6, grade: 'B' }
+    { t: dados[12].time, par: 'Z', dir: 1, score: 5, enabled: 6, grade: 'B' },
+    { t: dados[13].time, par: 'W', dir: 1, score: 4, enabled: 6 }   // sem selo
   ];
   document.getElementById('regSoA').checked = true; renderRegistro();
-  const soA = document.querySelectorAll('#registroBody .reg-row').length;
+  const soAB = document.querySelectorAll('#registroBody .reg-row').length;
   document.getElementById('regSoA').checked = false; renderRegistro();
   const todas = document.querySelectorAll('#registroBody .reg-row').length;
-  return { soA, todas };
+  return { soAB, todas };
 });
-check('filtro "só nível A" mostra 1 de 3', filtA.soA === 1, 'soA=' + filtA.soA);
-check('sem filtro mostra as 3', filtA.todas === 3, 'todas=' + filtA.todas);
+check('filtro "A e B" mostra 2 de 4 (esconde C e sem-selo)', filtA.soAB === 2, 'soAB=' + filtA.soAB);
+check('sem filtro mostra as 4', filtA.todas === 4, 'todas=' + filtA.todas);
 
 // 4.5) Métricas de assertividade: Wilson LB penaliza amostra pequena; expectativa
 const stat = await p.evaluate(() => ({
