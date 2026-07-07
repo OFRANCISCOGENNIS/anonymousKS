@@ -1090,7 +1090,9 @@ Private Function EhAderente(fam As String, libV As Variant, prjV As Variant, raw
     If isMarg And IsNumeric(libV) And IsNumeric(prjV) Then
         Dim l As Double, pp As Double
         l = CDbl(libV) : pp = CDbl(prjV)
-        If pp = 0 Then
+        If fam = "COND NU" And Abs(l - pp) <= 5 Then
+            EhAderente = True
+        ElseIf pp = 0 Then
             EhAderente = (l = 0)
         Else
             Dim tol As Double : tol = mTolAder : If tol <= 0 Then tol = 0.1
