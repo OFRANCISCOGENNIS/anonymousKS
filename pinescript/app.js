@@ -132,8 +132,9 @@ function intervalPorFonte(f, tfMin) {
     return f === 'binance' ? (tfMin === 60 ? '1h' : tfMin + 'm') : tfMin;
 }
 async function carregarHistoricoTF(symbol, tfMin, limit) {
-    if (symbol === 'CRYPTOIDX') return carregarHistoricoCryptoIDX(intervalPorFonte('binance', tfMin), limit);
-    return loaderPorFonte(fonte())(symbol, intervalPorFonte(fonte(), tfMin), limit);
+    const chave = fonte() + '|' + symbol + '|' + tfMin + '|' + limit;   // cache TTL 60s (IA em lote reusa)
+    if (symbol === 'CRYPTOIDX') return comCache(chave, () => carregarHistoricoCryptoIDX(intervalPorFonte('binance', tfMin), limit));
+    return comCache(chave, () => loaderPorFonte(fonte())(symbol, intervalPorFonte(fonte(), tfMin), limit));
 }
 // TF maior correspondente ao TF de trabalho (para o filtro Multi-Timeframe)
 function htfDeTf(tfMin) {
@@ -226,6 +227,28 @@ function recomputarIndicadores() {
         highs, lows
     };
     computed.atrMedia = sma(computed.atrValues, atrMediaLen);
+
+    // MACD (12/26/9) e Bandas de Bollinger (20, 2σ) — fatores extras de confluência
+    const e12 = ema(closes, 12), e26 = ema(closes, 26);
+    const macdLine = closes.map((_, i) => (e12[i] != null && e26[i] != null) ? e12[i] - e26[i] : null);
+    const sig = new Array(closes.length).fill(null);
+    const kSig = 2 / 10; let s9 = null;
+    for (let i = 0; i < macdLine.length; i++) {
+        if (macdLine[i] == null) continue;
+        s9 = s9 == null ? macdLine[i] : macdLine[i] * kSig + s9 * (1 - kSig);
+        sig[i] = s9;
+    }
+    computed.macdHist = macdLine.map((v, i) => (v != null && sig[i] != null) ? v - sig[i] : null);
+    const bbMid = sma(closes, 20);
+    computed.bbUp = new Array(closes.length).fill(null);
+    computed.bbDn = new Array(closes.length).fill(null);
+    for (let i = 19; i < closes.length; i++) {
+        if (bbMid[i] == null) continue;
+        let v = 0; for (let j = i - 19; j <= i; j++) v += (closes[j] - bbMid[i]) ** 2;
+        const sd = Math.sqrt(v / 20);
+        computed.bbUp[i] = bbMid[i] + 2 * sd;
+        computed.bbDn[i] = bbMid[i] - 2 * sd;
+    }
 }
 
 let confLive = { long: 0, short: 0, enabled: 0 };  // pontuação de confluência na última vela
@@ -315,9 +338,9 @@ const REGIME_ROTULO = { trend: '📈 Tendencial', vol: '🔥 Volátil', range: '
 // a semântica do "mín. de fatores": tendencial premia Estrutura/Tendência,
 // lateral premia reversão (RSI/Padrão/Fluxo), volátil premia ATR/Fluxo.
 const PESOS_REGIME = {
-    trend: { T: 1.4, Ma: 1.3, Mo: 0.7, V: 1.0, E: 1.4, F: 1.1, C: 1.0, P: 0.9 },
-    range: { T: 0.7, Ma: 0.7, Mo: 1.4, V: 0.8, E: 0.8, F: 1.2, C: 1.0, P: 1.4 },
-    vol:   { T: 1.0, Ma: 1.0, Mo: 0.9, V: 1.4, E: 1.1, F: 1.3, C: 1.0, P: 1.1 }
+    trend: { T: 1.4, Ma: 1.3, Mo: 0.7, V: 1.0, E: 1.4, F: 1.1, C: 1.0, P: 0.9, X: 1.3, B: 0.6 },
+    range: { T: 0.7, Ma: 0.7, Mo: 1.4, V: 0.8, E: 0.8, F: 1.2, C: 1.0, P: 1.4, X: 0.7, B: 1.4 },
+    vol:   { T: 1.0, Ma: 1.0, Mo: 0.9, V: 1.4, E: 1.1, F: 1.3, C: 1.0, P: 1.1, X: 1.0, B: 1.0 }
 };
 
 // ---- Sessões de mercado (por hora UTC) ----
@@ -398,12 +421,14 @@ function recomputarSinais() {
     const useSessao = document.getElementById('useSessao').checked;
     const useSR = document.getElementById('useSR').checked;
     const srK = Math.max(0.1, parseFloat(document.getElementById('srAtr').value) || 0.5);
+    const useMacd = document.getElementById('useMacd').checked;
+    const useBollinger = document.getElementById('useBollinger').checked;
     const usePeso = document.getElementById('usePesoIA').checked;
     const pesos = usePeso ? (pesoFatores[symbolAtual()] || {}) : null;
     const piv = useSR ? acharPivotsSR() : null;
     const regimes = usePeso ? regimePorBarra() : null;   // pesos dinâmicos por regime
 
-    const { closes, emaR, emaL, ema200, rsiValues, atrValues, atrMedia, highs, lows } = computed;
+    const { closes, emaR, emaL, ema200, rsiValues, atrValues, atrMedia, highs, lows, macdHist, bbUp, bbDn } = computed;
 
     const maxRec = [], minRec = [];
     for (let i = 0; i < closes.length; i++) {
@@ -424,7 +449,7 @@ function recomputarSinais() {
     }
     const recente = (arr, i) => { for (let j = Math.max(0, i - janela + 1); j <= i; j++) if (arr[j]) return true; return false; };
 
-    const enabledCount = [useTendencia, useEma200, useMomentum, useVolatilidade, useEstrutura, useFluxo, useCorrelacao, usePadrao].filter(Boolean).length;
+    const enabledCount = [useTendencia, useEma200, useMomentum, useVolatilidade, useEstrutura, useFluxo, useCorrelacao, usePadrao, useMacd, useBollinger].filter(Boolean).length;
 
     sinaisLong = []; sinaisShort = [];
     let barras = 999999;
@@ -448,19 +473,29 @@ function recomputarSinais() {
 
         const pat = usePadrao ? padraoVela(i) : { up: false, down: false };
 
+        // MACD: histograma positivo e subindo = CALL; negativo e caindo = PUT
+        const mh = macdHist[i], mhp = macdHist[i - 1];
+        const xL = useMacd && mh != null && mhp != null && mh > 0 && mh >= mhp;
+        const xS = useMacd && mh != null && mhp != null && mh < 0 && mh <= mhp;
+        // Bollinger (reversão): fechou fora da banda inferior = CALL; fora da superior = PUT
+        const bL = useBollinger && bbDn[i] != null && closes[i] < bbDn[i];
+        const bS = useBollinger && bbUp[i] != null && closes[i] > bbUp[i];
+
         const fatL = [
             { k: 'T', on: useTendencia, ok: tL }, { k: 'Ma', on: useEma200, ok: maL },
             { k: 'Mo', on: useMomentum, ok: moL }, { k: 'V', on: useVolatilidade, ok: vo },
             { k: 'E', on: useEstrutura, ok: eL },
             { k: 'F', on: useFluxo, ok: fluxoDir === 1 }, { k: 'C', on: useCorrelacao, ok: corrDir === 1 },
-            { k: 'P', on: usePadrao, ok: pat.up }
+            { k: 'P', on: usePadrao, ok: pat.up },
+            { k: 'X', on: useMacd, ok: xL }, { k: 'B', on: useBollinger, ok: bL }
         ];
         const fatS = [
             { k: 'T', on: useTendencia, ok: tS }, { k: 'Ma', on: useEma200, ok: maS },
             { k: 'Mo', on: useMomentum, ok: moS }, { k: 'V', on: useVolatilidade, ok: vo },
             { k: 'E', on: useEstrutura, ok: eS },
             { k: 'F', on: useFluxo, ok: fluxoDir === -1 }, { k: 'C', on: useCorrelacao, ok: corrDir === -1 },
-            { k: 'P', on: usePadrao, ok: pat.down }
+            { k: 'P', on: usePadrao, ok: pat.down },
+            { k: 'X', on: useMacd, ok: xS }, { k: 'B', on: useBollinger, ok: bS }
         ];
         const longScore = fatL.filter(f => f.on && f.ok).length;
         const shortScore = fatS.filter(f => f.on && f.ok).length;
@@ -525,7 +560,9 @@ function recomputarSinais() {
                     { nome: 'Estrutura', on: useEstrutura, dir: eL ? 1 : eS ? -1 : 0 },
                     { nome: 'Fluxo', on: useFluxo, dir: fluxoDir },
                     { nome: 'Correlação', on: useCorrelacao, dir: corrDir },
-                    { nome: 'Padrão', on: usePadrao, dir: pat.up ? 1 : pat.down ? -1 : 0 }
+                    { nome: 'Padrão', on: usePadrao, dir: pat.up ? 1 : pat.down ? -1 : 0 },
+                    { nome: 'MACD', on: useMacd, dir: xL ? 1 : xS ? -1 : 0 },
+                    { nome: 'Bollinger', on: useBollinger, dir: bL ? 1 : bS ? -1 : 0 }
                 ]
             };
         }
@@ -612,12 +649,13 @@ function fmtHora(sec) {
 // ============================================================================
 
 function opcoesBase() {
-    // Tema QUANT OPS (navy): superfície #0b1220, grid #1c2740, tinta #c8d3e8
+    // Tema QUANT OPS: cores vêm de CORES_TEMA (respeita o toggle claro/escuro)
+    const c = CORES_TEMA[temaAtual()];
     return {
-        layout: { background: { color: '#0b1220' }, textColor: '#c8d3e8' },
-        grid: { vertLines: { color: '#1c2740' }, horzLines: { color: '#1c2740' } },
-        rightPriceScale: { borderColor: '#22304e' },
-        timeScale: { borderColor: '#22304e', timeVisible: true, secondsVisible: false, tickMarkFormatter: t => fmtHora(t) },
+        layout: { background: { color: c.bg }, textColor: c.text },
+        grid: { vertLines: { color: c.grid }, horzLines: { color: c.grid } },
+        rightPriceScale: { borderColor: c.border },
+        timeScale: { borderColor: c.border, timeVisible: true, secondsVisible: false, tickMarkFormatter: t => fmtHora(t) },
         crosshair: { mode: LightweightCharts.CrosshairMode.Normal },
         localization: { timeFormatter: t => fmtHora(t) }
     };
@@ -1293,7 +1331,7 @@ function atualizarPainelTreino(feedback) {
 }
 
 function iniciarTreino() {
-    if (dados.length < 120) { alert('Carregue pelo menos 120 velas para treinar (aumente o Nº de velas).'); return; }
+    if (dados.length < 120) { showToast('Carregue pelo menos 120 velas para treinar (aumente o Nº de velas).', 'err'); return; }
     fecharWS();                       // pausa o ao-vivo durante o treino
     pararPollYahoo();
     conexaoAtual = '';
@@ -1510,7 +1548,7 @@ function atualizarDecisao() {
             const dirN = verdictKey === 'CALL' ? 1 : -1;
             const lbl = PARES_YAHOO[symbolAtual()] ? PARES_YAHOO[symbolAtual()].label : symbolAtual();
             const g = usaGrade ? calcularGrade(dirN).grade : null;
-            registrarEntrada(lbl, dirN, Math.max(long, short), enabled, { grade: g, live: 1 });
+            registrarEntrada(lbl, dirN, Math.max(long, short), enabled, { grade: g, live: 1, exp: parseInt(document.getElementById('expiracao').value) || 5 });
             renderRegistro();
         }
         if (document.getElementById('somAtivo').checked && !treino) {
@@ -1655,7 +1693,7 @@ function csvEscape(v) {
 }
 
 function exportarCSV() {
-    if (!entradasValidas.length && !entradas.length) { alert('Sem entradas para exportar. Gere/carregue dados primeiro.'); return; }
+    if (!entradasValidas.length && !entradas.length) { showToast('Sem entradas para exportar. Gere/carregue dados primeiro.', 'err'); return; }
     const sym = symbolAtual();
     const tf = tfMinutes() === 60 ? 'H1' : 'M' + tfMinutes();
     const agora = new Date();
@@ -1711,6 +1749,8 @@ function setStatus(estado, texto) {
     dot.className = 'conn-dot conn-' + estado;   // on | connecting | off | err
     txt.textContent = texto;
     document.getElementById('liveBadge').style.display = estado === 'on' ? 'inline-block' : 'none';
+    // Skeleton loader: shimmer no gráfico enquanto conecta/carrega
+    document.body.classList.toggle('carregando', estado === 'connecting');
 }
 
 async function carregarHistoricoBinance(symbol, interval, limit) {
@@ -2193,12 +2233,12 @@ function renderScanFiltro() {
 
 async function escanear() {
     const f = fonte();
-    if (f === 'sim') { alert('Troque a fonte para Binance ou Forex para escanear.'); return; }
+    if (f === 'sim') { showToast('Troque a fonte para Binance ou Forex para escanear.', 'err'); return; }
     const btn = document.getElementById('btnScan');
     btn.disabled = true; btn.textContent = 'Escaneando…';
     const loader = f === 'binance' ? carregarHistoricoBinance : f === 'twelvedata' ? carregarHistoricoTwelveData : carregarHistoricoYahoo;
     const lista = (f === 'binance' ? SCAN_CRIPTO : Object.keys(PARES_YAHOO)).filter(scanChecked);
-    if (!lista.length) { alert('Marque ao menos uma moeda no filtro "🎯 Moedas p/ análise".'); btn.disabled = false; btn.textContent = '🔎 Escanear melhores entradas'; return; }
+    if (!lista.length) { showToast('Marque ao menos uma moeda no filtro "🎯 Moedas p/ análise".', 'err'); btn.disabled = false; btn.textContent = '🔎 Escanear melhores entradas'; return; }
     const arg = f === 'binance' ? binanceInterval() : tfMinutes();
     const confMode = document.getElementById('confMode').value;
     const minScoreG = parseInt(document.getElementById('minScore').value);
@@ -2214,15 +2254,17 @@ async function escanear() {
     heatData = [];   // heatmap é reconstruído a cada varredura
     for (const s of lista) {
         try {
-            const d = await loader(s, arg, 250);
+            const d = await comCache(f + '|' + s + '|' + arg + '|250', () => loader(s, arg, 250));
             if (!d || d.length < 210) continue;
-            // Scanner + IA: aplica os melhores parâmetros já otimizados para este par
-            const cc = iaCache[s];
+            // Scanner + IA: aplica os melhores parâmetros já otimizados para este par,
+            // preferindo o conjunto afinado para o REGIME atual do próprio ativo
+            dados = d; recomputarIndicadores();
+            const cc = iaCache[s + '|' + regimeUltimo()] || iaCache[s];
             const tuned = !!cc;
             if (cc) { el('minScore').value = cc.ms; el('rsiSobrevenda').value = cc.sv; el('rsiSobrecompra').value = cc.sc; el('estruturaLookback').value = cc.lk; el('cooldownVelas').value = cc.cd; }
             else { el('minScore').value = pSave.minScore; el('rsiSobrevenda').value = pSave.rsiSobrevenda; el('rsiSobrecompra').value = pSave.rsiSobrecompra; el('estruturaLookback').value = pSave.estruturaLookback; el('cooldownVelas').value = pSave.cooldownVelas; }
             const minScore = cc ? cc.ms : minScoreG;
-            dados = d; recomputarIndicadores(); recomputarSinais();
+            recomputarSinais();
             const { long, short, enabled } = confLive;
             const alvo = confMode === 'estrita' ? enabled : Math.min(minScore, enabled);
             const domScore = Math.max(long, short);
@@ -2255,7 +2297,8 @@ async function escanear() {
         montarWidgetTV(); carregar();
     }));
     document.getElementById('scanPanel').style.display = 'block';
-    res.forEach(r => registrarEntrada(PARES_YAHOO[r.s] ? PARES_YAHOO[r.s].label : r.s, r.dir, r.score, r.enabled));
+    res.forEach(r => registrarEntrada(PARES_YAHOO[r.s] ? PARES_YAHOO[r.s].label : r.s, r.dir, r.score, r.enabled,
+        { exp: (iaCache[r.s] && iaCache[r.s].exp) || parseInt(el('expiracao').value) || 5 }));
     if (res.length) renderRegistro();
     if (res.length && document.getElementById('somAtivo').checked) tocarSom(res[0].dir);
     btn.disabled = false; btn.textContent = '🔎 Escanear melhores entradas';
@@ -2311,6 +2354,39 @@ function renderRegistro() {
         (r.grade ? `<span class="reg-grade grade-${r.grade}">${r.grade}</span>` : '') +
         `<span class="${r.dir === 1 ? 'chip-dir-up' : 'chip-dir-down'}">${r.dir === 1 ? '▲ CALL' : '▼ PUT'} ${r.score}/${r.enabled}</span></div>`
     ).join('');
+    atualizarCalibracaoIA();
+}
+
+// ---- Calibração da IA: acerto PREVISTO (backtest) × acerto REAL (registro ao vivo) ----
+// Resolve o desfecho de uma entrada do registro usando as velas do par aberto:
+// WIN se o preço na expiração fechou a favor da direção registrada.
+function resolverEntradaLive(r) {
+    if (!r.exp || !r.t || !dados.length) return null;
+    const lbl = PARES_YAHOO[symbolAtual()] ? PARES_YAHOO[symbolAtual()].label : symbolAtual();
+    if (r.par !== lbl) return null;                        // só resolve com as velas do par aberto
+    const alvo = r.t + r.exp * 60;
+    if (dados[dados.length - 1].time < alvo) return null;  // ainda não expirou
+    let iE = -1, iA = -1;
+    for (let i = 0; i < dados.length; i++) {
+        if (dados[i].time <= r.t) iE = i;
+        if (dados[i].time <= alvo) iA = i;
+    }
+    if (iE < 0 || iA <= iE) return null;
+    const dif = dados[iA].close - dados[iE].close;
+    if (dif === 0) return null;                            // empate não conta
+    return (r.dir === 1) === (dif > 0);
+}
+function atualizarCalibracaoIA() {
+    const cal = document.getElementById('iaCalib');
+    if (!cal) return;
+    const cc = iaCache[symbolAtual() + '|' + regimeUltimo()] || iaCache[symbolAtual()];
+    const res = registro.map(resolverEntradaLive).filter(x => x !== null);
+    if (!cc || res.length < 3) { cal.style.display = 'none'; return; }
+    const real = res.filter(Boolean).length / res.length;
+    const dif = Math.abs(real - cc.wr);
+    cal.style.display = 'block';
+    cal.innerHTML = `🧪 IA: prevista <strong>${Math.round(cc.wr * 100)}%</strong> · real <strong>${Math.round(real * 100)}%</strong> (${res.length} ops) ` +
+        `<span class="${dif <= 0.10 ? 'chip-dir-up' : 'chip-dir-down'}">${dif <= 0.10 ? 'calibrada ✓' : 'descalibrada ⚠'}</span>`;
 }
 
 // ============================================================================
@@ -2328,6 +2404,7 @@ const IA_GRID = {
 };
 const IA_MIN_OPS = 6;    // amostra mínima no TREINO
 const IA_MIN_VAL = 3;    // amostra mínima na VALIDAÇÃO (out-of-sample)
+let iaCancelar = false, iaRodando = false, autoReoptTimer = null;
 
 // Melhores parâmetros memorizados por par (usados pelo scanner). Persistente.
 let iaCache = JSON.parse(localStorage.getItem('iaCache') || '{}');
@@ -2338,48 +2415,72 @@ function statsEnt(ents) {
     return { ops: av.length, w, wr: av.length ? w / av.length : 0 };
 }
 
-// Avalia a combinação já aplicada (inputs) sobre o `dados` atual, dividindo em
-// treino (primeiros 70% das velas) e validação (30% finais) — walk-forward.
+// Avalia a combinação já aplicada (inputs) sobre o `dados` atual — walk-forward
+// ROBUSTO: treino nos primeiros 55% e validação em 3 janelas deslizantes
+// (55–70%, 70–85%, 85–100%). robustVal = pior janela com amostra — um parâmetro
+// que só funciona num pedaço da validação (sorte) não passa mais.
 function avaliarWalkForward() {
     recomputarIndicadores(); recomputarSinais(); recomputarEntradas();
-    const nCut = Math.floor(dados.length * 0.7);
-    return { treino: statsEnt(entradas.filter(e => e.index < nCut)), val: statsEnt(entradas.filter(e => e.index >= nCut)) };
+    const n = dados.length;
+    const treino = statsEnt(entradas.filter(e => e.index < Math.floor(n * 0.55)));
+    const folds = [[0.55, 0.70], [0.70, 0.85], [0.85, 1.001]].map(([a, b]) =>
+        statsEnt(entradas.filter(e => e.index >= Math.floor(n * a) && e.index < Math.floor(n * b))));
+    const w = folds.reduce((s, f) => s + f.w, 0), ops = folds.reduce((s, f) => s + f.ops, 0);
+    const comAmostra = folds.filter(f => f.ops >= 2);
+    const robustVal = comAmostra.length ? Math.min(...comAmostra.map(f => f.wr)) : (ops ? w / ops : 0);
+    return { treino, val: { ops, w, wr: ops ? w / ops : 0 }, robustVal };
 }
 
 // Otimiza UM símbolo: varre a grade × timeframes e devolve o melhor combo por TF
-// (ordenado por edge líquido), já gravando o campeão em iaCache[symbol].
+// (ordenado por edge líquido), já gravando o campeão em iaCache (geral + por regime).
 // Muda `dados`/inputs temporariamente — quem chama é responsável por restaurar.
+// Coopera com a UI: cede a thread a cada 10 combos e respeita `iaCancelar`.
 async function _iaOtimizarSimbolo(symbol, isSim, dSimBase, beWR, EXP_OPCOES, el) {
     const tfs = isSim ? [tfMinutes()] : TFS_IA;
     const porTf = [];
-    let totalCombos = 0;
+    let totalCombos = 0, regSym = null;
     for (const tf of tfs) {
+        if (iaCancelar) break;
         let dTf = dSimBase;
         if (!isSim) {
             try { dTf = await carregarHistoricoTF(symbol, tf, 300); } catch (e) { continue; }
             if (!dTf || dTf.length < 210) continue;
         }
         dados = dTf; el('timeframe').value = tf;
+        // Regime do ativo (medido no primeiro TF carregado) — indexa o iaCache por regime
+        if (regSym == null) { recomputarIndicadores(); regSym = regimeUltimo(); }
         const exps = EXP_OPCOES.filter(e => e >= tf && e % tf === 0 && e / tf <= 12);
-        let best = null;
+        let combos = [];
         for (const exp of exps)
             for (const ms of IA_GRID.minScore)
                 for (const [sv, sc] of IA_GRID.rsi)
                     for (const lk of IA_GRID.estruturaLookback)
-                        for (const cd of IA_GRID.cooldownVelas) {
-                            el('minScore').value = ms; el('rsiSobrevenda').value = sv; el('rsiSobrecompra').value = sc;
-                            el('estruturaLookback').value = lk; el('cooldownVelas').value = cd;
-                            expOverride = exp;
-                            const wf = avaliarWalkForward();
-                            expOverride = null;
-                            totalCombos++;
-                            if (wf.treino.ops < IA_MIN_OPS || wf.val.ops < IA_MIN_VAL) continue;
-                            // robustez = pior das duas janelas (penaliza overfit no treino)
-                            const robust = Math.min(wf.treino.wr, wf.val.wr);
-                            if (!best || robust > best.robust || (robust === best.robust && wf.val.ops > best.val.ops))
-                                best = { tf, exp, ms, sv, sc, lk, cd, robust, treino: wf.treino, val: wf.val };
-                        }
-        await Promise.resolve();
+                        for (const cd of IA_GRID.cooldownVelas)
+                            combos.push({ exp, ms, sv, sc, lk, cd });
+        // Busca inteligente: amostra aleatória da grade (qualidade quase igual,
+        // ~1/3 do tempo). O melhor combo já conhecido do par entra sempre.
+        if (document.getElementById('iaRapida').checked && combos.length > 72) {
+            for (let i = combos.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [combos[i], combos[j]] = [combos[j], combos[i]]; }
+            combos = combos.slice(0, 72);
+            const cc = iaCache[symbol + '|' + regSym] || iaCache[symbol];
+            if (cc && exps.includes(cc.exp)) combos.push({ exp: cc.exp, ms: cc.ms, sv: cc.sv, sc: cc.sc, lk: cc.lk, cd: cc.cd });
+        }
+        let best = null, n = 0;
+        for (const c of combos) {
+            if (iaCancelar) break;
+            el('minScore').value = c.ms; el('rsiSobrevenda').value = c.sv; el('rsiSobrecompra').value = c.sc;
+            el('estruturaLookback').value = c.lk; el('cooldownVelas').value = c.cd;
+            expOverride = c.exp;
+            const wf = avaliarWalkForward();
+            expOverride = null;
+            totalCombos++;
+            if (++n % 10 === 0) await new Promise(r => setTimeout(r, 0));   // deixa a UI respirar
+            if (wf.treino.ops < IA_MIN_OPS || wf.val.ops < IA_MIN_VAL) continue;
+            // robustez = pior janela entre treino e as fatias da validação (anti-overfit)
+            const robust = Math.min(wf.treino.wr, wf.robustVal);
+            if (!best || robust > best.robust || (robust === best.robust && wf.val.ops > best.val.ops))
+                best = { tf, exp: c.exp, ms: c.ms, sv: c.sv, sc: c.sc, lk: c.lk, cd: c.cd, robust, treino: wf.treino, val: wf.val };
+        }
         if (best) porTf.push(best);
     }
     // ranqueia pelo EDGE LÍQUIDO fora da amostra (acerto − break-even do payout)
@@ -2387,7 +2488,9 @@ async function _iaOtimizarSimbolo(symbol, isSim, dSimBase, beWR, EXP_OPCOES, el)
     porTf.sort((a, b) => b.edge - a.edge || b.robust - a.robust);
     if (porTf.length) {
         const rec = porTf[0];
-        iaCache[symbol] = { tf: rec.tf, exp: rec.exp, ms: rec.ms, sv: rec.sv, sc: rec.sc, lk: rec.lk, cd: rec.cd, wr: rec.val.wr };
+        const reg = { tf: rec.tf, exp: rec.exp, ms: rec.ms, sv: rec.sv, sc: rec.sc, lk: rec.lk, cd: rec.cd, wr: rec.val.wr, reg: regSym };
+        iaCache[symbol] = reg;                                  // fallback geral
+        if (regSym) iaCache[symbol + '|' + regSym] = reg;       // conjunto específico do regime
     }
     return { porTf, totalCombos };
 }
@@ -2396,7 +2499,7 @@ const edgeTxtIA = e => (e >= 0 ? '+' : '') + (e * 100).toFixed(1) + ' pp';
 
 async function otimizarIA() {
     const isSim = fonte() === 'sim';
-    if (isSim && (!dados || dados.length < 210)) { alert('Carregue um par primeiro (mín. ~210 velas).'); return; }
+    if (isSim && (!dados || dados.length < 210)) { showToast('Carregue um par primeiro (mín. ~210 velas).', 'err'); return; }
     const btn = document.getElementById('btnIA');
     const el = id => document.getElementById(id);
 
@@ -2407,12 +2510,14 @@ async function otimizarIA() {
     else {
         symbols = scanUniverse().filter(scanChecked);
         if (!symbols.length) {
-            alert('Marque ao menos uma moeda em "🎯 Moedas p/ análise" (ou troque a Fonte para Simulado para otimizar o par atual).');
+            showToast('Marque ao menos uma moeda em "🎯 Moedas p/ análise" (ou troque a Fonte para Simulado).', 'err');
             return;
         }
     }
 
-    btn.disabled = true; btn.textContent = 'Analisando…';
+    iaRodando = true; iaCancelar = false;
+    const fimIA = () => { iaRodando = false; iaCancelar = false; btn.disabled = false; btn.textContent = '🤖 IA: otimizar parâmetros'; };
+    btn.textContent = 'Analisando…';
     const ids = ['minScore', 'rsiSobrevenda', 'rsiSobrecompra', 'estruturaLookback', 'cooldownVelas', 'confMode', 'timeframe', 'useHtf', 'usePesoIA', 'symbol', 'fonte'];
     const save = {}; ids.forEach(i => save[i] = el(i).type === 'checkbox' ? el(i).checked : el(i).value);
     el('confMode').value = 'score';
@@ -2430,8 +2535,9 @@ async function otimizarIA() {
     const resultados = [];   // { symbol, label, porTf, totalCombos }
     let totalCombosGeral = 0;
     for (let k = 0; k < symbols.length; k++) {
+        if (iaCancelar) break;
         const s = symbols[k];
-        btn.textContent = `Analisando ${scanLabel(s)} (${k + 1}/${symbols.length})…`;
+        btn.textContent = `⏹ ${scanLabel(s)} (${k + 1}/${symbols.length}) — clique p/ cancelar`;
         document.getElementById('iaMeta').textContent = `Otimizando ${k + 1}/${symbols.length} moeda(s)…`;
         const { porTf, totalCombos } = await _iaOtimizarSimbolo(s, isSim, dSave, beWR, EXP_OPCOES, el);
         totalCombosGeral += totalCombos;
@@ -2445,9 +2551,10 @@ async function otimizarIA() {
     if (el('useHtf').checked) await carregarHtf();
     recomputarSinais();
 
+    if (iaCancelar) showToast('⏹ Otimização cancelada — resultados parciais mantidos', 'info');
     document.getElementById('iaMeta').textContent = totalCombosGeral + ' combinações · ' + symbols.length + ' moeda(s) · break-even ' + (beWR * 100).toFixed(1) + '%';
 
-    if (symbols.length === 1) { renderIAUmPar(resultados[0], isSim, el); btn.disabled = false; btn.textContent = '🤖 IA: otimizar parâmetros'; return; }
+    if (symbols.length === 1) { renderIAUmPar(resultados[0], isSim, el); fimIA(); return; }
 
     // ---- VISÃO MULTI-MOEDA: um resultado por moeda (o melhor combo de cada) ----
     const comOk = resultados.filter(r => r.porTf.length);
@@ -2456,7 +2563,7 @@ async function otimizarIA() {
     if (!comOk.length) {
         document.getElementById('iaContext').textContent = `Nenhuma das ${symbols.length} moedas passou na validação fora da amostra. Aumente as velas (300+) ou reduza a seleção.`;
         document.getElementById('iaList').innerHTML = '';
-        btn.disabled = false; btn.textContent = '🤖 IA: otimizar parâmetros'; return;
+        fimIA(); return;
     }
     document.getElementById('iaContext').textContent =
         `${comOk.length}/${symbols.length} moedas afinadas — o Scanner (🔎) já usa esses parâmetros. Melhor: ${comOk[0].label} (${(comOk[0].porTf[0].val.wr * 100).toFixed(0)}% val, edge ${edgeTxtIA(comOk[0].porTf[0].edge)}). Clique numa moeda para abri-la já otimizada.`;
@@ -2484,7 +2591,7 @@ async function otimizarIA() {
         row.classList.add('ia-sel');
         montarWidgetTV(); carregar();
     }));
-    btn.disabled = false; btn.textContent = '🤖 IA: otimizar parâmetros';
+    fimIA();
 }
 
 // Visão detalhada de UMA moeda (comportamento clássico: melhor combo por timeframe).
@@ -2535,7 +2642,7 @@ function rotTf(m) { return m === 60 ? 'H1' : 'M' + m; }
 // de confluência mais aparece nos WINs, e qual o regime atual (tendência ×
 // lateral, volatilidade alta × baixa).
 
-const FATORES_NOMES = { T: 'Tendência', Ma: 'EMA 200', Mo: 'RSI', V: 'ATR', E: 'Estrutura', F: 'Fluxo', C: 'Correlação', P: 'Padrão de vela' };
+const FATORES_NOMES = { T: 'Tendência', Ma: 'EMA 200', Mo: 'RSI', V: 'ATR', E: 'Estrutura', F: 'Fluxo', C: 'Correlação', P: 'Padrão de vela', X: 'MACD', B: 'Bollinger' };
 
 function regimeAtual() {
     const last = dados.length - 1;
@@ -2843,6 +2950,111 @@ document.getElementById('btnControles').addEventListener('click', function () {
     localStorage.setItem('ctrlVisivel', mostrar ? '1' : '0');
     aplicarControles(mostrar);
 });
+
+// ---- Toasts: avisos elegantes que substituem alert() (não travam a página) ----
+function showToast(msg, tipo, ms) {
+    let wrap = document.getElementById('toastWrap');
+    if (!wrap) { wrap = document.createElement('div'); wrap.id = 'toastWrap'; wrap.className = 'toast-wrap'; document.body.appendChild(wrap); }
+    const t = document.createElement('div');
+    t.className = 'toast toast-' + (tipo || 'info');
+    t.textContent = msg;
+    wrap.appendChild(t);
+    setTimeout(() => t.classList.add('toast-out'), (ms || 4200) - 400);
+    setTimeout(() => t.remove(), ms || 4200);
+}
+
+// ---- Tema claro/escuro (CSS por variáveis + recolore os gráficos existentes) ----
+const CORES_TEMA = {
+    dark: { bg: '#0b1220', text: '#c8d3e8', grid: '#1c2740', border: '#22304e' },
+    light: { bg: '#ffffff', text: '#3a4761', grid: '#e7ecf7', border: '#c9d4ea' }
+};
+function temaAtual() { return document.documentElement.dataset.theme === 'light' ? 'light' : 'dark'; }
+function aplicarTema(t) {
+    document.documentElement.dataset.theme = t;
+    localStorage.setItem('tema', t);
+    const c = CORES_TEMA[t];
+    [chartPreco, chartRsi, chartAtr, chartEquity, chartFluxo, chartRegistro].forEach(ch => {
+        if (ch) ch.applyOptions({
+            layout: { background: { color: c.bg }, textColor: c.text },
+            grid: { vertLines: { color: c.grid }, horzLines: { color: c.grid } },
+            rightPriceScale: { borderColor: c.border },
+            timeScale: { borderColor: c.border }
+        });
+    });
+}
+document.getElementById('btnTema').addEventListener('click', () => aplicarTema(temaAtual() === 'dark' ? 'light' : 'dark'));
+
+// ---- Atalhos de teclado: C controles · S escanear · R recarregar · I IA · T tema ----
+document.addEventListener('keydown', e => {
+    if (e.ctrlKey || e.metaKey || e.altKey) return;
+    const tag = (e.target.tagName || '').toLowerCase();
+    if (tag === 'input' || tag === 'select' || tag === 'textarea') return;
+    const k = e.key.toLowerCase();
+    if (k === 'c') document.getElementById('btnControles').click();
+    else if (k === 's') document.getElementById('btnScan').click();
+    else if (k === 'r') document.getElementById('btnGerar').click();
+    else if (k === 'i') document.getElementById('btnIA').click();
+    else if (k === 't') document.getElementById('btnTema').click();
+});
+
+// ---- Exportar / importar o "cérebro" da IA (iaCache + pesos + seleção de moedas) ----
+document.getElementById('btnIAExport').addEventListener('click', () => {
+    const blob = new Blob([JSON.stringify({ iaCache, pesoFatores, scanSel }, null, 2)], { type: 'application/json' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob); a.download = 'quantops_ia.json'; a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+    showToast('💾 Cérebro da IA exportado (quantops_ia.json)', 'ok');
+});
+document.getElementById('btnIAImport').addEventListener('click', () => document.getElementById('iaImportFile').click());
+document.getElementById('iaImportFile').addEventListener('change', function () {
+    const f = this.files && this.files[0]; if (!f) return;
+    const rd = new FileReader();
+    rd.onload = () => {
+        try {
+            const j = JSON.parse(rd.result);
+            Object.assign(iaCache, j.iaCache || {});
+            Object.assign(pesoFatores, j.pesoFatores || {});
+            Object.assign(scanSel, j.scanSel || {});
+            localStorage.setItem('iaCache', JSON.stringify(iaCache));
+            localStorage.setItem('pesoFatores', JSON.stringify(pesoFatores));
+            salvarScanSel(); renderScanFiltro();
+            showToast('📂 IA importada: ' + Object.keys(j.iaCache || {}).length + ' conjunto(s) de parâmetros', 'ok');
+        } catch (e) { showToast('Arquivo inválido: ' + e.message, 'err'); }
+        this.value = '';
+    };
+    rd.readAsText(f);
+});
+
+// ---- Auto-reotimização da IA (a cada 60 min, se não estiver rodando) ----
+function configurarAutoReopt() {
+    if (autoReoptTimer) { clearInterval(autoReoptTimer); autoReoptTimer = null; }
+    if (!document.getElementById('autoReopt').checked) return;
+    autoReoptTimer = setInterval(() => {
+        if (!iaRodando && fonte() !== 'sim') { showToast('🤖 Auto-reotimização da IA iniciada', 'info'); otimizarIA(); }
+    }, 60 * 60000);
+}
+document.getElementById('autoReopt').addEventListener('change', function () {
+    localStorage.setItem('autoReopt', this.checked ? '1' : '0');
+    configurarAutoReopt();
+    showToast(this.checked ? '🤖 Auto-reotimização LIGADA (a cada 60 min)' : 'Auto-reotimização desligada', 'info');
+});
+
+// ---- Cache de velas (TTL 60s): IA em lote + Scanner reusam o mesmo histórico ----
+const cacheVelas = new Map();
+const CACHE_VELAS_TTL = 60000;
+async function comCache(chave, fn) {
+    const hit = cacheVelas.get(chave);
+    if (hit && Date.now() - hit.t < CACHE_VELAS_TTL) return hit.d;
+    const d = await fn();
+    if (d && d.length) cacheVelas.set(chave, { t: Date.now(), d });
+    if (cacheVelas.size > 400) cacheVelas.delete(cacheVelas.keys().next().value);
+    return d;
+}
+
+// ---- Regime da última vela (para o iaCache ciente de regime) ----
+function regimeUltimo() {
+    try { const r = regimePorBarra(); return r[r.length - 1] || 'range'; } catch (e) { return 'range'; }
+}
 document.getElementById('timeframe').addEventListener('change', function () {
     montarWidgetTV();   // sincroniza o widget oficial com o novo timeframe
     carregar();
@@ -2879,7 +3091,11 @@ document.getElementById('btnTreinoPular').addEventListener('click', () => respon
 document.getElementById('btnTreinoSair').addEventListener('click', () => encerrarTreino(true));
 
 document.getElementById('btnScan').addEventListener('click', escanear);
-document.getElementById('btnIA').addEventListener('click', otimizarIA);
+document.getElementById('btnIA').addEventListener('click', function () {
+    // durante a execução, o mesmo botão vira o CANCELAR
+    if (iaRodando) { iaCancelar = true; this.textContent = 'Cancelando…'; return; }
+    otimizarIA();
+});
 document.getElementById('btnEstudo').addEventListener('click', renderEstudo);
 document.getElementById('btnCryptoIdx').addEventListener('click', function () {
     document.getElementById('fonte').value = 'binance';
@@ -2907,7 +3123,7 @@ document.addEventListener('click', function desbloquear() {
 document.getElementById('newsSoMoeda').addEventListener('change', renderNoticias);
 // Confluência: mudar modo/pontuação/janela recalcula os sinais na hora
 ['confMode', 'minScore', 'confJanela', 'useFluxo', 'fluxoJanela',
-    'usePadrao', 'useSessao', 'useSR', 'srAtr', 'usePesoIA', 'useGrade'].forEach(id =>
+    'usePadrao', 'useSessao', 'useSR', 'srAtr', 'usePesoIA', 'useGrade', 'useMacd', 'useBollinger'].forEach(id =>
     document.getElementById(id).addEventListener('change', recalcularSinaisApenas));
 // Correlação/pares de referência: recarrega os pares e recalcula
 ['useCorrelacao', 'refPairs'].forEach(id =>
@@ -2939,7 +3155,12 @@ function iniciar() {
     montarWidgetTV();   // gráfico oficial do TradingView no topo (assíncrono, com retry)
     carregarSimbolos();
     renderScanFiltro(); // checklist de moedas do scanner
-    aplicarControles(localStorage.getItem('ctrlVisivel') !== '0'); // restaura visibilidade da barra
+    // Sidebar: restaura a preferência; em telas pequenas começa recolhida (minimalista)
+    const ctrlPref = localStorage.getItem('ctrlVisivel');
+    aplicarControles(ctrlPref == null ? window.innerWidth > 900 : ctrlPref !== '0');
+    aplicarTema(localStorage.getItem('tema') === 'light' ? 'light' : 'dark');
+    document.getElementById('autoReopt').checked = localStorage.getItem('autoReopt') === '1';
+    configurarAutoReopt();
     carregar();
     carregarNoticias(); // notícias em tempo real
     newsTimer = setInterval(carregarNoticias, 60000);  // auto-refresh a cada 60s

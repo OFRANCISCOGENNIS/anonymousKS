@@ -29,7 +29,8 @@
             <div class="qo-stat"><small>Operações Aprovadas</small><span id="qoAprov" class="qo-good">—</span></div>
             <div class="qo-stat"><small>Bloqueadas</small><span id="qoBloq" class="qo-bad">—</span></div>
             <div class="qo-stat"><small>Expectativa Matemática</small><span id="qoExpect">—</span></div>
-            <button id="btnControles" class="qo-toggle" type="button" aria-expanded="true" title="Mostrar/ocultar as configurações (tela minimalista)">⚙️ Controles</button>
+            <button id="btnControles" class="qo-toggle" type="button" aria-expanded="true" title="Mostrar/ocultar as configurações (atalho C)">⚙️ Controles</button>
+            <button id="btnTema" class="qo-toggle qo-toggle-icon" type="button" title="Alternar tema claro/escuro (atalho T)">🌓</button>
         </header>
 
         <main class="main-content">
@@ -159,6 +160,14 @@
                     <label>Lookback (velas) <input type="number" id="estruturaLookback" value="20" min="2" max="100"></label>
                 </section>
 
+                <!-- Fatores extras -->
+                <section class="control-group">
+                    <h3>📊 Fatores extras</h3>
+                    <label><input type="checkbox" id="useMacd"> <span>MACD (12/26/9) — momentum</span></label>
+                    <label><input type="checkbox" id="useBollinger"> <span>Bandas de Bollinger (20, 2σ) — reversão</span></label>
+                    <p class="group-note">Entram na confluência como os demais fatores e nos pesos por regime da IA.</p>
+                </section>
+
                 <!-- Confluência -->
                 <section class="control-group">
                     <h3>🎯 Confluência</h3>
@@ -208,7 +217,14 @@
                     <button id="btnTestarSom" class="btn-mini" style="width:100%; margin-top:4px;">🔊 Testar som</button>
                     <button id="btnScan" class="btn-primary" style="margin-top:8px;">🔎 Escanear melhores entradas</button>
                     <button id="btnIA" class="btn-primary" style="margin-top:6px;">🤖 IA: otimizar parâmetros</button>
-                    <p class="group-note">A IA otimiza as moedas marcadas em <strong>🎯 Moedas p/ análise</strong> (uma a uma) e deixa o Scanner pronto com os melhores parâmetros de cada. No modo <strong>Simulado</strong>, otimiza só o par atual.</p>
+                    <p class="group-note">A IA otimiza as moedas marcadas em <strong>🎯 Moedas p/ análise</strong> (uma a uma) e deixa o Scanner pronto com os melhores parâmetros de cada. No modo <strong>Simulado</strong>, otimiza só o par atual. Durante a execução, clique de novo no botão para <strong>cancelar</strong>.</p>
+                    <label><input type="checkbox" id="iaRapida" checked> <span>IA rápida (busca inteligente — ~⅓ das combinações)</span></label>
+                    <label><input type="checkbox" id="autoReopt"> <span>Auto-reotimizar a cada 60 min</span></label>
+                    <div class="scan-fil-actions" style="margin-top:6px;">
+                        <button id="btnIAExport" class="btn-mini" type="button">💾 Exportar IA</button>
+                        <button id="btnIAImport" class="btn-mini" type="button">📂 Importar IA</button>
+                    </div>
+                    <input type="file" id="iaImportFile" accept="application/json" style="display:none;">
                     <button id="btnEstudo" class="btn-primary" style="margin-top:6px;">📚 Estudar o mercado</button>
                 </section>
 
@@ -461,6 +477,7 @@
                 <h2>🗓️ Registro de entradas <span id="registroMeta" class="tv-sync-tag"></span>
                     <button id="btnLimparReg" class="btn-ghost" style="float:right;">Limpar</button></h2>
                 <div id="chartRegistro" style="height:70px;"></div>
+                <div id="iaCalib" class="ia-calib" style="display:none;"></div>
                 <div id="registroBody" class="reg-list"></div>
             </aside>
         </main>
