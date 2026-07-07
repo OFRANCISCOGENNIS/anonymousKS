@@ -284,9 +284,17 @@ function iniciar() {
     autoTreinar();      // ?treinar=1 → dispara a IA sozinha ao abrir
 }
 
+// Presets de moedas para o treino automático (?preset=). "majors" = os 7 pares
+// principais do forex; "menores" = 3 majors leves p/ chave grátis (poupa cota).
+const PRESETS_MOEDAS = {
+    majors: ['EURUSD', 'USDJPY', 'GBPUSD', 'AUDUSD', 'USDCAD', 'USDCHF', 'NZDUSD'],
+    menores: ['EURUSD', 'GBPUSD', 'USDJPY']
+};
+
 // Treino automático via URL — "colocar a IA pra treinar" vira só abrir o link:
 //   ?treinar=1                          usa a fonte/moedas atuais
-//   ?treinar=1&fonte=binance            escolhe a fonte
+//   ?treinar=1&fonte=twelvedata         escolhe a fonte (forex real)
+//   ?treinar=1&preset=majors            treina os 7 pares principais do forex
 //   ?treinar=1&moedas=BTCUSDT,ETHUSDT   treina só essas moedas
 //   ?treinar=1&minval=5                 exige amostra mínima maior
 async function autoTreinar() {
@@ -301,8 +309,10 @@ async function autoTreinar() {
     if (minval >= 3) document.getElementById('iaMinVal').value = minval;
     // aguarda o exchangeInfo (pares forex Binance) e a carga inicial
     await new Promise(r => setTimeout(r, 1600));
-    // pré-seleção de moedas: marca só as pedidas na URL
-    const moedas = (_params.get('moedas') || '').split(',').map(s => s.trim().toUpperCase()).filter(Boolean);
+    // pré-seleção de moedas: preset nomeado ou lista explícita na URL
+    const preset = (_params.get('preset') || '').toLowerCase();
+    const moedas = PRESETS_MOEDAS[preset]
+        || (_params.get('moedas') || '').split(',').map(s => s.trim().toUpperCase()).filter(Boolean);
     if (moedas.length) {
         scanUniverse().forEach(s => scanSel[s] = false);
         moedas.forEach(s => scanSel[s] = true);

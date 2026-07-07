@@ -118,6 +118,7 @@ const arrancou = await p2.evaluate(() => document.getElementById('iaPanel').styl
 await p2.waitForFunction(() => typeof iaRodando !== 'undefined' && !iaRodando, { timeout: 90000 });
 check('treino automático (?treinar=1) arranca sozinho', arrancou);
 check('treino automático produz iaCache', await p2.evaluate(() => Object.keys(iaCache).length > 0));
+check('preset majors tem os 7 pares principais', await p2.evaluate(() => PRESETS_MOEDAS.majors.length === 7 && PRESETS_MOEDAS.majors.every(s => PARES_YAHOO[s])));
 check('treino automático sem erros de JS', jsErrs2.length === 0, jsErrs2.join(' | '));
 await p2.close();
 
