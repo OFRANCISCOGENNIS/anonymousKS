@@ -1558,7 +1558,7 @@ function atualizarDecisao() {
             const dirN = verdictKey === 'CALL' ? 1 : -1;
             const lbl = PARES_YAHOO[symbolAtual()] ? PARES_YAHOO[symbolAtual()].label : symbolAtual();
             const g = usaGrade ? calcularGrade(dirN).grade : null;
-            registrarEntrada(lbl, dirN, Math.max(long, short), enabled, { grade: g, live: 1, exp: parseInt(document.getElementById('expiracao').value) || 5 });
+            registrarEntrada(lbl, dirN, Math.max(long, short), enabled, { grade: g, live: 1, exp: parseInt(document.getElementById('expiracao').value) || 5, sym: symbolAtual(), fonte: fonte() });
             renderRegistro();
         }
         if (document.getElementById('somAtivo').checked && !treino) {
@@ -2264,7 +2264,7 @@ async function escanear() {
     heatData = [];   // heatmap é reconstruído a cada varredura
     for (const s of lista) {
         try {
-            const d = await comCache(f + '|' + s + '|' + arg + '|250', () => loader(s, arg, 250));
+            const d = await comCache(f + '|' + s + '|' + arg + '|400', () => loader(s, arg, 400));
             if (!d || d.length < 210) continue;
             // Scanner + IA: aplica os melhores parâmetros já otimizados para este par,
             // preferindo o conjunto afinado para o REGIME atual do próprio ativo
@@ -2308,7 +2308,7 @@ async function escanear() {
     }));
     document.getElementById('scanPanel').style.display = 'block';
     res.forEach(r => registrarEntrada(PARES_YAHOO[r.s] ? PARES_YAHOO[r.s].label : r.s, r.dir, r.score, r.enabled,
-        { exp: (iaCache[r.s] && iaCache[r.s].exp) || parseInt(el('expiracao').value) || 5 }));
+        { exp: (iaCache[r.s] && iaCache[r.s].exp) || parseInt(el('expiracao').value) || 5, sym: r.s, fonte: f }));
     if (res.length) renderRegistro();
     if (res.length && document.getElementById('somAtivo').checked) tocarSom(res[0].dir);
     btn.disabled = false; btn.textContent = '🔎 Escanear melhores entradas';
@@ -2358,45 +2358,80 @@ function renderRegistro() {
     chartRegistro.timeScale().fitContent();
     document.getElementById('registroMeta').textContent =
         registro.length + ' entrada' + (registro.length > 1 ? 's' : '') + (news.length ? ' · ⚡ ' + news.length + ' notícias' : '');
-    document.getElementById('registroBody').innerHTML = registro.slice().reverse().map(r =>
-        `<div class="reg-row"><span class="reg-hora">${fmtHora(r.t)}</span>` +
-        `<span class="reg-par">${r.par}${r.live ? ' <span class="reg-tag">IA ao vivo</span>' : ''}</span>` +
-        (r.grade ? `<span class="reg-grade grade-${r.grade}">${r.grade}</span>` : '') +
-        `<span class="${r.dir === 1 ? 'chip-dir-up' : 'chip-dir-down'}">${r.dir === 1 ? '▲ CALL' : '▼ PUT'} ${r.score}/${r.enabled}</span></div>`
-    ).join('');
+    document.getElementById('registroBody').innerHTML = registro.slice().reverse().map(r => {
+        const res = r.resultado === 'WIN' ? '<span class="reg-res reg-win" title="acertou">✓</span>'
+            : r.resultado === 'LOSS' ? '<span class="reg-res reg-loss" title="errou">✗</span>'
+            : (r.exp && r.t + r.exp * 60 > Math.floor(Date.now() / 1000)) ? '<span class="reg-res reg-open" title="aguardando expiração">⏳</span>' : '';
+        return `<div class="reg-row"><span class="reg-hora">${fmtHora(r.t)}</span>` +
+            `<span class="reg-par">${r.par}${r.live ? ' <span class="reg-tag">IA ao vivo</span>' : ''}</span>` +
+            (r.grade ? `<span class="reg-grade grade-${r.grade}">${r.grade}</span>` : '') +
+            `<span class="${r.dir === 1 ? 'chip-dir-up' : 'chip-dir-down'}">${r.dir === 1 ? '▲ CALL' : '▼ PUT'} ${r.score}/${r.enabled}</span>${res}</div>`;
+    }).join('');
     atualizarCalibracaoIA();
 }
 
-// ---- Calibração da IA: acerto PREVISTO (backtest) × acerto REAL (registro ao vivo) ----
-// Resolve o desfecho de uma entrada do registro usando as velas do par aberto:
-// WIN se o preço na expiração fechou a favor da direção registrada.
-function resolverEntradaLive(r) {
-    if (!r.exp || !r.t || !dados.length) return null;
-    const lbl = PARES_YAHOO[symbolAtual()] ? PARES_YAHOO[symbolAtual()].label : symbolAtual();
-    if (r.par !== lbl) return null;                        // só resolve com as velas do par aberto
+// ---- Verificador automático de WIN/LOSS ----
+// Passada a expiração, resolve o desfecho de cada entrada do registro comparando
+// o preço na entrada × na expiração. Usa as velas do par aberto (qualquer fonte)
+// ou busca uma janela 1m na Binance para pares não abertos. Persiste o resultado.
+function _desfechoPelasVelas(r, velas) {
     const alvo = r.t + r.exp * 60;
-    if (dados[dados.length - 1].time < alvo) return null;  // ainda não expirou
+    if (!velas.length || velas[velas.length - 1].time < alvo) return null;   // ainda não expirou nessas velas
     let iE = -1, iA = -1;
-    for (let i = 0; i < dados.length; i++) {
-        if (dados[i].time <= r.t) iE = i;
-        if (dados[i].time <= alvo) iA = i;
-    }
+    for (let i = 0; i < velas.length; i++) { if (velas[i].time <= r.t) iE = i; if (velas[i].time <= alvo) iA = i; }
     if (iE < 0 || iA <= iE) return null;
-    const dif = dados[iA].close - dados[iE].close;
+    const dif = velas[iA].close - velas[iE].close;
     if (dif === 0) return null;                            // empate não conta
-    return (r.dir === 1) === (dif > 0);
+    return (r.dir === 1) === (dif > 0) ? 'WIN' : 'LOSS';
 }
+async function klinesBinanceJanela(sym, t0, t1) {
+    const url = `${BINANCE_REST}/api/v3/klines?symbol=${sym}&interval=1m&startTime=${t0 * 1000}&endTime=${t1 * 1000}&limit=1000`;
+    const resp = await fetch(url); if (!resp.ok) throw new Error('HTTP ' + resp.status);
+    return (await resp.json()).map(k => ({ time: Math.floor(k[0] / 1000), close: +k[4] }));
+}
+let verificando = false;
+async function verificarEntradasPendentes() {
+    if (verificando) return; verificando = true;
+    try {
+        const agora = Math.floor(Date.now() / 1000);
+        const lblAberto = PARES_YAHOO[symbolAtual()] ? PARES_YAHOO[symbolAtual()].label : symbolAtual();
+        let mudou = false;
+        // 1) par aberto (qualquer fonte): resolve com as velas já carregadas
+        if (dados.length) for (const r of registro) {
+            if (r.resultado || !r.exp || (r.t + r.exp * 60) >= agora - 3 || r.par !== lblAberto) continue;
+            const d = _desfechoPelasVelas(r, dados); if (d) { r.resultado = d; mudou = true; }
+        }
+        // 2) pares Binance não abertos: busca janela 1m (agrupado por símbolo, 1 req cada)
+        const pend = registro.filter(r => !r.resultado && r.exp && r.sym && r.fonte === 'binance' && (r.t + r.exp * 60) < agora - 3);
+        const porSym = {}; pend.forEach(r => (porSym[r.sym] = porSym[r.sym] || []).push(r));
+        for (const sym of Object.keys(porSym)) {
+            const ents = porSym[sym];
+            const t0 = Math.min(...ents.map(e => e.t)) - 120;
+            const t1 = Math.min(agora, Math.max(...ents.map(e => e.t + e.exp * 60)) + 120);
+            let velas; try { velas = await klinesBinanceJanela(sym, t0, t1); } catch (e) { continue; }
+            if (!velas || !velas.length) continue;
+            ents.forEach(r => { const d = _desfechoPelasVelas(r, velas); if (d) { r.resultado = d; mudou = true; } });
+        }
+        if (mudou) { localStorage.setItem('registroEntradas', JSON.stringify(registro)); renderRegistro(); }
+    } finally { verificando = false; }
+}
+
+// ---- Calibração da IA: acerto PREVISTO (backtest) × acerto REAL (verificado) ----
 function atualizarCalibracaoIA() {
     const cal = document.getElementById('iaCalib');
     if (!cal) return;
     const cc = iaCache[symbolAtual() + '|' + regimeUltimo()] || iaCache[symbolAtual()];
-    const res = registro.map(resolverEntradaLive).filter(x => x !== null);
-    if (!cc || res.length < 3) { cal.style.display = 'none'; return; }
-    const real = res.filter(Boolean).length / res.length;
-    const dif = Math.abs(real - cc.wr);
+    const res = registro.filter(r => r.resultado === 'WIN' || r.resultado === 'LOSS');
+    if (res.length < 3) { cal.style.display = 'none'; return; }
+    const wins = res.filter(r => r.resultado === 'WIN').length;
+    const real = wins / res.length;
     cal.style.display = 'block';
-    cal.innerHTML = `🧪 IA: prevista <strong>${Math.round(cc.wr * 100)}%</strong> · real <strong>${Math.round(real * 100)}%</strong> (${res.length} ops) ` +
-        `<span class="${dif <= 0.10 ? 'chip-dir-up' : 'chip-dir-down'}">${dif <= 0.10 ? 'calibrada ✓' : 'descalibrada ⚠'}</span>`;
+    let txt = `📊 Placar real: <strong>${wins}/${res.length}</strong> (${Math.round(real * 100)}% acerto)`;
+    if (cc) {
+        const dif = Math.abs(real - cc.wr);
+        txt += ` · IA previu ${Math.round(cc.wr * 100)}% <span class="${dif <= 0.10 ? 'chip-dir-up' : 'chip-dir-down'}">${dif <= 0.10 ? 'calibrada ✓' : 'descalibrada ⚠'}</span>`;
+    }
+    cal.innerHTML = txt;
 }
 
 // ============================================================================
@@ -2414,6 +2449,7 @@ const IA_GRID = {
 };
 const IA_MIN_OPS = 6;    // amostra mínima no TREINO
 const IA_MIN_VAL = 3;    // amostra mínima na VALIDAÇÃO (out-of-sample)
+const IA_VELAS = 500;    // histórico por TF na otimização (mais amostra = validação mais confiável)
 let iaCancelar = false, iaRodando = false, autoReoptTimer = null;
 
 // Melhores parâmetros memorizados por par (usados pelo scanner). Persistente.
@@ -2453,7 +2489,7 @@ async function _iaOtimizarSimbolo(symbol, isSim, dSimBase, beWR, EXP_OPCOES, el)
         if (iaCancelar) break;
         let dTf = dSimBase;
         if (!isSim) {
-            try { dTf = await carregarHistoricoTF(symbol, tf, 300); } catch (e) { continue; }
+            try { dTf = await carregarHistoricoTF(symbol, tf, IA_VELAS); } catch (e) { continue; }
             if (!dTf || dTf.length < 210) continue;
         }
         dados = dTf; el('timeframe').value = tf;
@@ -3175,6 +3211,8 @@ function iniciar() {
     carregarNoticias(); // notícias em tempo real
     newsTimer = setInterval(carregarNoticias, 60000);  // auto-refresh a cada 60s
     renderRegistro();   // restaura o registro de entradas salvo
+    setTimeout(verificarEntradasPendentes, 4000);              // resolve WIN/LOSS pendentes ao abrir
+    setInterval(verificarEntradasPendentes, 30000);            // e a cada 30s enquanto o app roda
 }
 if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', iniciar);
