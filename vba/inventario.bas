@@ -1090,7 +1090,10 @@ Private Function EhAderente(fam As String, libV As Variant, prjV As Variant, raw
     If isMarg And IsNumeric(libV) And IsNumeric(prjV) Then
         Dim l As Double, pp As Double
         l = CDbl(libV) : pp = CDbl(prjV)
-        If fam = "COND NU" And Abs(l - pp) <= 5 Then
+        ' COND NU: diferenca ate 5 (unidades) e considerada ADERENTE, independente
+        ' da margem percentual. Match tolerante a espaco/pontuacao ("COND NU",
+        ' "COND-NU", "COND. NU" -> "CONDNU").
+        If EhCondNu(fam) And Abs(l - pp) <= 5 Then
             EhAderente = True
         ElseIf pp = 0 Then
             EhAderente = (l = 0)
@@ -1101,6 +1104,11 @@ Private Function EhAderente(fam As String, libV As Variant, prjV As Variant, raw
     Else
         EhAderente = (rawSitNorm = "ADERENTE")
     End If
+End Function
+
+' True quando a familia (ja NormStr) e COND NU, tolerante a espaco/pontuacao.
+Private Function EhCondNu(fam As String) As Boolean
+    EhCondNu = (Replace(fam, " ", "") = "CONDNU")
 End Function
 
 Private Function FmtKPI(v As Double) As String
@@ -3532,6 +3540,14 @@ Public Sub TestarLogicaInventario()
     RegTest nomes, oks, det, cnt, "EhAderente COND 100/100 = True", (EhAderente("COND", 100, 100, "") = True)
     RegTest nomes, oks, det, cnt, "EhAderente COND 100/105 = True", (EhAderente("COND", 100, 105, "") = True)
     RegTest nomes, oks, det, cnt, "EhAderente COND 100/50 = False", (EhAderente("COND", 100, 50, "") = False)
+    ' COND NU dif<=5 resgata mesmo fora dos 10% (prj 10 x 10% = 1, dif 4 > 1):
+    RegTest nomes, oks, det, cnt, "EhAderente COND NU 14/10 (dif 4) = True", (EhAderente("COND NU", 14, 10, "") = True)
+    RegTest nomes, oks, det, cnt, "EhAderente COND (nao NU) 14/10 = False", (EhAderente("COND", 14, 10, "") = False)
+    RegTest nomes, oks, det, cnt, "EhAderente COND NU 15/10 (dif 5) = True", (EhAderente("COND NU", 15, 10, "") = True)
+    RegTest nomes, oks, det, cnt, "EhAderente COND NU 16/10 (dif 6) = False", (EhAderente("COND NU", 16, 10, "") = False)
+    RegTest nomes, oks, det, cnt, "EhAderente COND NU 3/0 (dif 3, prj 0) = True", (EhAderente("COND NU", 3, 0, "") = True)
+    RegTest nomes, oks, det, cnt, "EhCondNu tolera pontuacao (COND-NU) = True", (EhCondNu(NormStr("COND-NU")) = True)
+    RegTest nomes, oks, det, cnt, "EhCondNu COND PROT = False", (EhCondNu("COND PROT") = False)
     RegTest nomes, oks, det, cnt, "EhAderente UC ADERENTE = True", (EhAderente("PARAFUSO", "x", "y", "ADERENTE") = True)
     RegTest nomes, oks, det, cnt, "EhUnidadeInteira M = False", (EhUnidadeInteira("M") = False)
     RegTest nomes, oks, det, cnt, "EhUnidadeInteira UN = True", (EhUnidadeInteira("UN") = True)
