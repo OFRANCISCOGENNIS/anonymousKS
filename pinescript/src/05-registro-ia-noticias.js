@@ -20,35 +20,31 @@ function ajustarTopoRegistro() {
 }
 window.addEventListener('resize', ajustarTopoRegistro);
 
+let _dockVisivelAntes = null;
 function renderRegistro() {
     const panel = document.getElementById('registroPanel');
-    document.body.classList.toggle('tem-registro', registro.length > 0);
+    const visivel = registro.length > 0;
+    document.body.classList.toggle('tem-registro', visivel);
+    // Quando o dock entra/sai, a largura útil muda: re-ajusta os gráficos (senão o
+    // gráfico transborda por baixo do dock). Reusa o handler de resize da janela.
+    if (visivel !== _dockVisivelAntes) {
+        _dockVisivelAntes = visivel;
+        requestAnimationFrame(() => window.dispatchEvent(new Event('resize')));
+    }
     if (!registro.length) { panel.style.display = 'none'; return; }
     ajustarTopoRegistro();
     panel.style.display = 'flex';
-    if (!chartRegistro) {
-        chartRegistro = LightweightCharts.createChart(document.getElementById('chartRegistro'), { ...opcoesBase(), height: 70 });
-        serieRegistro = chartRegistro.addLineSeries({ color: 'rgba(120,120,120,0.35)', lineWidth: 1, priceLineVisible: false, lastValueVisible: false });
-        chartRegistro.priceScale('right').applyOptions({ visible: false });
-    }
-    // Notícias dentro da janela do registro entram como marcadores ⚡ na timeline
+    // Notícias na janela do registro (contagem exibida no meta)
     const tMin = registro[0].t - 3600, tMax = registro[registro.length - 1].t + 3600;
     const news = noticias
         .map(n => ({ t: Math.floor(n.date.getTime() / 1000), title: n.title }))
         .filter(n => n.t >= tMin && n.t <= tMax);
-    const times = [...new Set([...registro.map(r => r.t), ...news.map(n => n.t)])].sort((a, b) => a - b);
-    serieRegistro.setData(times.map(t => ({ time: t, value: 0 })));
-    serieRegistro.setMarkers([
-        ...registro.map(r => ({
-            time: r.t,
-            position: r.dir === 1 ? 'aboveBar' : 'belowBar',
-            color: r.dir === 1 ? '#26a69a' : '#ef5350',
-            shape: r.dir === 1 ? 'arrowUp' : 'arrowDown'
-            // sem texto: as setas ficam limpas na horizontal (par/grade aparecem na tabela abaixo)
-        })),
-        ...news.map(n => ({ time: n.t, position: 'inBar', color: '#fab219', shape: 'circle', text: '⚡' }))
-    ].sort((a, b) => a.time - b.time));
-    chartRegistro.timeScale().fitContent();
+    // Régua de SETAS NA VERTICAL (mais recentes no topo): direção + resultado WIN/LOSS
+    document.getElementById('regArrows').innerHTML = registro.slice().reverse().slice(0, 12).map(r => {
+        const up = r.dir === 1;
+        const cls = r.resultado === 'WIN' ? 'seta-win' : r.resultado === 'LOSS' ? 'seta-loss' : '';
+        return `<span class="reg-seta ${up ? 'seta-up' : 'seta-down'} ${cls}" title="${fmtHora(r.t)} · ${up ? 'CALL' : 'PUT'}${r.resultado ? ' · ' + r.resultado : ''}">${up ? '▲' : '▼'}</span>`;
+    }).join('');
     document.getElementById('registroMeta').textContent =
         registro.length + ' entrada' + (registro.length > 1 ? 's' : '') + (news.length ? ' · ⚡ ' + news.length + ' notícias' : '');
     document.getElementById('registroBody').innerHTML = registro.slice().reverse().map(r => {
