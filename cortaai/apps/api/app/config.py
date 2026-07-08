@@ -24,7 +24,7 @@ class Settings(BaseSettings):
     redis_url: str = "redis://localhost:6379/0"
 
     # --- Auth ------------------------------------------------------------
-    jwt_secret: str = "dev-secret-troque-em-producao"
+    jwt_secret: str = "dev-secret-troque-em-producao-0123456789abcdef"
     jwt_algorithm: str = "HS256"
     jwt_expires_minutes: int = 60 * 24 * 7  # 7 days
     # INTEGRAÇÃO PAGA/EXTERNA: Google OAuth (client id used to verify id_token)
