@@ -183,10 +183,57 @@ function avaliarWalkForward() {
     return { treino, val: { ops, w, wr: ops ? w / ops : 0, wrLB: wilsonLB(w, ops) }, robustVal, robustLB };
 }
 
+// Snapshot da configuração de backtest (DOM → objeto simples), enviado ao worker.
+// Os campos que a grade varia (minScore/rsi/estrutura/cooldown/exp) são
+// sobrescritos por combo dentro de avaliarGridPuro.
+function lerConfigIA(tf) {
+    const el = id => document.getElementById(id);
+    const num = id => parseInt(el(id).value);
+    const chk = id => el(id).checked;
+    return {
+        tf,
+        emaRapida: num('emaRapida'), emaLenta: num('emaLenta'), rsiLen: num('rsiLen'),
+        atrLen: num('atrLen'), atrMediaLen: num('atrMediaLen'),
+        useTendencia: chk('useTendencia'), useEma200: chk('useEma200'), useMomentum: chk('useMomentum'),
+        useVolatilidade: chk('useVolatilidade'), useEstrutura: chk('useEstrutura'),
+        useFluxo: chk('useFluxo'), useCorrelacao: chk('useCorrelacao'), usePadrao: chk('usePadrao'),
+        useMacd: chk('useMacd'), useBollinger: chk('useBollinger'),
+        useSessao: chk('useSessao'), useSR: chk('useSR'),
+        confMode: el('confMode').value, confJanela: num('confJanela'), fluxoJanela: num('fluxoJanela'),
+        srAtr: parseFloat(el('srAtr').value) || 0.5
+    };
+}
+
+// ---- Gerenciador do Web Worker do backtest (com fallback na thread principal) ----
+let _iaWorker = null, _iaWorkerId = 0, _iaWorkerQuebrado = false;
+function iaWorkerDisponivel() {
+    if (_iaWorkerQuebrado) return false;
+    if (_iaWorker) return true;
+    try {
+        if (typeof Worker === 'undefined' || typeof window === 'undefined' || !window.__IA_CORE_SRC__) { _iaWorkerQuebrado = true; return false; }
+        _iaWorker = new Worker(URL.createObjectURL(new Blob([window.__IA_CORE_SRC__], { type: 'application/javascript' })));
+        return true;
+    } catch (e) { _iaWorkerQuebrado = true; return false; }
+}
+// Avalia a grade de um (símbolo × TF) no worker; qualquer falha cai no fallback
+// síncrono (mesmo núcleo puro), garantindo resultado idêntico.
+function avaliarGridWorker(dados, cfgBase, combos, minVal, minOps, beWR) {
+    return new Promise(resolve => {
+        const fallback = () => resolve(avaliarGridPuro(dados, cfgBase, combos, minVal, minOps, beWR));
+        if (!iaWorkerDisponivel()) return fallback();
+        const id = ++_iaWorkerId, w = _iaWorker;
+        const limpar = () => { clearTimeout(to); w.removeEventListener('message', onMsg); w.removeEventListener('error', onErr); };
+        const to = setTimeout(() => { limpar(); _iaWorkerQuebrado = true; try { w.terminate(); } catch (e) {} _iaWorker = null; fallback(); }, 30000);
+        function onMsg(ev) { if (!ev.data || ev.data.id !== id) return; limpar(); ev.data.ok ? resolve(ev.data.best) : fallback(); }
+        function onErr() { limpar(); _iaWorkerQuebrado = true; fallback(); }
+        w.addEventListener('message', onMsg); w.addEventListener('error', onErr);
+        w.postMessage({ id, dados, cfgBase, combos, minVal, minOps, beWR });
+    });
+}
+
 // Otimiza UM símbolo: varre a grade × timeframes e devolve o melhor combo por TF
 // (ordenado por edge líquido), já gravando o campeão em iaCache (geral + por regime).
-// Muda `dados`/inputs temporariamente — quem chama é responsável por restaurar.
-// Coopera com a UI: cede a thread a cada 10 combos e respeita `iaCancelar`.
+// Cada TF tem a grade avaliada no Web Worker (fora da thread da tela).
 async function _iaOtimizarSimbolo(symbol, isSim, dSimBase, beWR, EXP_OPCOES, el) {
     const tfs = isSim ? [tfMinutes()] : TFS_IA;
     const minVal = iaMinVal(), minOps = iaMinOps();   // amostra mínima (UI) — fixa nesta rodada
@@ -218,26 +265,12 @@ async function _iaOtimizarSimbolo(symbol, isSim, dSimBase, beWR, EXP_OPCOES, el)
             const cc = iaCache[symbol + '|' + regSym] || iaCache[symbol];
             if (cc && exps.includes(cc.exp)) combos.push({ exp: cc.exp, ms: cc.ms, sv: cc.sv, sc: cc.sc, lk: cc.lk, cd: cc.cd });
         }
-        let best = null, n = 0;
-        for (const c of combos) {
-            if (iaCancelar) break;
-            el('minScore').value = c.ms; el('rsiSobrevenda').value = c.sv; el('rsiSobrecompra').value = c.sc;
-            el('estruturaLookback').value = c.lk; el('cooldownVelas').value = c.cd;
-            expOverride = c.exp;
-            const wf = avaliarWalkForward();
-            expOverride = null;
-            totalCombos++;
-            if (++n % 10 === 0) await new Promise(r => setTimeout(r, 0));   // deixa a UI respirar
-            if (wf.treino.ops < minOps || wf.val.ops < minVal) continue;
-            // robustez = pior janela entre treino e validação, no LIMITE INFERIOR
-            // de Wilson (anti-overfit + anti-sorte-de-amostra-pequena).
-            const robust = Math.min(wilsonLB(wf.treino.w, wf.treino.ops), wf.robustLB);
-            // edge que temos ~95% de confiança de existir fora da amostra
-            const edgeLB = wf.val.wrLB - beWR;
-            if (!best || edgeLB > best.edgeLB || (edgeLB === best.edgeLB && robust > best.robust))
-                best = { tf, exp: c.exp, ms: c.ms, sv: c.sv, sc: c.sc, lk: c.lk, cd: c.cd, robust, edgeLB, treino: wf.treino, val: wf.val };
-        }
-        if (best) porTf.push(best);
+        // Toda a grade deste TF vai de uma vez para o Web Worker (fora da thread
+        // da tela); se o worker não existir, o MESMO núcleo roda como fallback.
+        const cfgBase = lerConfigIA(tf);
+        const best = await avaliarGridWorker(dTf, cfgBase, combos, minVal, minOps, beWR);
+        totalCombos += combos.length;
+        if (best) { best.tf = tf; porTf.push(best); }
     }
     const payout = 1 / beWR - 1;   // recupera o payout a partir do break-even
     // Ranqueia pelo EDGE LÍQUIDO NO LIMITE INFERIOR (conservador): prefere o combo

@@ -543,6 +543,7 @@
                             <li>Valida fora da amostra (walk-forward em 3 janelas) e guarda os melhores parâmetros <strong>por regime</strong> (tendência/lateral/volátil).</li>
                             <li>O <strong>Scanner</strong> usa esses parâmetros; clique numa moeda pra abri-la afinada.</li>
                             <li>O <strong>Registro</strong> marca ✓/✗ automaticamente após a expiração e compara o acerto real com o previsto.</li>
+                            <li>O backtest roda num <strong>Web Worker</strong> (segundo plano), então a tela não trava durante a otimização.</li>
                         </ul>
                     </section>
                     <section>
@@ -583,6 +584,7 @@
     <script src="src/04-dados-conexao.js"></script>
     <script src="src/05-registro-ia-noticias.js"></script>
     <script src="src/06-eventos-init.js"></script>
+    <script src="src/07-backtest.js"></script>
     <!-- APP:END -->
 </body>
 </html>

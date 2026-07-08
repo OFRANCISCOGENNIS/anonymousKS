@@ -36,7 +36,11 @@ console.log('bundle: ' + modulos.length + ' módulos -> app.js (' + bundle.lengt
 let html = fs.readFileSync(path.join(dir, 'index.html'), 'utf8');
 const lwc = fs.readFileSync(path.join(dir, 'lightweight-charts.standalone.production.js'), 'utf8');
 const css = minificar(fs.readFileSync(path.join(dir, 'styles.css'), 'utf8'), 'css');
-const app = minificar(bundle, 'js');
+
+// Núcleo de backtest (07-backtest.js) também vai como STRING p/ criar o Web
+// Worker inline (Blob) — assim o standalone continua sendo um arquivo único.
+const coreSrc = minificar(fs.readFileSync(path.join(srcDir, '07-backtest.js'), 'utf8'), 'js');
+const app = 'window.__IA_CORE_SRC__=' + JSON.stringify(coreSrc) + ';\n' + minificar(bundle, 'js');
 
 html = html.replace(
   /<!-- TradingView Lightweight Charts vendorizado localmente \(100% offline\) -->\s*<script src="lightweight-charts\.standalone\.production\.js"><\/script>/,

@@ -176,6 +176,23 @@ const retry = await p.evaluate(async () => {
 });
 check('fetchRetry repete e vence ao 3º', retry.n === 3 && retry.ok, 'n=' + retry.n);
 
+// 7.8) Web Worker do backtest: existe e dá resultado IDÊNTICO ao fallback
+const wk = await p.evaluate(async () => {
+  if (!dados || dados.length < 210) dados = gerarDadosSim(300, 2);
+  const cfg = lerConfigIA(5);
+  const combos = [
+    { exp: 5, ms: 3, sv: 30, sc: 70, lk: 20, cd: 3 },
+    { exp: 5, ms: 4, sv: 35, sc: 65, lk: 10, cd: 5 },
+    { exp: 15, ms: 3, sv: 25, sc: 75, lk: 30, cd: 3 }
+  ];
+  const beWR = 1 / 1.87;
+  const direto = avaliarGridPuro(dados, cfg, combos, 1, 1, beWR);   // fallback síncrono
+  const viaWorker = await avaliarGridWorker(dados, cfg, combos, 1, 1, beWR);   // Web Worker
+  return { temSrc: !!window.__IA_CORE_SRC__, usouWorker: !_iaWorkerQuebrado, igual: JSON.stringify(direto) === JSON.stringify(viaWorker) };
+});
+check('Web Worker inline disponível', wk.temSrc && wk.usouWorker);
+check('worker e fallback: resultado idêntico (paridade)', wk.igual);
+
 // 8) PWA manifest
 check('PWA manifest presente', await p.$eval('link[rel=manifest]', e => e.href.startsWith('data:application/manifest')));
 
