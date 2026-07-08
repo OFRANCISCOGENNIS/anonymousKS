@@ -8,6 +8,22 @@ Sem argumento: usa o projeto atual (cwd) em ~/.claude/projects.
 """
 import glob, json, os, sys
 
+# USD por MTok (input, cache-read, cache-write 5m, output) — edite se os preços mudarem
+PRICE = {
+    "claude-fable-5":    (10.0, 1.0, 12.5, 50.0),
+    "claude-opus-4-8":   (5.0, 0.5, 6.25, 25.0),
+    "claude-opus-4-7":   (5.0, 0.5, 6.25, 25.0),
+    "claude-sonnet-5":   (3.0, 0.3, 3.75, 15.0),
+    "claude-sonnet-4-6": (3.0, 0.3, 3.75, 15.0),
+    "claude-haiku-4-5":  (1.0, 0.1, 1.25, 5.0),
+}
+
+def cost_usd(model, m):
+    for k, (pi, pcr, pcw, po) in PRICE.items():
+        if model.startswith(k):
+            return (m["inp"] * pi + m["cr"] * pcr + m["cw"] * pcw + m["out"] * po) / 1e6
+    return None
+
 def project_dir():
     slug = os.getcwd().replace("/", "-")
     return os.path.expanduser(f"~/.claude/projects/{slug}")
@@ -71,8 +87,13 @@ def main():
 
     print(f"transcripts: {len(paths)}\n")
     print("== tokens por modelo (input não-cacheado / cache-read / cache-write / output / turnos)")
+    total_usd = 0.0
     for k, m in sorted(models.items(), key=lambda kv: -kv[1]["inp"] - kv[1]["cw"]):
-        print(f"  {k}: in={m['inp']:,} cr={m['cr']:,} cw={m['cw']:,} out={m['out']:,} n={m['n']}")
+        c = cost_usd(k, m)
+        extra = f"  ~US${c:,.2f}" if c is not None else ""
+        total_usd += c or 0
+        print(f"  {k}: in={m['inp']:,} cr={m['cr']:,} cw={m['cw']:,} out={m['out']:,} n={m['n']}{extra}")
+    print(f"  TOTAL estimado: ~US${total_usd:,.2f}")
 
     print("\n== chamadas por tool")
     for k, v in sorted(tools.items(), key=lambda kv: -kv[1]):

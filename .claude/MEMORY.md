@@ -1,1 +1,2 @@
 - overrides fixos: 5500000582 e 5500000575 forçam CLS2=COND PROT
+- overrides fixos: 5500000582 e 5500000575 forçam CLS2=COND PROT

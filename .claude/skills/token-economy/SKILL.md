@@ -38,6 +38,10 @@ re-pago em TODOS os turnos seguintes. Disco (arquivos) é quase grátis. Logo:
 - Edit cirúrgico, `replace_all` para renomeações; jamais Write de arquivo inteiro por poucas linhas.
 - Independentes em paralelo (1 bloco); busca ampla/incerta → subagente Explore (dumps ficam fora do seu contexto).
 
+## Cérebro (grafo estilo Obsidian)
+
+`python3 scripts/brain_server.py [porta]` sobe http://localhost:8765 com o grafo interativo ligando notas de `.claude/brain/*.md` (+ MEMORY.md) via `[[wikilinks]`] e menções a rotinas do `.bas`. Clique num nó abre a nota ou o corpo da rotina. Destile pesquisas em notas curtas ali — vira memória navegável entre sessões.
+
 ## Gatilho mental
 
 Antes de cada tool call: "isso traz >100 linhas à RAM? dá para obter só a resposta via script/filtro/disco?" Se sim, refine primeiro.
