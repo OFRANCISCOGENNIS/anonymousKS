@@ -16,6 +16,21 @@ Private mFalhas As String    ' etapas que falharam (erro granular, nao aborta tu
 Private mT0 As Double        ' Timer no inicio da execucao
 Private mTolAder As Double   ' tolerancia de aderencia (fracao) - hot path
 Private mCaboMax As Double   ' cabo isolado isento de UC abaixo deste comprimento
+Private mDifCondNu As Double ' COND NU: dif ABSOLUTA tolerada (CONFIG DIF_ABS_COND_NU)
+Private mDifAbsCabo As Double ' familias DIF_ABS_FAMILIAS: dif ABSOLUTA tolerada
+Private mFamDifAbs As Object ' tokens normalizados das familias com dif absoluta
+
+' Resultado da avaliacao de uma linha SAP x PRJ. Fonte UNICA da regra de
+' aderencia: alimenta tanto o calculo do veredito (loop 1) quanto a
+' exibicao de SIT MAT/APROVACAO/MOTIVO (loop 2) em ProcessarSAPxPRJ.
+Private Type tAvalLinha
+    EhAder       As Boolean  ' aderente (regras especiais ja aplicadas)
+    UcZerado     As Boolean  ' material UC com LIB e PRJ zerados (devolve)
+    Avaliavel    As Boolean  ' entra no veredito (UC, ou COM critico)
+    CaboIsento   As Boolean  ' CABO ISOLADO < CABO_ISOLADO_MAX_M (isento)
+    ReprovaLinha As Boolean  ' esta linha reprova o PEP4/PEP3
+    RecalculaSit As Boolean  ' SIT MAT recalculada (cabo/condutor/ramal numerico)
+End Type
 
 ' Estrutura de dados para NT.006
 Private Type tMaterial
@@ -411,7 +426,7 @@ Private Sub ProcessarSAPxPRJ(wsBase As Worksheet, wsDet As Worksheet)
         Dim p4pep3 As Object : Set p4pep3 = CreateObject("Scripting.Dictionary")
         Dim pep3RepFam As Object : Set pep3RepFam = CreateObject("Scripting.Dictionary")  ' PEP3 -> familias que reprovaram
         Dim i As Long, pep4 As String, tipoR As String, sitR As String, pep3R As String
-        Dim famR As String, famRaw As String, ehAder As Boolean, libV As Variant, prjV As Variant
+        Dim famR As String, famRaw As String, libV As Variant, prjV As Variant
         For i = 1 To nRows
             pep4 = "" : tipoR = "" : sitR = "" : famR = "" : famRaw = "" : pep3R = ""
             If srcIdx(2) > 0 Then pep4 = NormStr(CStr(baseData(i, srcIdx(2))))
@@ -423,24 +438,19 @@ Private Sub ProcessarSAPxPRJ(wsBase As Worksheet, wsDet As Worksheet)
             libV = "" : prjV = ""
             If srcIdx(9) > 0 Then libV = baseData(i, srcIdx(9))
             If srcIdx(10) > 0 Then prjV = baseData(i, srcIdx(10))
-            ehAder = EhAderente(famR, libV, prjV, sitR)
-            ' Material UC com MAT LIB SAP e MAT PRJ CAD zerados: nao e mais isento
-            ' (mesmo com SIT MAT = NULO) - conta como NAO ADERENTE e reprova o PEP3.
-            Dim ucZerado As Boolean : ucZerado = MaterialUCZerado(tipoR, libV, prjV)
-            If ucZerado Then ehAder = False
+            ' Avaliacao unificada da linha (mesma funcao usada no loop de exibicao)
+            Dim av As tAvalLinha
+            av = AvaliarLinha(tipoR, famR, libV, prjV, sitR)
             If pep4 <> "" And Not allP4.Exists(pep4) Then allP4.Add pep4, True
             If pep4 <> "" And Not p4pep3.Exists(pep4) Then p4pep3.Add pep4, pep3R
-            ' UC sempre avalia; COM avalia apenas se for familia critica (CH FUS / PARA RAIO)
-            Dim ehAvaliavel As Boolean
-            ehAvaliavel = (tipoR = "UC") Or (tipoR = "COM" And EhComCritico(famR))
-            If pep4 <> "" And ehAvaliavel And Not CaboComoCOM(famR, libV) Then
+            If pep4 <> "" And av.Avaliavel And Not av.CaboIsento Then
                 If Not temUC.Exists(pep4) Then temUC.Add pep4, True
                 If Not aprova.Exists(pep4) Then aprova.Add pep4, True
-                If (Not ehAder And sitR <> "NULO") Or ucZerado Then
+                If av.ReprovaLinha Then
                     aprova(pep4) = False
                     ' registra a familia culpada no PEP3 (sem duplicar)
                     Dim fLbl As String : fLbl = IIf(famRaw <> "", famRaw, "(sem familia)")
-                    If ucZerado Then fLbl = fLbl & " (valores zerados)"
+                    If av.UcZerado Then fLbl = fLbl & " (valores zerados)"
                     If Not pep3RepFam.Exists(pep3R) Then
                         pep3RepFam.Add pep3R, fLbl
                     ElseIf InStr(pep3RepFam(pep3R), fLbl) = 0 Then
@@ -452,7 +462,7 @@ Private Sub ProcessarSAPxPRJ(wsBase As Worksheet, wsDet As Worksheet)
                 Dim vv As Double : vv = 0
                 If IsNumeric(baseData(i, srcIdx(6))) Then vv = CDbl(baseData(i, srcIdx(6)))
                 sumValor = sumValor + vv
-                If (Not ehAder And sitR <> "NULO") Or ucZerado Then sumNaoAder = sumNaoAder + Abs(vv)
+                If av.ReprovaLinha Then sumNaoAder = sumNaoAder + Abs(vv)
             End If
         Next i
 
@@ -492,27 +502,23 @@ Private Sub ProcessarSAPxPRJ(wsBase As Worksheet, wsDet As Worksheet)
             libV = "" : prjV = ""
             If srcIdx(9) > 0 Then libV = baseData(i, srcIdx(9))
             If srcIdx(10) > 0 Then prjV = baseData(i, srcIdx(10))
-            ' TIPO deste item (precisa vir antes p/ a regra de material UC zerado)
+            ' TIPO deste item + avaliacao unificada (mesma funcao do loop 1)
             Dim tipoRow As String : tipoRow = ""
             If srcIdx(11) > 0 Then tipoRow = NormStr(CStr(baseData(i, srcIdx(11))))
-            Dim ucZeradoRow As Boolean : ucZeradoRow = MaterialUCZerado(tipoRow, libV, prjV)
+            Dim avRow As tAvalLinha
+            avRow = AvaliarLinha(tipoRow, famR, libV, prjV, sitR)
 
             Dim sitText As String
-            If ucZeradoRow Then
+            If avRow.UcZerado Then
                 sitText = "NAO ADERENTE"
-            ElseIf (Left(famR, 4) = "COND" Or Left(famR, 4) = "CABO" Or famR = "RAMAL") And IsNumeric(libV) And IsNumeric(prjV) Then
-                sitText = IIf(EhAderente(famR, libV, prjV, sitR), "ADERENTE", "NAO ADERENTE")
+            ElseIf avRow.RecalculaSit Then
+                sitText = IIf(avRow.EhAder, "ADERENTE", "NAO ADERENTE")
             Else
                 sitText = rawSit
             End If
             outArr(i, 13) = dot & " " & sitText
             Dim p3row As String : p3row = ""
             If srcIdx(1) > 0 Then p3row = NormStr(CStr(baseData(i, srcIdx(1))))
-
-            ' Aderencia deste item (para motivo detalhado). Material UC com valores
-            ' zerados nunca e aderente, mesmo fora das familias cabo/condutor.
-            Dim ehAderRow As Boolean : ehAderRow = EhAderente(famR, libV, prjV, sitR)
-            If ucZeradoRow Then ehAderRow = False
 
             ' PRIORIDADE 1: se o PEP3 esta reprovado, TODA linha vira REPROVADO
             ' (inclusive CABO ISOLADO que seria isento) - arrastado pela reprovacao do PEP3.
@@ -523,20 +529,20 @@ Private Sub ProcessarSAPxPRJ(wsBase As Worksheet, wsDet As Worksheet)
             If pep3UC.Exists(p3row) Then p3Reprovado = CBool(pep3Rep(p3row))
             If p3Reprovado Then
                 outArr(i, 14) = noIco & " REPROVADO"
-                If ucZeradoRow Then
+                If avRow.UcZerado Then
                     motivo = "Material UC com valores zerados (MAT LIB SAP=0 e MAT PRJ CAD=0) - devolvido"
-                ElseIf tipoRow = "UC" And Not ehAderRow And sitR <> "NULO" Then
+                ElseIf tipoRow = "UC" And Not avRow.EhAder And sitR <> "NULO" Then
                     motivo = "Este item (UC) nao aderente: SAP=" & CStr(libV) & " / PRJ=" & CStr(prjV) & FmtDif(libV, prjV)
-                ElseIf tipoRow = "COM" And EhComCritico(famR) And Not ehAderRow And sitR <> "NULO" Then
+                ElseIf tipoRow = "COM" And EhComCritico(famR) And Not avRow.EhAder And sitR <> "NULO" Then
                     motivo = "Este item (COM critico - " & famR & ") nao aderente: SAP=" & CStr(libV) & " / PRJ=" & CStr(prjV) & FmtDif(libV, prjV)
-                ElseIf CaboComoCOM(famR, libV) Then
+                ElseIf avRow.CaboIsento Then
                     motivo = "Cabo isolado arrastado | Familia reprovada: " & pep3RepFam(p3row)
                 Else
                     motivo = "Arrastado pela reprovacao do PEP3 | Familia reprovada: " & pep3RepFam(p3row)
                 End If
-            ElseIf CaboComoCOM(famR, libV) Then
+            ElseIf avRow.CaboIsento Then
                 outArr(i, 14) = okIco & " APROVADO"
-                motivo = "Cabo isolado < 15m - isento de UC"
+                motivo = "Cabo isolado < " & Format(IIf(mCaboMax > 0, mCaboMax, 15), "0.#") & "m - isento de UC"
             ElseIf Not pep3UC.Exists(p3row) Then
                 outArr(i, 14) = "SEM UC"
                 motivo = "PEP3 sem UC nem COM critico (CH FUS/PARA RAIO) p/ avaliar"
@@ -1097,21 +1103,47 @@ Private Function FmtDif(libV As Variant, prjV As Variant) As String
     End If
 End Function
 
-' Aderencia com margem de 10pct p/ condutores, cabos e ramal (kg ou m)
+' Avalia uma linha SAP x PRJ (fonte UNICA de regra, usada pelos 2 loops de
+' ProcessarSAPxPRJ). Recebe tipo/familia ja normalizados via NormStr.
+Private Function AvaliarLinha(tipoR As String, famR As String, _
+                              libV As Variant, prjV As Variant, _
+                              sitRNorm As String) As tAvalLinha
+    Dim av As tAvalLinha
+    av.UcZerado = MaterialUCZerado(tipoR, libV, prjV)
+    av.EhAder = EhAderente(famR, libV, prjV, sitRNorm)
+    If av.UcZerado Then av.EhAder = False   ' UC zerado nunca e aderente
+    av.CaboIsento = CaboComoCOM(famR, libV)
+    ' UC sempre avalia; COM avalia apenas se for familia critica (COM_CRITICO)
+    av.Avaliavel = (tipoR = "UC") Or (tipoR = "COM" And EhComCritico(famR))
+    ' reprova: nao aderente com situacao valida, OU material UC zerado
+    av.ReprovaLinha = (Not av.EhAder And sitRNorm <> "NULO") Or av.UcZerado
+    ' SIT MAT recalculada p/ cabo/condutor/ramal com valores numericos
+    av.RecalculaSit = (Left(famR, 4) = "COND" Or Left(famR, 4) = "CABO" Or famR = "RAMAL") _
+                      And IsNumeric(libV) And IsNumeric(prjV)
+    AvaliarLinha = av
+End Function
+
+' Aderencia com margem percentual p/ condutores, cabos e ramal (kg ou m).
+' Limiares configuraveis na aba CONFIG: TOL_ADERENCIA_PCT (margem percentual),
+' DIF_ABS_COND_NU (dif absoluta COND NU) e DIF_ABS_CABO (dif absoluta das
+' familias de DIF_ABS_FAMILIAS). Fallbacks fixos valem quando a CONFIG ainda
+' nao foi carregada (ex.: TestarLogicaInventario standalone).
 Private Function EhAderente(fam As String, libV As Variant, prjV As Variant, rawSitNorm As String) As Boolean
     Dim isMarg As Boolean
     isMarg = (Left(fam, 4) = "COND" Or Left(fam, 4) = "CABO" Or fam = "RAMAL")
     If isMarg And IsNumeric(libV) And IsNumeric(prjV) Then
         Dim l As Double, pp As Double
         l = CDbl(libV) : pp = CDbl(prjV)
-        ' COND NU: diferenca ABSOLUTA ate 5 (unidades) e ADERENTE, independente
+        Dim dNu As Double : dNu = mDifCondNu : If dNu <= 0 Then dNu = 5
+        Dim dAbs As Double : dAbs = mDifAbsCabo : If dAbs <= 0 Then dAbs = 15
+        ' COND NU: diferenca ABSOLUTA ate DIF_ABS_COND_NU e ADERENTE, independente
         ' da margem percentual. Match tolerante a espaco/pontuacao ("COND NU",
         ' "COND-NU", "COND. NU" -> "CONDNU").
-        If EhCondNu(fam) And Abs(l - pp) <= 5 Then
+        If EhCondNu(fam) And Abs(l - pp) <= dNu Then
             EhAderente = True
-        ' CABO ISOLADO / CABO COBRE / COND COBRE: diferenca ABSOLUTA ate 15 (nao
-        ' e porcentagem) e ADERENTE, mesmo quando o projetado e 0.
-        ElseIf FamiliaDifAbs15(fam) And Abs(l - pp) <= 15 Then
+        ' Familias de DIF_ABS_FAMILIAS (CABO ISOLADO/CABO COBRE/COND COBRE): dif
+        ' ABSOLUTA ate DIF_ABS_CABO (nao e %) e ADERENTE, mesmo com projetado 0.
+        ElseIf FamiliaDifAbs(fam) And Abs(l - pp) <= dAbs Then
             EhAderente = True
         ElseIf pp = 0 Then
             EhAderente = (l = 0)
@@ -1129,11 +1161,18 @@ Private Function EhCondNu(fam As String) As Boolean
     EhCondNu = (Replace(fam, " ", "") = "CONDNU")
 End Function
 
-' Familias em que a divergencia ABSOLUTA (nao percentual) ate 15 unidades e
-' considerada ADERENTE. Match tolerante a espaco/pontuacao.
-Private Function FamiliaDifAbs15(fam As String) As Boolean
+' Familias em que a divergencia ABSOLUTA (nao percentual) ate DIF_ABS_CABO e
+' considerada ADERENTE. Lista configuravel na CONFIG (chave DIF_ABS_FAMILIAS,
+' separada por ;). Fallback fixo quando a CONFIG nao foi carregada.
+Private Function FamiliaDifAbs(fam As String) As Boolean
     Dim f As String : f = Replace(fam, " ", "")
-    FamiliaDifAbs15 = (f = "CABOISOLADO" Or f = "CABOCOBRE" Or f = "CONDCOBRE")
+    If Not mFamDifAbs Is Nothing Then
+        If mFamDifAbs.Count > 0 Then
+            FamiliaDifAbs = mFamDifAbs.Exists(f)
+            Exit Function
+        End If
+    End If
+    FamiliaDifAbs = (f = "CABOISOLADO" Or f = "CABOCOBRE" Or f = "CONDCOBRE")
 End Function
 
 ' True quando um material UC vem com MAT LIB SAP e MAT PRJ CAD zerados/vazios.
@@ -3133,33 +3172,40 @@ End Sub
 ' --------- CONFIG editavel (parametros centralizados na aba CONFIG) ---------
 Private Sub GarantirConfig(wb As Workbook)
     Set mCfg = CreateObject("Scripting.Dictionary")
+
+    ' Defaults: usados na criacao da aba E para acrescentar chaves novas
+    ' em planilhas que ja tem a aba CONFIG de versao anterior do modulo.
+    Dim df As Variant
+    df = Array( _
+        Array("TOL_ADERENCIA_PCT", 0.1, "Tolerancia de aderencia SAP x PRJ (fracao; 0,1 = 10%)"), _
+        Array("TOL_SUBVAL", 0.9, "UC subvalorizado: alerta se PU menor que fator x referencia"), _
+        Array("MIN_DIVERG_RS", 100, "Materialidade minima da divergencia em R$ p/ alertar"), _
+        Array("CABO_ISOLADO_MAX_M", 15, "Cabo isolado abaixo deste comprimento (m) fica isento de UC"), _
+        Array("CORTE_DIVERG_QTD", 20, "Destaca linhas com diferenca de qtd acima deste valor"), _
+        Array("PESO_REPROV", 40, "Ranking: peso de obra reprovada na SAP x PRJ"), _
+        Array("PESO_ALERTA", 4, "Ranking: peso por alerta critico"), _
+        Array("CAP_ALERTA", 24, "Ranking: teto da parcela de alertas"), _
+        Array("PESO_PU", 3, "Ranking: peso por divergencia de preco unitario"), _
+        Array("CAP_PU", 18, "Ranking: teto da parcela de PU"), _
+        Array("PESO_COM", 2, "Ranking: peso por COM fora do previsto NT.006"), _
+        Array("CAP_COM", 18, "Ranking: teto da parcela de COM"), _
+        Array("COM_CRITICO", "CH FUS; PARA RAIO", "Familias COM criticas (separadas por ;) que reprovam o PEP3"), _
+        Array("DIF_ABS_COND_NU", 5, "COND NU: diferenca ABSOLUTA (nao %) ate este valor = ADERENTE"), _
+        Array("DIF_ABS_CABO", 15, "Familias de DIF_ABS_FAMILIAS: dif ABSOLUTA ate este valor = ADERENTE"), _
+        Array("DIF_ABS_FAMILIAS", "CABO ISOLADO; CABO COBRE; COND COBRE", "Familias (separadas por ;) que usam a regra DIF_ABS_CABO") _
+    )
+
     Dim ws As Worksheet
     On Error Resume Next
     Set ws = wb.Worksheets("CONFIG")
     On Error GoTo 0
+    Dim j As Long
     If ws Is Nothing Then
         Set ws = wb.Worksheets.Add(After:=wb.Worksheets(wb.Worksheets.Count))
         ws.Name = "CONFIG"
         ws.Cells(1, 1).Value = "CHAVE"
         ws.Cells(1, 2).Value = "VALOR"
         ws.Cells(1, 3).Value = "DESCRICAO"
-        Dim df As Variant
-        df = Array( _
-            Array("TOL_ADERENCIA_PCT", 0.1, "Tolerancia de aderencia SAP x PRJ (fracao; 0,1 = 10%)"), _
-            Array("TOL_SUBVAL", 0.9, "UC subvalorizado: alerta se PU menor que fator x referencia"), _
-            Array("MIN_DIVERG_RS", 100, "Materialidade minima da divergencia em R$ p/ alertar"), _
-            Array("CABO_ISOLADO_MAX_M", 15, "Cabo isolado abaixo deste comprimento (m) fica isento de UC"), _
-            Array("CORTE_DIVERG_QTD", 20, "Destaca linhas com diferenca de qtd acima deste valor"), _
-            Array("PESO_REPROV", 40, "Ranking: peso de obra reprovada na SAP x PRJ"), _
-            Array("PESO_ALERTA", 4, "Ranking: peso por alerta critico"), _
-            Array("CAP_ALERTA", 24, "Ranking: teto da parcela de alertas"), _
-            Array("PESO_PU", 3, "Ranking: peso por divergencia de preco unitario"), _
-            Array("CAP_PU", 18, "Ranking: teto da parcela de PU"), _
-            Array("PESO_COM", 2, "Ranking: peso por COM fora do previsto NT.006"), _
-            Array("CAP_COM", 18, "Ranking: teto da parcela de COM"), _
-            Array("COM_CRITICO", "CH FUS; PARA RAIO", "Familias COM criticas (separadas por ;) que reprovam o PEP3") _
-        )
-        Dim j As Long
         For j = 0 To UBound(df)
             ws.Cells(2 + j, 1).Value = df(j)(0)
             ws.Cells(2 + j, 2).Value = df(j)(1)
@@ -3172,6 +3218,24 @@ Private Sub GarantirConfig(wb As Workbook)
         ws.Columns(1).ColumnWidth = 22 : ws.Columns(2).ColumnWidth = 20 : ws.Columns(3).ColumnWidth = 62
         ws.Range(ws.Cells(2, 2), ws.Cells(2 + UBound(df), 2)).HorizontalAlignment = xlCenter
         ws.Tab.Color = RGB(90, 90, 90)
+    Else
+        ' Upgrade: acrescenta no fim da aba as chaves default que ainda nao existem
+        Dim lastX As Long : lastX = ws.Cells(ws.Rows.Count, 1).End(xlUp).Row
+        Dim jaTem As Object : Set jaTem = CreateObject("Scripting.Dictionary")
+        Dim rX As Long, ch As String
+        For rX = 2 To lastX
+            ch = Trim(CStr(ws.Cells(rX, 1).Value))
+            If ch <> "" And Not jaTem.Exists(ch) Then jaTem.Add ch, True
+        Next rX
+        For j = 0 To UBound(df)
+            If Not jaTem.Exists(CStr(df(j)(0))) Then
+                lastX = lastX + 1
+                ws.Cells(lastX, 1).Value = df(j)(0)
+                ws.Cells(lastX, 2).Value = df(j)(1)
+                ws.Cells(lastX, 3).Value = df(j)(2)
+                ws.Cells(lastX, 2).HorizontalAlignment = xlCenter
+            End If
+        Next j
     End If
 
     Dim lastR As Long : lastR = ws.Cells(ws.Rows.Count, 1).End(xlUp).Row
@@ -3184,6 +3248,8 @@ Private Sub GarantirConfig(wb As Workbook)
     ' valores usados em hot path (evita reparse por chamada)
     mTolAder = CfgD("TOL_ADERENCIA_PCT", 0.1)
     mCaboMax = CfgD("CABO_ISOLADO_MAX_M", 15)
+    mDifCondNu = CfgD("DIF_ABS_COND_NU", 5)
+    mDifAbsCabo = CfgD("DIF_ABS_CABO", 15)
 
     ' familias COM criticas -> tokens normalizados (UCase, sem espaco)
     Set mComCrit = CreateObject("Scripting.Dictionary")
@@ -3192,6 +3258,14 @@ Private Sub GarantirConfig(wb As Workbook)
     For r = 0 To UBound(parts)
         tk = Replace(NormStr(parts(r)), " ", "")
         If tk <> "" And Not mComCrit.Exists(tk) Then mComCrit.Add tk, True
+    Next r
+
+    ' familias com dif ABSOLUTA tolerada -> tokens normalizados (UCase, sem espaco)
+    Set mFamDifAbs = CreateObject("Scripting.Dictionary")
+    parts = Split(CfgS("DIF_ABS_FAMILIAS", "CABO ISOLADO; CABO COBRE; COND COBRE"), ";")
+    For r = 0 To UBound(parts)
+        tk = Replace(NormStr(parts(r)), " ", "")
+        If tk <> "" And Not mFamDifAbs.Exists(tk) Then mFamDifAbs.Add tk, True
     Next r
 End Sub
 
@@ -3593,6 +3667,18 @@ Public Sub TestarLogicaInventario()
     RegTest nomes, oks, det, cnt, "MaterialUCZerado UC vazio/vazio = True", (MaterialUCZerado("UC", "", "") = True)
     RegTest nomes, oks, det, cnt, "MaterialUCZerado UC 0/10 = False", (MaterialUCZerado("UC", 0, 10) = False)
     RegTest nomes, oks, det, cnt, "MaterialUCZerado COM 0/0 = False", (MaterialUCZerado("COM", 0, 0) = False)
+    ' AvaliarLinha: fonte unica da regra (alimenta veredito E exibicao):
+    Dim avT As tAvalLinha
+    avT = AvaliarLinha("UC", "COND COBRE", 2, 0, "")
+    RegTest nomes, oks, det, cnt, "AvaliarLinha COND COBRE 2/0: aderente, nao reprova", (avT.EhAder And Not avT.ReprovaLinha And avT.Avaliavel)
+    avT = AvaliarLinha("UC", "PARAFUSO", 0, 0, "NULO")
+    RegTest nomes, oks, det, cnt, "AvaliarLinha UC zerado: reprova mesmo com NULO", (avT.UcZerado And avT.ReprovaLinha And Not avT.EhAder)
+    avT = AvaliarLinha("COM", "POSTE", 100, 0, "NAO ADERENTE")
+    RegTest nomes, oks, det, cnt, "AvaliarLinha COM nao critico: nao avaliavel", (Not avT.Avaliavel)
+    avT = AvaliarLinha("COM", "CH FUS", 100, 0, "NAO ADERENTE")
+    RegTest nomes, oks, det, cnt, "AvaliarLinha COM critico CH FUS: avaliavel e reprova", (avT.Avaliavel And avT.ReprovaLinha)
+    avT = AvaliarLinha("UC", "CABO ISOLADO", 10, 0, "")
+    RegTest nomes, oks, det, cnt, "AvaliarLinha CABO ISOLADO 10m: isento (CaboComoCOM)", (avT.CaboIsento)
     RegTest nomes, oks, det, cnt, "EhUnidadeInteira M = False", (EhUnidadeInteira("M") = False)
     RegTest nomes, oks, det, cnt, "EhUnidadeInteira UN = True", (EhUnidadeInteira("UN") = True)
     RegTest nomes, oks, det, cnt, "NT006 133100007 e ancora", (GetMat(mp, "133100007").EhAncora = True)
