@@ -1123,17 +1123,152 @@ Private Sub CriarAbaStatus(ByVal wb As Object, ByVal wsAntes As Object, _
     Dim rb As Long, cabRow As Long, i As Long
 
     ' =====================================================================
-    '  TABELA UNICA: TEXTOS + BLOCOS deste status
-    '  Coluna "Origem" distingue TEXTO de BLOCO.
+    '  TITULO PRINCIPAL
     ' =====================================================================
     rb = 1
     ws.Cells(rb, 1).Value = "MATERIAIS CLASSIFICADOS (" & statusFiltro & ")"
     With ws.Range(ws.Cells(rb, 1), ws.Cells(rb, 10))
         .Merge
         .Font.Bold = True
-        .Font.Size = 12
+        .Font.Size = 14
         .Font.Color = RGB(255, 255, 255)
         .Interior.Color = corTitulo
+        .RowHeight = 26
+        .VerticalAlignment = -4108   ' xlCenter
+        .IndentLevel = 1
+    End With
+    rb = rb + 2
+
+    ' =====================================================================
+    '  SECAO 1: RESUMO — MATERIAIS IGUAIS AGRUPADOS ("8 D11600")
+    '  Agrupa por Familia + Nome do Material (textos e blocos juntos).
+    ' =====================================================================
+    Dim aggQtd As Object, aggMet As Object
+    Set aggQtd = CreateObject("Scripting.Dictionary")
+    Set aggMet = CreateObject("Scripting.Dictionary")
+
+    Dim gFam As String, gMat As String, gKey As String, gMet As Double
+
+    ' --- Agrega TEXTOS (exceto familia por classificar) --------------------
+    For i = 1 To nTotal
+        If arrStatus(i) = statusFiltro And _
+           arrFam(i) <> "CLASSIFICAR" And arrFam(i) <> "-" And _
+           arrFam(i) <> "NAO CLASSIFICADO" And Len(Trim$(arrFam(i))) > 0 Then
+            gFam = arrFam(i)
+            gMat = Trim$(arrNomeMaterial(i))
+            If Len(gMat) = 0 Then gMat = NormalizarChave(arrTexto(i))
+            gMet = 0
+            If gFam = "RAMAL" Then gMet = SomarMetrosRamal(arrTexto(i))
+            gKey = gFam & "|" & gMat
+            If aggQtd.Exists(gKey) Then
+                aggQtd(gKey) = aggQtd(gKey) + 1
+                aggMet(gKey) = aggMet(gKey) + gMet
+            Else
+                aggQtd.Add gKey, 1
+                aggMet.Add gKey, gMet
+            End If
+        End If
+    Next i
+
+    ' --- Agrega BLOCOS ------------------------------------------------------
+    For i = 1 To nBloco
+        If bStat(i) = statusFiltro Then
+            gFam = bTipo(i)
+            gMat = Trim$(bBase(i))
+            If Len(gMat) = 0 Then gMat = NormalizarChave(bDesc(i))
+            gKey = gFam & "|" & gMat
+            If aggQtd.Exists(gKey) Then
+                aggQtd(gKey) = aggQtd(gKey) + 1
+                aggMet(gKey) = aggMet(gKey) + bMet(i)
+            Else
+                aggQtd.Add gKey, 1
+                aggMet.Add gKey, bMet(i)
+            End If
+        End If
+    Next i
+
+    ws.Cells(rb, 1).Value = "RESUMO — MATERIAIS AGRUPADOS"
+    With ws.Range(ws.Cells(rb, 1), ws.Cells(rb, 5))
+        .Merge
+        .Font.Bold = True
+        .Font.Size = 11
+        .Font.Color = RGB(255, 255, 255)
+        .Interior.Color = corTitulo
+        .RowHeight = 20
+        .VerticalAlignment = -4108
+        .IndentLevel = 1
+    End With
+    rb = rb + 1
+
+    ws.Cells(rb, 1).Value = "Item"
+    ws.Cells(rb, 2).Value = "Qtd"
+    ws.Cells(rb, 3).Value = "Material"
+    ws.Cells(rb, 4).Value = "Familia/Tipo"
+    ws.Cells(rb, 5).Value = "Metros (total)"
+    With ws.Range(ws.Cells(rb, 1), ws.Cells(rb, 5))
+        .Font.Bold = True
+        .Interior.Color = RGB(220, 230, 241)
+        .Borders.LineStyle = 1
+    End With
+    rb = rb + 1
+
+    Dim resumoIni As Long
+    resumoIni = rb
+    Dim gKeys As Variant, kAg As Variant, partesAg() As String
+    Dim totItens As Long
+    totItens = 0
+    If aggQtd.Count > 0 Then
+        gKeys = aggQtd.Keys
+        Call OrdenarStringsAsc(gKeys)
+        For Each kAg In gKeys
+            partesAg = Split(CStr(kAg), "|", 2)
+            ' Celula agrupada no formato "8 D11600"
+            ws.Cells(rb, 1).Value = CStr(aggQtd(kAg)) & " " & partesAg(1)
+            ws.Cells(rb, 1).Font.Bold = True
+            ws.Cells(rb, 2).Value = aggQtd(kAg)
+            ws.Cells(rb, 3).Value = partesAg(1)
+            ws.Cells(rb, 4).Value = partesAg(0)
+            If CDbl(aggMet(kAg)) > 0 Then ws.Cells(rb, 5).Value = aggMet(kAg)
+            ' Zebrado leve para leitura
+            If (rb - resumoIni) Mod 2 = 1 Then
+                ws.Range(ws.Cells(rb, 1), ws.Cells(rb, 5)) _
+                  .Interior.Color = RGB(242, 245, 250)
+            End If
+            totItens = totItens + CLng(aggQtd(kAg))
+            rb = rb + 1
+        Next kAg
+        ws.Range(ws.Cells(resumoIni, 1), ws.Cells(rb - 1, 5)).Borders.LineStyle = 1
+        ' Linha TOTAL
+        ws.Cells(rb, 1).Value = "TOTAL"
+        ws.Cells(rb, 2).Value = totItens
+        With ws.Range(ws.Cells(rb, 1), ws.Cells(rb, 5))
+            .Font.Bold = True
+            .Interior.Color = RGB(220, 230, 241)
+            .Borders.LineStyle = 1
+        End With
+        rb = rb + 1
+    Else
+        ws.Cells(rb, 1).Value = "(nenhum item neste status)"
+        ws.Cells(rb, 1).Font.Italic = True
+        rb = rb + 1
+    End If
+
+    rb = rb + 2
+
+    ' =====================================================================
+    '  SECAO 2: DETALHAMENTO — TEXTOS + BLOCOS deste status
+    '  Coluna "Origem" distingue TEXTO de BLOCO.
+    ' =====================================================================
+    ws.Cells(rb, 1).Value = "DETALHAMENTO (" & statusFiltro & ")"
+    With ws.Range(ws.Cells(rb, 1), ws.Cells(rb, 10))
+        .Merge
+        .Font.Bold = True
+        .Font.Size = 11
+        .Font.Color = RGB(255, 255, 255)
+        .Interior.Color = corTitulo
+        .RowHeight = 20
+        .VerticalAlignment = -4108
+        .IndentLevel = 1
     End With
     rb = rb + 1
 
@@ -1155,8 +1290,9 @@ Private Sub CriarAbaStatus(ByVal wb As Object, ByVal wsAntes As Object, _
     End With
     rb = rb + 1
 
-    Dim cnt As Long
+    Dim cnt As Long, detIni As Long
     cnt = 0
+    detIni = rb
 
     ' --- Linhas de TEXTOS (exceto familia ainda por classificar) ----------
     For i = 1 To nTotal
@@ -1200,10 +1336,20 @@ Private Sub CriarAbaStatus(ByVal wb As Object, ByVal wsAntes As Object, _
         ws.Cells(rb, 1).Value = "(nenhum item neste status)"
         ws.Cells(rb, 1).Font.Italic = True
     Else
+        ' Zebrado leve + bordas no detalhamento
+        For i = detIni To rb - 1
+            If (i - detIni) Mod 2 = 1 Then
+                ws.Range(ws.Cells(i, 1), ws.Cells(i, 10)) _
+                  .Interior.Color = RGB(242, 245, 250)
+            End If
+        Next i
+        ws.Range(ws.Cells(detIni, 1), ws.Cells(rb - 1, 10)).Borders.LineStyle = 1
         ws.Range(ws.Cells(cabRow, 1), ws.Cells(cabRow, 10)).AutoFilter
     End If
 
     ws.Range(ws.Cells(1, 1), ws.Cells(rb, 10)).Columns.AutoFit
+    ' Largura minima confortavel para a coluna "Item" do resumo ("8 D11600")
+    If ws.Columns(1).ColumnWidth < 16 Then ws.Columns(1).ColumnWidth = 16
 End Sub
 
 ' =============================================================================
