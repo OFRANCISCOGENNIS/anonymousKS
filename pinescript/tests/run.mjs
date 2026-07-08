@@ -149,6 +149,33 @@ const notif = await p.evaluate(() => {
 check('notificação NÃO dispara em nível C', notif.aposC === 0, 'C=' + notif.aposC);
 check('notificação dispara em nível A', notif.aposA === 1, 'A=' + notif.aposA);
 
+// 7.6) Performance: coalescência de ticks (várias chamadas → 1 recompute/frame)
+const coal = await p.evaluate(() => new Promise(resolve => {
+  const orig = window.atualizarUltimoCandle;
+  let chamadas = 0, ultimoFechou = null;
+  window.atualizarUltimoCandle = (f) => { chamadas++; ultimoFechou = f; };
+  for (let i = 0; i < 20; i++) agendarTick(false);   // rajada de 20 ticks
+  agendarTick(true);                                  // um fechamento no meio da rajada
+  requestAnimationFrame(() => requestAnimationFrame(() => {
+    window.atualizarUltimoCandle = orig;
+    resolve({ chamadas, ultimoFechou });
+  }));
+}));
+check('21 ticks coalescem em 1 recompute/frame', coal.chamadas === 1, 'chamadas=' + coal.chamadas);
+check('fechamento de vela não é perdido na coalescência', coal.ultimoFechou === true);
+
+// 7.7) Conectividade: fetchRetry repete falha transitória e vence ao 3º
+const retry = await p.evaluate(async () => {
+  const origFetch = window.fetch;
+  let n = 0;
+  window.fetch = async () => { n++; if (n < 3) throw new Error('rede caiu'); return { ok: true, status: 200 }; };
+  let ok = false;
+  try { const r = await fetchRetry('http://x', null, 3); ok = r.ok; } catch (e) {}
+  window.fetch = origFetch;
+  return { n, ok };
+});
+check('fetchRetry repete e vence ao 3º', retry.n === 3 && retry.ok, 'n=' + retry.n);
+
 // 8) PWA manifest
 check('PWA manifest presente', await p.$eval('link[rel=manifest]', e => e.href.startsWith('data:application/manifest')));
 

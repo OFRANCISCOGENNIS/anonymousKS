@@ -112,6 +112,23 @@ function redesenharTudo(ajustarZoom) {
 }
 
 // Atualização incremental de UM candle (streaming ao vivo)
+// Coalescência de ticks: em rajada (WS manda vários ticks por segundo, ainda
+// mais no Crypto IDX que combina 5 streams), fazer a recomputação completa em
+// cada um desperdiça CPU e trava a UI. Agrupamos por FRAME (requestAnimationFrame)
+// e recomputamos no máximo 1×/frame. O fechamento de vela nunca é perdido: o
+// flag "fechou" é acumulado (OR) até o flush.
+let _tickPend = false, _tickFechou = false;
+function agendarTick(fechou) {
+    _tickFechou = _tickFechou || fechou;
+    if (_tickPend) return;
+    _tickPend = true;
+    requestAnimationFrame(() => {
+        _tickPend = false;
+        const f = _tickFechou; _tickFechou = false;
+        atualizarUltimoCandle(f);
+    });
+}
+
 function atualizarUltimoCandle(fechou) {
     recomputarIndicadores();
     const last = dados.length - 1;

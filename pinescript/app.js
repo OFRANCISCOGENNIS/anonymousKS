@@ -76,6 +76,7 @@ let refTimer = null;
 // WebSocket ao vivo
 let ws = null;
 let conexaoAtual = '';       // "SYMBOL@interval" da conexão vigente
+let wsTent = 0, idxTent = 0; // tentativas de reconexão (backoff exponencial)
 
 // ============================================================================
 // BLOCO 1 — INDICADORES
@@ -795,6 +796,23 @@ function redesenharTudo(ajustarZoom) {
 }
 
 // Atualização incremental de UM candle (streaming ao vivo)
+// Coalescência de ticks: em rajada (WS manda vários ticks por segundo, ainda
+// mais no Crypto IDX que combina 5 streams), fazer a recomputação completa em
+// cada um desperdiça CPU e trava a UI. Agrupamos por FRAME (requestAnimationFrame)
+// e recomputamos no máximo 1×/frame. O fechamento de vela nunca é perdido: o
+// flag "fechou" é acumulado (OR) até o flush.
+let _tickPend = false, _tickFechou = false;
+function agendarTick(fechou) {
+    _tickFechou = _tickFechou || fechou;
+    if (_tickPend) return;
+    _tickPend = true;
+    requestAnimationFrame(() => {
+        _tickPend = false;
+        const f = _tickFechou; _tickFechou = false;
+        atualizarUltimoCandle(f);
+    });
+}
+
 function atualizarUltimoCandle(fechou) {
     recomputarIndicadores();
     const last = dados.length - 1;
@@ -1819,9 +1837,27 @@ function setStatus(estado, texto) {
     document.body.classList.toggle('carregando', estado === 'connecting');
 }
 
+// Retry com backoff p/ REST transitório (rede caindo, 429 de limite, 5xx do
+// servidor). Erros 4xx de dados (par inexistente etc.) não são repetidos — não
+// adianta insistir. Backoff: 0.5s, 1s, 2s.
+async function fetchRetry(url, opts, tentativas) {
+    tentativas = tentativas || 3;
+    let err;
+    for (let i = 0; i < tentativas; i++) {
+        try {
+            const r = await fetch(url, opts);
+            if (r.ok) return r;
+            if (r.status >= 400 && r.status < 500 && r.status !== 429) return r;   // erro de dados: devolve p/ tratar
+            err = new Error('HTTP ' + r.status);
+        } catch (e) { err = e; }   // falha de rede/DNS/CORS
+        if (i < tentativas - 1) await new Promise(res => setTimeout(res, 500 * Math.pow(2, i)));
+    }
+    throw err || new Error('falha de rede');
+}
+
 async function carregarHistoricoBinance(symbol, interval, limit) {
     const url = `${BINANCE_REST}/api/v3/klines?symbol=${symbol}&interval=${interval}&limit=${limit}`;
-    const resp = await fetch(url);
+    const resp = await fetchRetry(url);
     if (!resp.ok) {
         const t = await resp.text().catch(() => '');
         throw new Error('HTTP ' + resp.status + ' ' + t.slice(0, 120));
@@ -1888,8 +1924,8 @@ function idxCombinar(t) {
 
 function onIdxBar(bar, fechou) {
     const last = dados.length ? dados[dados.length - 1] : null;
-    if (last && bar.time === last.time) { dados[dados.length - 1] = bar; atualizarUltimoCandle(fechou); }
-    else if (!last || bar.time > last.time) { dados.push(bar); atualizarUltimoCandle(fechou); }
+    if (last && bar.time === last.time) { dados[dados.length - 1] = bar; agendarTick(fechou); }
+    else if (!last || bar.time > last.time) { dados.push(bar); agendarTick(fechou); }
 }
 
 function conectarIdxWS(interval) {
@@ -1898,7 +1934,7 @@ function conectarIdxWS(interval) {
     const conn = 'IDX@' + interval; idxConn = conn;
     const sock = new WebSocket(`${BINANCE_WS}/stream?streams=${streams}`);
     idxWS = sock;
-    sock.onopen = () => { if (idxConn === conn) setStatus('on', 'AO VIVO (tick a tick) • Crypto IDX ≈ cesta Binance'); };
+    sock.onopen = () => { if (idxConn === conn) { idxTent = 0; setStatus('on', 'AO VIVO (tick a tick) • Crypto IDX ≈ cesta Binance'); } };
     sock.onmessage = (ev) => {
         if (idxConn !== conn) return;
         let msg; try { msg = JSON.parse(ev.data); } catch (e) { return; }
@@ -1913,8 +1949,10 @@ function conectarIdxWS(interval) {
     sock.onerror = () => { if (idxConn === conn) setStatus('err', 'Erro de conexão (Crypto IDX)'); };
     sock.onclose = () => {
         if (idxConn !== conn) return;
-        setStatus('connecting', 'Reconectando Crypto IDX…');
-        setTimeout(() => { if (idxConn === conn && fonte() === 'binance' && symbolAtual() === 'CRYPTOIDX') conectarIdxWS(interval); }, 2000);
+        if (navigator.onLine === false) { setStatus('err', '📴 Sem internet — reconecta ao voltar'); return; }
+        const espera = Math.min(15000, 1000 * Math.pow(2, idxTent++));
+        setStatus('connecting', `Reconectando Crypto IDX… (${Math.round(espera / 1000)}s)`);
+        setTimeout(() => { if (idxConn === conn && fonteEfetiva() === 'binance' && symbolAtual() === 'CRYPTOIDX') conectarIdxWS(interval); }, espera);
     };
 }
 
@@ -1934,7 +1972,7 @@ function conectarWS(symbol, interval) {
     const sock = new WebSocket(`${BINANCE_WS}/ws/${stream}`);
     ws = sock;
 
-    sock.onopen = () => { if (conexaoAtual === stream) setStatus('on', `AO VIVO • ${symbol} ${interval}`); };
+    sock.onopen = () => { if (conexaoAtual === stream) { wsTent = 0; setStatus('on', `AO VIVO • ${symbol} ${interval}`); } };
     sock.onmessage = (ev) => {
         if (conexaoAtual !== stream) return;
         let msg; try { msg = JSON.parse(ev.data); } catch (e) { return; }
@@ -1944,8 +1982,10 @@ function conectarWS(symbol, interval) {
     sock.onerror = () => { if (conexaoAtual === stream) setStatus('err', 'Erro de conexão'); };
     sock.onclose = () => {
         if (conexaoAtual !== stream) return;              // troca de par/tf: ignore
-        setStatus('connecting', 'Reconectando…');
-        setTimeout(() => { if (conexaoAtual === stream && fonte() === 'binance') conectarWS(symbol, interval); }, 2000);
+        if (navigator.onLine === false) { setStatus('err', '📴 Sem internet — reconecta ao voltar'); return; }
+        const espera = Math.min(15000, 1000 * Math.pow(2, wsTent++));   // backoff: 1s,2s,4s… até 15s
+        setStatus('connecting', `Reconectando… (${Math.round(espera / 1000)}s)`);
+        setTimeout(() => { if (conexaoAtual === stream && fonteEfetiva() === 'binance') conectarWS(symbol, interval); }, espera);
     };
 }
 
@@ -1958,10 +1998,10 @@ function onKline(k) {
 
     if (last && t === last.time) {
         dados[dados.length - 1] = bar;              // atualiza vela em formação
-        atualizarUltimoCandle(k.x === true);
+        agendarTick(k.x === true);
     } else if (!last || t > last.time) {
         dados.push(bar);                            // nova vela
-        atualizarUltimoCandle(k.x === true);
+        agendarTick(k.x === true);
     }
 }
 
@@ -2069,7 +2109,7 @@ async function carregarHistoricoTwelveData(codigo, intervalMin, limit) {
     if (!par || !par.td) throw new Error('par não suportado nesta fonte: ' + codigo);
     const url = `${TWELVEDATA_BASE}/time_series?symbol=${encodeURIComponent(par.td)}` +
         `&interval=${tdIntervalStr(intervalMin)}&outputsize=${Math.min(5000, limit)}&timezone=UTC&apikey=${encodeURIComponent(tdKey())}`;
-    const resp = await fetch(url);
+    const resp = await fetchRetry(url);
     if (!resp.ok) throw new Error('HTTP ' + resp.status);
     const json = await resp.json();
     if (json.status === 'error' || (json.code && json.code >= 400)) throw new Error(json.message || 'erro Twelve Data');
@@ -2491,7 +2531,7 @@ function _desfechoPelasVelas(r, velas) {
 }
 async function klinesBinanceJanela(sym, t0, t1) {
     const url = `${BINANCE_REST}/api/v3/klines?symbol=${sym}&interval=1m&startTime=${t0 * 1000}&endTime=${t1 * 1000}&limit=1000`;
-    const resp = await fetch(url); if (!resp.ok) throw new Error('HTTP ' + resp.status);
+    const resp = await fetchRetry(url); if (!resp.ok) throw new Error('HTTP ' + resp.status);
     return (await resp.json()).map(k => ({ time: Math.floor(k[0] / 1000), close: +k[4] }));
 }
 let verificando = false;
@@ -3362,6 +3402,18 @@ window.addEventListener('resize', function () {
 
 // Inicializa em DOMContentLoaded (NÃO em 'load') para não depender do tv.js:
 // se o widget do TradingView estiver lento/bloqueado, o resto do app não trava.
+// Reconexão dirigida pela rede do navegador: cai a internet → avisa; volta →
+// zera o backoff e recarrega a fonte ao vivo na hora (não espera o timer).
+window.addEventListener('offline', () => {
+    if (fonte() !== 'sim') setStatus('err', '📴 Sem internet — reconecta sozinho ao voltar');
+});
+window.addEventListener('online', () => {
+    if (fonte() === 'sim') return;
+    wsTent = 0; idxTent = 0;
+    showToast('🌐 Internet de volta — reconectando…', 'ok');
+    carregar();
+});
+
 function iniciar() {
     // chave Twelve Data: URL (?tdkey=) tem prioridade, senão a salva no navegador
     const tdParam = _params.get('tdkey'), tdSalva = localStorage.getItem('tdKey');

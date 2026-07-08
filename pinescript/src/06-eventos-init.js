@@ -266,6 +266,18 @@ window.addEventListener('resize', function () {
 
 // Inicializa em DOMContentLoaded (NÃO em 'load') para não depender do tv.js:
 // se o widget do TradingView estiver lento/bloqueado, o resto do app não trava.
+// Reconexão dirigida pela rede do navegador: cai a internet → avisa; volta →
+// zera o backoff e recarrega a fonte ao vivo na hora (não espera o timer).
+window.addEventListener('offline', () => {
+    if (fonte() !== 'sim') setStatus('err', '📴 Sem internet — reconecta sozinho ao voltar');
+});
+window.addEventListener('online', () => {
+    if (fonte() === 'sim') return;
+    wsTent = 0; idxTent = 0;
+    showToast('🌐 Internet de volta — reconectando…', 'ok');
+    carregar();
+});
+
 function iniciar() {
     // chave Twelve Data: URL (?tdkey=) tem prioridade, senão a salva no navegador
     const tdParam = _params.get('tdkey'), tdSalva = localStorage.getItem('tdKey');

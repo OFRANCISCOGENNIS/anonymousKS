@@ -80,7 +80,7 @@ function _desfechoPelasVelas(r, velas) {
 }
 async function klinesBinanceJanela(sym, t0, t1) {
     const url = `${BINANCE_REST}/api/v3/klines?symbol=${sym}&interval=1m&startTime=${t0 * 1000}&endTime=${t1 * 1000}&limit=1000`;
-    const resp = await fetch(url); if (!resp.ok) throw new Error('HTTP ' + resp.status);
+    const resp = await fetchRetry(url); if (!resp.ok) throw new Error('HTTP ' + resp.status);
     return (await resp.json()).map(k => ({ time: Math.floor(k[0] / 1000), close: +k[4] }));
 }
 let verificando = false;

@@ -76,4 +76,5 @@ let refTimer = null;
 // WebSocket ao vivo
 let ws = null;
 let conexaoAtual = '';       // "SYMBOL@interval" da conexão vigente
+let wsTent = 0, idxTent = 0; // tentativas de reconexão (backoff exponencial)
 
