@@ -1109,8 +1109,8 @@ Private Sub CriarAbaStatus(ByVal wb As Object, ByVal wsAntes As Object, _
 
     ' Colunas de texto como TEXTO (evita erro 1004 com valores iniciados
     ' por '=', '+', '-' ou '@', que o Excel tentaria virar formula).
-    ' G:I ficam numericas (X, Y, Altura/Metros).
-    ws.Columns("A:F").NumberFormat = "@"
+    ' H:J ficam numericas (Metros, X, Y).
+    ws.Columns("A:G").NumberFormat = "@"
 
     Dim corTitulo As Long
     Select Case statusFiltro
@@ -1123,11 +1123,12 @@ Private Sub CriarAbaStatus(ByVal wb As Object, ByVal wsAntes As Object, _
     Dim rb As Long, cabRow As Long, i As Long
 
     ' =====================================================================
-    '  SECAO 1: TEXTOS deste status (TEXT/MTEXT classificados)
+    '  TABELA UNICA: TEXTOS + BLOCOS deste status
+    '  Coluna "Origem" distingue TEXTO de BLOCO.
     ' =====================================================================
     rb = 1
-    ws.Cells(rb, 1).Value = "TEXTOS (" & statusFiltro & ")"
-    With ws.Range(ws.Cells(rb, 1), ws.Cells(rb, 9))
+    ws.Cells(rb, 1).Value = "MATERIAIS CLASSIFICADOS (" & statusFiltro & ")"
+    With ws.Range(ws.Cells(rb, 1), ws.Cells(rb, 10))
         .Merge
         .Font.Bold = True
         .Font.Size = 12
@@ -1137,107 +1138,72 @@ Private Sub CriarAbaStatus(ByVal wb As Object, ByVal wsAntes As Object, _
     rb = rb + 1
 
     cabRow = rb
-    ws.Cells(rb, 1).Value = "Layer"
-    ws.Cells(rb, 2).Value = "Familia"
+    ws.Cells(rb, 1).Value = "Origem"
+    ws.Cells(rb, 2).Value = "Familia/Tipo"
     ws.Cells(rb, 3).Value = "Nome do Material"
-    ws.Cells(rb, 4).Value = "Conteudo do Texto"
-    ws.Cells(rb, 5).Value = "Cor ACI"
-    ws.Cells(rb, 6).Value = "Nome da Cor"
-    ws.Cells(rb, 7).Value = "X"
-    ws.Cells(rb, 8).Value = "Y"
-    ws.Cells(rb, 9).Value = "Altura"
-    With ws.Range(ws.Cells(rb, 1), ws.Cells(rb, 9))
+    ws.Cells(rb, 4).Value = "Descricao / Conteudo"
+    ws.Cells(rb, 5).Value = "Layer / Bloco"
+    ws.Cells(rb, 6).Value = "Numero"
+    ws.Cells(rb, 7).Value = "Distancia"
+    ws.Cells(rb, 8).Value = "Metros"
+    ws.Cells(rb, 9).Value = "X"
+    ws.Cells(rb, 10).Value = "Y"
+    With ws.Range(ws.Cells(rb, 1), ws.Cells(rb, 10))
         .Font.Bold = True
         .Interior.Color = RGB(220, 230, 241)
         .Borders.LineStyle = 1
     End With
     rb = rb + 1
 
-    Dim cntT As Long
-    cntT = 0
+    Dim cnt As Long
+    cnt = 0
+
+    ' --- Linhas de TEXTOS (exceto familia ainda por classificar) ----------
     For i = 1 To nTotal
-        ' Nao traz itens ainda por classificar (familia CLASSIFICAR / vazia)
         If arrStatus(i) = statusFiltro And _
            arrFam(i) <> "CLASSIFICAR" And arrFam(i) <> "-" And _
            arrFam(i) <> "NAO CLASSIFICADO" And Len(Trim$(arrFam(i))) > 0 Then
-            ws.Cells(rb, 1).Value = arrLayer(i)
+            ws.Cells(rb, 1).Value = "TEXTO"
             ws.Cells(rb, 2).Value = arrFam(i)
             ws.Cells(rb, 3).Value = arrNomeMaterial(i)
             ws.Cells(rb, 4).Value = arrTexto(i)
-            ws.Cells(rb, 5).Value = arrAci(i)
-            ws.Cells(rb, 6).Value = arrCor(i)
-            ws.Cells(rb, 7).Value = arrX(i)
-            ws.Cells(rb, 8).Value = arrY(i)
-            ws.Cells(rb, 9).Value = arrH(i)
+            ws.Cells(rb, 5).Value = arrLayer(i)
+            ws.Cells(rb, 6).Value = ""
+            ws.Cells(rb, 7).Value = ""
+            ws.Cells(rb, 8).Value = ""
+            ws.Cells(rb, 9).Value = arrX(i)
+            ws.Cells(rb, 10).Value = arrY(i)
             rb = rb + 1
-            cntT = cntT + 1
+            cnt = cnt + 1
         End If
     Next i
-    If cntT = 0 Then
-        ws.Cells(rb, 1).Value = "(nenhum texto neste status)"
-        ws.Cells(rb, 1).Font.Italic = True
-        rb = rb + 1
-    Else
-        ws.Range(ws.Cells(cabRow, 1), ws.Cells(cabRow, 9)).AutoFilter
-    End If
 
-    ' Espacamento entre as duas tabelas
-    rb = rb + 2
-
-    ' =====================================================================
-    '  SECAO 2: BLOCOS deste status
-    ' =====================================================================
-    ws.Cells(rb, 1).Value = "BLOCOS (" & statusFiltro & ")"
-    With ws.Range(ws.Cells(rb, 1), ws.Cells(rb, 9))
-        .Merge
-        .Font.Bold = True
-        .Font.Size = 12
-        .Font.Color = RGB(255, 255, 255)
-        .Interior.Color = corTitulo
-    End With
-    rb = rb + 1
-
-    Dim cabRowB As Long
-    cabRowB = rb
-    ws.Cells(rb, 1).Value = "Tipo"
-    ws.Cells(rb, 2).Value = "Bloco"
-    ws.Cells(rb, 3).Value = "Numero"
-    ws.Cells(rb, 4).Value = "Descricao"
-    ws.Cells(rb, 5).Value = "Nome Base/Familia"
-    ws.Cells(rb, 6).Value = "Distancia"
-    ws.Cells(rb, 7).Value = "Metros"
-    ws.Cells(rb, 8).Value = "X"
-    ws.Cells(rb, 9).Value = "Y"
-    With ws.Range(ws.Cells(rb, 1), ws.Cells(rb, 9))
-        .Font.Bold = True
-        .Interior.Color = RGB(220, 230, 241)
-        .Borders.LineStyle = 1
-    End With
-    rb = rb + 1
-
-    Dim cntB As Long
-    cntB = 0
+    ' --- Linhas de BLOCOS -------------------------------------------------
     For i = 1 To nBloco
         If bStat(i) = statusFiltro Then
-            ws.Cells(rb, 1).Value = bTipo(i)
-            ws.Cells(rb, 2).Value = bBloco(i)
-            ws.Cells(rb, 3).Value = bNum(i)
+            ws.Cells(rb, 1).Value = "BLOCO"
+            ws.Cells(rb, 2).Value = bTipo(i)
+            ws.Cells(rb, 3).Value = bBase(i)
             ws.Cells(rb, 4).Value = bDesc(i)
-            ws.Cells(rb, 5).Value = bBase(i)
-            ws.Cells(rb, 6).Value = bDist(i)
-            ws.Cells(rb, 7).Value = bMet(i)
-            ws.Cells(rb, 8).Value = bBX(i)
-            ws.Cells(rb, 9).Value = bBY(i)
+            ws.Cells(rb, 5).Value = bBloco(i)
+            ws.Cells(rb, 6).Value = bNum(i)
+            ws.Cells(rb, 7).Value = bDist(i)
+            ws.Cells(rb, 8).Value = bMet(i)
+            ws.Cells(rb, 9).Value = bBX(i)
+            ws.Cells(rb, 10).Value = bBY(i)
             rb = rb + 1
-            cntB = cntB + 1
+            cnt = cnt + 1
         End If
     Next i
-    If cntB = 0 Then
-        ws.Cells(rb, 1).Value = "(nenhum bloco neste status)"
+
+    If cnt = 0 Then
+        ws.Cells(rb, 1).Value = "(nenhum item neste status)"
         ws.Cells(rb, 1).Font.Italic = True
+    Else
+        ws.Range(ws.Cells(cabRow, 1), ws.Cells(cabRow, 10)).AutoFilter
     End If
 
-    ws.Range(ws.Cells(1, 1), ws.Cells(rb, 9)).Columns.AutoFit
+    ws.Range(ws.Cells(1, 1), ws.Cells(rb, 10)).Columns.AutoFit
 End Sub
 
 ' =============================================================================
