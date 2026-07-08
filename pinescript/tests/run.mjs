@@ -283,6 +283,22 @@ check('funil de qualidade tem 6 elos', funil.qtd === 6, 'elos=' + funil.qtd);
 check('funil: contagem X/6 bate com os elos verdes', funil.temTitulo && funil.contagemBate);
 check('funil: todo elo tem tooltip explicativo', funil.dicas);
 
+// 7.98) Cards recolhíveis: clique no título recolhe, persiste e re-expande
+const recol = await p.evaluate(() => {
+  const card = [...document.querySelectorAll('.charts-area .chart-container.recolhivel')].find(c => c.querySelector('h2') && !c.classList.contains('recolhido'));
+  if (!card) return { erro: 'nenhum card recolhível' };
+  const h2 = card.querySelector('h2');
+  h2.click();
+  const recolhido = card.classList.contains('recolhido');
+  const corpoOculto = [...card.children].filter(el => el !== h2).every(el => getComputedStyle(el).display === 'none');
+  const salvo = Object.values(JSON.parse(localStorage.getItem('cardsRecolhidos') || '{}')).some(v => v === 1);
+  h2.click();
+  const reexpandido = !card.classList.contains('recolhido');
+  return { recolhido, corpoOculto, salvo, reexpandido };
+});
+check('card recolhe ao clicar no título (corpo some)', recol.recolhido && recol.corpoOculto, JSON.stringify(recol));
+check('estado do card persiste e re-expande', recol.salvo && recol.reexpandido);
+
 // 8) PWA manifest
 check('PWA manifest presente', await p.$eval('link[rel=manifest]', e => e.href.startsWith('data:application/manifest')));
 

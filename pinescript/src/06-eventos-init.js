@@ -260,6 +260,29 @@ function aplicarPreset(regime) {
     } else { htfTrend = []; recalcularSinaisApenas(); }
 }
 document.querySelectorAll('.btn-preset').forEach(b => b.addEventListener('click', () => aplicarPreset(b.dataset.preset)));
+
+// ---- Cards recolhíveis: clique no título recolhe/expande o painel ----
+// Otimização de tela: cada card da área central pode ser recolhido (só o título
+// fica). Estado persistente por título. Expandir dispara resize p/ os gráficos
+// remedirem a largura.
+let cardsRecolhidos = JSON.parse(localStorage.getItem('cardsRecolhidos') || '{}');
+function configurarCardsRecolhiveis() {
+    document.querySelectorAll('.charts-area .chart-container > h2').forEach(h2 => {
+        const card = h2.parentElement;
+        const key = (h2.textContent || '').trim().replace(/\s+/g, ' ').slice(0, 28);
+        card.classList.add('recolhivel');
+        if (cardsRecolhidos[key]) card.classList.add('recolhido');
+        h2.setAttribute('title', 'Clique para recolher/expandir');
+        h2.addEventListener('click', ev => {
+            // não recolhe ao clicar em botões/controles embutidos no título
+            if (ev.target.closest('button, input, select, a')) return;
+            const rec = card.classList.toggle('recolhido');
+            cardsRecolhidos[key] = rec ? 1 : 0;
+            localStorage.setItem('cardsRecolhidos', JSON.stringify(cardsRecolhidos));
+            if (!rec) requestAnimationFrame(() => window.dispatchEvent(new Event('resize')));
+        });
+    });
+}
 document.getElementById('btnTestarSom').addEventListener('click', function () {
     tocarSom(1);
     setTimeout(() => tocarSom(-1), 600);   // demonstra os dois tons: CALL e PUT
@@ -326,6 +349,7 @@ function iniciar() {
     aplicarTema(localStorage.getItem('tema') === 'light' ? 'light' : 'dark');
     document.getElementById('autoReopt').checked = localStorage.getItem('autoReopt') === '1';
     document.getElementById('regSoA').checked = localStorage.getItem('regSoA') !== '0';   // padrão: só nível A
+    configurarCardsRecolhiveis();
     configurarAutoReopt();
     carregar();
     carregarNoticias(); // notícias em tempo real
