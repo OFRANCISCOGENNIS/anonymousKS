@@ -187,6 +187,18 @@
                     <p class="group-note">Entram na confluência como os demais fatores e nos pesos por regime da IA.</p>
                 </section>
 
+                <!-- Estratégia por regime (presets de fatores + portões) -->
+                <section class="control-group">
+                    <h3>🎛️ Estratégia por regime</h3>
+                    <div class="preset-grid">
+                        <button class="btn-preset" data-preset="trend" type="button">📈 Tendência</button>
+                        <button class="btn-preset" data-preset="range" type="button">↔ Lateral</button>
+                        <button class="btn-preset" data-preset="vol" type="button">🔥 Volátil</button>
+                        <button class="btn-preset btn-preset-auto" data-preset="auto" type="button">🎯 Auto (regime atual)</button>
+                    </div>
+                    <p class="group-note">Liga os fatores e portões mais assertivos para cada regime (baseado nos pesos por regime da IA). <strong>Auto</strong> detecta o regime do gráfico atual e aplica o preset certo.</p>
+                </section>
+
                 <!-- Confluência -->
                 <section class="control-group">
                     <h3>🎯 Confluência</h3>

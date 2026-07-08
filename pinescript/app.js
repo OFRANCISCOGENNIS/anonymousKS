@@ -3434,6 +3434,40 @@ document.getElementById('regSoA').addEventListener('change', function () {
     localStorage.setItem('regSoA', this.checked ? '1' : '0');
     renderRegistro();
 });
+
+// ---- Presets de estratégia por regime (fatores + portões mais assertivos) ----
+// Baseados nos pesos por regime (PESOS_REGIME): tendencial premia tendência/
+// estrutura/MACD; lateral premia reversão (RSI/Bollinger/padrão); volátil premia
+// ATR/fluxo. Cada preset também liga os portões (Sessão/S-R e HTF quando faz
+// sentido) que mais elevam o acerto.
+const PRESETS_REGIME = {
+    trend: { nome: '📈 Tendência', minScore: 4, htf: 1, sessao: 1, sr: 1,
+        fatores: { useTendencia: 1, useEma200: 1, useMomentum: 0, useVolatilidade: 1, useEstrutura: 1, useFluxo: 1, useCorrelacao: 0, usePadrao: 0, useMacd: 1, useBollinger: 0 } },
+    range: { nome: '↔ Lateral', minScore: 3, htf: 0, sessao: 1, sr: 1,
+        fatores: { useTendencia: 0, useEma200: 0, useMomentum: 1, useVolatilidade: 0, useEstrutura: 0, useFluxo: 1, useCorrelacao: 0, usePadrao: 1, useMacd: 0, useBollinger: 1 } },
+    vol: { nome: '🔥 Volátil', minScore: 4, htf: 1, sessao: 1, sr: 1,
+        fatores: { useTendencia: 1, useEma200: 1, useMomentum: 0, useVolatilidade: 1, useEstrutura: 1, useFluxo: 1, useCorrelacao: 0, usePadrao: 0, useMacd: 0, useBollinger: 0 } }
+};
+function aplicarPreset(regime) {
+    if (regime === 'auto') {
+        let r = 'range';
+        try { if (dados && dados.length) { recomputarIndicadores(); r = regimeUltimo() || 'range'; } } catch (e) {}
+        regime = r;
+    }
+    const p = PRESETS_REGIME[regime];
+    if (!p) return;
+    Object.keys(p.fatores).forEach(id => { const el = document.getElementById(id); if (el) el.checked = !!p.fatores[id]; });
+    document.getElementById('useHtf').checked = !!p.htf;
+    document.getElementById('useSessao').checked = !!p.sessao;
+    document.getElementById('useSR').checked = !!p.sr;
+    document.getElementById('minScore').value = p.minScore;
+    document.querySelectorAll('.btn-preset').forEach(b => b.classList.toggle('is-active', b.dataset.preset === regime));
+    showToast('🎛️ Preset ' + p.nome + ' aplicado — fatores e portões afinados', 'ok');
+    if (document.getElementById('useHtf').checked && fonte() !== 'sim' && dados.length) {
+        carregarHtf().then(() => recalcularSinaisApenas());
+    } else { htfTrend = []; recalcularSinaisApenas(); }
+}
+document.querySelectorAll('.btn-preset').forEach(b => b.addEventListener('click', () => aplicarPreset(b.dataset.preset)));
 document.getElementById('btnTestarSom').addEventListener('click', function () {
     tocarSom(1);
     setTimeout(() => tocarSom(-1), 600);   // demonstra os dois tons: CALL e PUT

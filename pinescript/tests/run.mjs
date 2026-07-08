@@ -245,6 +245,30 @@ const desg = await p.evaluate(() => {
 check('números tabulares no body', desg.tabular);
 check('flash de valor: sobe=verde, cai=vermelho', desg.subiu && desg.caiu, JSON.stringify(desg));
 
+// 7.95) Presets de estratégia por regime (fatores + portões)
+await p.evaluate(() => { if (!dados || dados.length < 210) dados = gerarDadosSim(300, 2); });
+// Tendência: liga tendência/estrutura/MACD, HTF/Sessão/SR; desliga RSI e Bollinger
+await p.$eval('.btn-preset[data-preset="trend"]', b => b.click()); await p.waitForTimeout(150);
+const pt = await p.evaluate(() => ({
+  tend: document.getElementById('useTendencia').checked, macd: document.getElementById('useMacd').checked,
+  rsi: document.getElementById('useMomentum').checked, boll: document.getElementById('useBollinger').checked,
+  htf: document.getElementById('useHtf').checked, sr: document.getElementById('useSR').checked,
+  ativo: document.querySelector('.btn-preset[data-preset="trend"]').classList.contains('is-active')
+}));
+check('preset Tendência: liga tendência/MACD/HTF, desliga RSI/Bollinger', pt.tend && pt.macd && pt.htf && pt.sr && !pt.rsi && !pt.boll, JSON.stringify(pt));
+// Lateral: liga RSI/Bollinger/padrão; desliga tendência/MACD; HTF off
+await p.$eval('.btn-preset[data-preset="range"]', b => b.click()); await p.waitForTimeout(150);
+const pr = await p.evaluate(() => ({
+  rsi: document.getElementById('useMomentum').checked, boll: document.getElementById('useBollinger').checked,
+  pad: document.getElementById('usePadrao').checked, tend: document.getElementById('useTendencia').checked,
+  htf: document.getElementById('useHtf').checked
+}));
+check('preset Lateral: liga RSI/Bollinger/padrão, desliga tendência e HTF', pr.rsi && pr.boll && pr.pad && !pr.tend && !pr.htf, JSON.stringify(pr));
+// Auto: aplica um preset válido conforme o regime detectado
+await p.$eval('.btn-preset[data-preset="auto"]', b => b.click()); await p.waitForTimeout(150);
+const pa = await p.evaluate(() => document.querySelectorAll('.btn-preset.is-active').length);
+check('preset Auto ativa um preset de regime', pa === 1, 'ativos=' + pa);
+
 // 8) PWA manifest
 check('PWA manifest presente', await p.$eval('link[rel=manifest]', e => e.href.startsWith('data:application/manifest')));
 
