@@ -427,6 +427,26 @@ Private Sub ProcessarSAPxPRJ(wsBase As Worksheet, wsDet As Worksheet)
         Dim pep3RepFam As Object : Set pep3RepFam = CreateObject("Scripting.Dictionary")  ' PEP3 -> familias que reprovaram
         Dim i As Long, pep4 As String, tipoR As String, sitR As String, pep3R As String
         Dim famR As String, famRaw As String, libV As Variant, prjV As Variant
+
+        ' ---- Pre-passe: regra do UC zerado por OBRA (PEP3) ----
+        ' A devolucao por valores zerados so vale quando TODOS os materiais UC
+        ' do PEP3 estao zerados. Se apenas parte esta zerada, essas linhas nao
+        ' reprovam e o PEP3 fica APROVADO quando as demais regras passam.
+        Dim p3nUC As Object : Set p3nUC = CreateObject("Scripting.Dictionary")
+        Dim p3nUC0 As Object : Set p3nUC0 = CreateObject("Scripting.Dictionary")
+        For i = 1 To nRows
+            tipoR = "" : pep3R = ""
+            If srcIdx(11) > 0 Then tipoR = NormStr(CStr(baseData(i, srcIdx(11))))
+            If tipoR = "UC" Then
+                If srcIdx(1) > 0 Then pep3R = NormStr(CStr(baseData(i, srcIdx(1))))
+                libV = "" : prjV = ""
+                If srcIdx(9) > 0 Then libV = baseData(i, srcIdx(9))
+                If srcIdx(10) > 0 Then prjV = baseData(i, srcIdx(10))
+                p3nUC(pep3R) = p3nUC(pep3R) + 1
+                If MaterialUCZerado(tipoR, libV, prjV) Then p3nUC0(pep3R) = p3nUC0(pep3R) + 1
+            End If
+        Next i
+
         For i = 1 To nRows
             pep4 = "" : tipoR = "" : sitR = "" : famR = "" : famRaw = "" : pep3R = ""
             If srcIdx(2) > 0 Then pep4 = NormStr(CStr(baseData(i, srcIdx(2))))
@@ -438,9 +458,10 @@ Private Sub ProcessarSAPxPRJ(wsBase As Worksheet, wsDet As Worksheet)
             libV = "" : prjV = ""
             If srcIdx(9) > 0 Then libV = baseData(i, srcIdx(9))
             If srcIdx(10) > 0 Then prjV = baseData(i, srcIdx(10))
-            ' Avaliacao unificada da linha (mesma funcao usada no loop de exibicao)
+            ' Avaliacao unificada da linha (mesma funcao usada no loop de exibicao).
+            ' UC zerado so reprova quando a obra (PEP3) esta TODA zerada.
             Dim av As tAvalLinha
-            av = AvaliarLinha(tipoR, famR, libV, prjV, sitR)
+            av = AvaliarLinha(tipoR, famR, libV, prjV, sitR, TodosUCZerados(p3nUC, p3nUC0, pep3R))
             If pep4 <> "" And Not allP4.Exists(pep4) Then allP4.Add pep4, True
             If pep4 <> "" And Not p4pep3.Exists(pep4) Then p4pep3.Add pep4, pep3R
             If pep4 <> "" And av.Avaliavel And Not av.CaboIsento Then
@@ -502,11 +523,14 @@ Private Sub ProcessarSAPxPRJ(wsBase As Worksheet, wsDet As Worksheet)
             libV = "" : prjV = ""
             If srcIdx(9) > 0 Then libV = baseData(i, srcIdx(9))
             If srcIdx(10) > 0 Then prjV = baseData(i, srcIdx(10))
-            ' TIPO deste item + avaliacao unificada (mesma funcao do loop 1)
+            ' TIPO deste item + avaliacao unificada (mesma funcao do loop 1).
+            ' UC zerado so reprova quando a obra (PEP3) esta TODA zerada.
             Dim tipoRow As String : tipoRow = ""
             If srcIdx(11) > 0 Then tipoRow = NormStr(CStr(baseData(i, srcIdx(11))))
+            Dim p3row As String : p3row = ""
+            If srcIdx(1) > 0 Then p3row = NormStr(CStr(baseData(i, srcIdx(1))))
             Dim avRow As tAvalLinha
-            avRow = AvaliarLinha(tipoRow, famR, libV, prjV, sitR)
+            avRow = AvaliarLinha(tipoRow, famR, libV, prjV, sitR, TodosUCZerados(p3nUC, p3nUC0, p3row))
 
             Dim sitText As String
             If avRow.UcZerado Then
@@ -517,8 +541,6 @@ Private Sub ProcessarSAPxPRJ(wsBase As Worksheet, wsDet As Worksheet)
                 sitText = rawSit
             End If
             outArr(i, 13) = dot & " " & sitText
-            Dim p3row As String : p3row = ""
-            If srcIdx(1) > 0 Then p3row = NormStr(CStr(baseData(i, srcIdx(1))))
 
             ' PRIORIDADE 1: se o PEP3 esta reprovado, TODA linha vira REPROVADO
             ' (inclusive CABO ISOLADO que seria isento) - arrastado pela reprovacao do PEP3.
@@ -530,7 +552,7 @@ Private Sub ProcessarSAPxPRJ(wsBase As Worksheet, wsDet As Worksheet)
             If p3Reprovado Then
                 outArr(i, 14) = noIco & " REPROVADO"
                 If avRow.UcZerado Then
-                    motivo = "Material UC com valores zerados (MAT LIB SAP=0 e MAT PRJ CAD=0) - devolvido"
+                    motivo = "Obra com TODOS os materiais UC zerados (MAT LIB SAP=0 e MAT PRJ CAD=0) - devolvida"
                 ElseIf tipoRow = "UC" And Not avRow.EhAder And sitR <> "NULO" Then
                     motivo = "Este item (UC) nao aderente: SAP=" & CStr(libV) & " / PRJ=" & CStr(prjV) & FmtDif(libV, prjV)
                 ElseIf tipoRow = "COM" And EhComCritico(famR) And Not avRow.EhAder And sitR <> "NULO" Then
@@ -548,7 +570,11 @@ Private Sub ProcessarSAPxPRJ(wsBase As Worksheet, wsDet As Worksheet)
                 motivo = "PEP3 sem UC nem COM critico (CH FUS/PARA RAIO) p/ avaliar"
             Else
                 outArr(i, 14) = okIco & " APROVADO"
-                motivo = "Todos os itens avaliados do PEP3 aderentes"
+                If MaterialUCZerado(tipoRow, libV, prjV) Then
+                    motivo = "Item UC zerado ignorado (obra nao esta toda zerada) | Demais itens aderentes"
+                Else
+                    motivo = "Todos os itens avaliados do PEP3 aderentes"
+                End If
             End If
             outArr(i, 15) = motivo
             outArr(i, 16) = IIf(p3Reprovado, "Devolvido por divergencia de " & pep3RepFam(p3row), "")
@@ -1105,11 +1131,16 @@ End Function
 
 ' Avalia uma linha SAP x PRJ (fonte UNICA de regra, usada pelos 2 loops de
 ' ProcessarSAPxPRJ). Recebe tipo/familia ja normalizados via NormStr.
+' ucZeradoReprova: a regra do UC zerado so devolve a obra quando TODOS os
+' materiais UC do PEP3 estao zerados - o chamador informa via este flag
+' (ver TodosUCZerados). Itens zerados isolados sao ignorados e o PEP3
+' fica APROVADO quando as demais regras passam.
 Private Function AvaliarLinha(tipoR As String, famR As String, _
                               libV As Variant, prjV As Variant, _
-                              sitRNorm As String) As tAvalLinha
+                              sitRNorm As String, _
+                              Optional ucZeradoReprova As Boolean = True) As tAvalLinha
     Dim av As tAvalLinha
-    av.UcZerado = MaterialUCZerado(tipoR, libV, prjV)
+    av.UcZerado = MaterialUCZerado(tipoR, libV, prjV) And ucZeradoReprova
     av.EhAder = EhAderente(famR, libV, prjV, sitRNorm)
     If av.UcZerado Then av.EhAder = False   ' UC zerado nunca e aderente
     av.CaboIsento = CaboComoCOM(famR, libV)
@@ -1176,9 +1207,20 @@ Private Function FamiliaDifAbs(fam As String) As Boolean
 End Function
 
 ' True quando um material UC vem com MAT LIB SAP e MAT PRJ CAD zerados/vazios.
-' Esses itens deixam de ser isentos: viram NAO ADERENTE e reprovam (devolvem) o PEP3.
+' A devolucao da obra por esta regra so ocorre quando TODOS os UC do PEP3
+' estao zerados (ver TodosUCZerados); itens zerados isolados sao ignorados.
 Private Function MaterialUCZerado(tipoR As String, libV As Variant, prjV As Variant) As Boolean
     MaterialUCZerado = (tipoR = "UC" And Val0(libV) = 0 And Val0(prjV) = 0)
+End Function
+
+' True quando TODOS os materiais UC do PEP3 estao com valores zerados (ai sim
+' a obra e devolvida). PEP3 sem nenhum UC, ou com qualquer UC valorado -> False.
+' p3nUC: PEP3 -> qtd de linhas UC | p3nUC0: PEP3 -> qtd de linhas UC zeradas.
+Private Function TodosUCZerados(p3nUC As Object, p3nUC0 As Object, pep3 As String) As Boolean
+    Dim t As Double, z As Double
+    t = 0 : If p3nUC.Exists(pep3) Then t = CDbl(p3nUC(pep3))
+    z = 0 : If p3nUC0.Exists(pep3) Then z = CDbl(p3nUC0(pep3))
+    TodosUCZerados = (t > 0 And z = t)
 End Function
 
 Private Function FmtKPI(v As Double) As String
@@ -3671,8 +3713,18 @@ Public Sub TestarLogicaInventario()
     Dim avT As tAvalLinha
     avT = AvaliarLinha("UC", "COND COBRE", 2, 0, "")
     RegTest nomes, oks, det, cnt, "AvaliarLinha COND COBRE 2/0: aderente, nao reprova", (avT.EhAder And Not avT.ReprovaLinha And avT.Avaliavel)
-    avT = AvaliarLinha("UC", "PARAFUSO", 0, 0, "NULO")
-    RegTest nomes, oks, det, cnt, "AvaliarLinha UC zerado: reprova mesmo com NULO", (avT.UcZerado And avT.ReprovaLinha And Not avT.EhAder)
+    avT = AvaliarLinha("UC", "PARAFUSO", 0, 0, "NULO", True)
+    RegTest nomes, oks, det, cnt, "AvaliarLinha UC zerado (obra toda zerada): reprova", (avT.UcZerado And avT.ReprovaLinha And Not avT.EhAder)
+    avT = AvaliarLinha("UC", "PARAFUSO", 0, 0, "NULO", False)
+    RegTest nomes, oks, det, cnt, "AvaliarLinha UC zerado isolado: ignorado, nao reprova", (Not avT.UcZerado And Not avT.ReprovaLinha)
+    ' TodosUCZerados: devolve a obra so quando TODOS os UC do PEP3 estao zerados
+    Dim dz1 As Object, dz2 As Object
+    Set dz1 = CreateObject("Scripting.Dictionary") : Set dz2 = CreateObject("Scripting.Dictionary")
+    dz1("P3A") = 3 : dz2("P3A") = 3
+    dz1("P3B") = 8 : dz2("P3B") = 3
+    RegTest nomes, oks, det, cnt, "TodosUCZerados 3 de 3 = True (devolve)", (TodosUCZerados(dz1, dz2, "P3A") = True)
+    RegTest nomes, oks, det, cnt, "TodosUCZerados 3 de 8 = False (aprova se resto ok)", (TodosUCZerados(dz1, dz2, "P3B") = False)
+    RegTest nomes, oks, det, cnt, "TodosUCZerados PEP3 sem UC = False", (TodosUCZerados(dz1, dz2, "P3C") = False)
     avT = AvaliarLinha("COM", "POSTE", 100, 0, "NAO ADERENTE")
     RegTest nomes, oks, det, cnt, "AvaliarLinha COM nao critico: nao avaliavel", (Not avT.Avaliavel)
     avT = AvaliarLinha("COM", "CH FUS", 100, 0, "NAO ADERENTE")
