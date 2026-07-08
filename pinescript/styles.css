@@ -1473,3 +1473,23 @@ button:focus-visible, .scan-item:focus-visible, .ia-row:focus-visible {
 @media (prefers-reduced-motion: reduce) {
     .btn-primary:hover, .metric-card:hover, .scan-item:hover { transform: none; }
 }
+
+/* Funil de qualidade (painel de decisão): 6 elos ✓/✕ da assertividade */
+.quality-funnel {
+    grid-column: 1 / -1;
+    display: flex; flex-wrap: wrap; gap: 6px; align-items: center;
+    padding-top: 10px; margin-top: 6px;
+    border-top: 1px solid var(--hairline);
+}
+.funil-titulo { font-size: 11px; font-weight: 700; letter-spacing: 0.6px; text-transform: uppercase; color: var(--ink-muted); margin-right: 4px; }
+.funil-titulo strong { color: var(--ink); }
+.funil-elo {
+    font-size: 12px; font-weight: 600; padding: 3px 10px;
+    border-radius: 999px; border: 1px solid var(--glass-brd);
+    background: var(--surface-2); cursor: help; white-space: nowrap;
+    transition: var(--transition);
+}
+.funil-elo:hover { transform: translateY(-1px); box-shadow: var(--elev-1); }
+.funil-ok { color: var(--call); border-color: rgba(34, 197, 94, 0.35); }
+.funil-no { color: var(--put); border-color: rgba(239, 68, 68, 0.35); }
+.funil-nd { color: var(--ink-muted); }

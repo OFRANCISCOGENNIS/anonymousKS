@@ -269,6 +269,20 @@ await p.$eval('.btn-preset[data-preset="auto"]', b => b.click()); await p.waitFo
 const pa = await p.evaluate(() => document.querySelectorAll('.btn-preset.is-active').length);
 check('preset Auto ativa um preset de regime', pa === 1, 'ativos=' + pa);
 
+// 7.97) Funil de qualidade: 6 elos no painel de decisão, contagem coerente
+const funil = await p.evaluate(() => {
+  if (!dados || dados.length < 210) dados = gerarDadosSim(300, 2);
+  recomputarIndicadores(); recomputarSinais(); atualizarDecisao();
+  const elos = [...document.querySelectorAll('#qualityFunnel .funil-elo')];
+  const titulo = (document.querySelector('#qualityFunnel .funil-titulo') || {}).textContent || '';
+  const oks = document.querySelectorAll('#qualityFunnel .funil-ok').length;
+  const m = titulo.match(/(\d)\/6/);
+  return { qtd: elos.length, temTitulo: /Funil de qualidade/.test(titulo), contagemBate: m && +m[1] === oks, dicas: elos.every(e => e.title.length > 3) };
+});
+check('funil de qualidade tem 6 elos', funil.qtd === 6, 'elos=' + funil.qtd);
+check('funil: contagem X/6 bate com os elos verdes', funil.temTitulo && funil.contagemBate);
+check('funil: todo elo tem tooltip explicativo', funil.dicas);
+
 // 8) PWA manifest
 check('PWA manifest presente', await p.$eval('link[rel=manifest]', e => e.href.startsWith('data:application/manifest')));
 

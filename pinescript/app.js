@@ -1561,6 +1561,64 @@ function calcularGrade(dir) {
     return { grade, motivos, score, estrelas: Math.max(1, Math.round(score / 20)), pEst, pLB, pN, expOp, expOpLB, kelly, regime: cl.regime };
 }
 
+// ---- FUNIL DE QUALIDADE ----
+// Materializa a cadeia de assertividade: 6 elos que precisam fechar juntos para
+// o sinal atual merecer dinheiro. Cada elo vira um chip ✓/✕ (tooltip explica o
+// que falta). Elo cinza (·) = ainda sem dado para julgar.
+function renderFunilQualidade(riscoNoticia) {
+    const box = document.getElementById('qualityFunnel');
+    if (!box || !confLive.fatores || !dados.length) return;
+    const cl = confLive;
+    const dir = cl.long >= cl.short ? 1 : -1;
+    const dom = Math.max(cl.long, cl.short), en = cl.enabled || 1;
+    const g = calcularGrade(dir);
+
+    // 1. Regime × fatores: os toggles atuais casam com o preset do regime detectado?
+    let reg = null, regimeOk = null;
+    try { reg = regimeUltimo(); } catch (e) {}
+    if (reg && typeof PRESETS_REGIME !== 'undefined' && PRESETS_REGIME[reg]) {
+        const f = PRESETS_REGIME[reg].fatores;
+        const iguais = Object.keys(f).filter(id => { const el = document.getElementById(id); return el && el.checked === !!f[id]; }).length;
+        regimeOk = iguais >= 7;   // 7 de 10 toggles alinhados = estratégia compatível
+    }
+    // 2. Confluência de verdade (≥4 fatores ou ≥70% do habilitado, com lado dominante)
+    const confOk = cl.long !== cl.short && (dom >= 4 || dom / en >= 0.7);
+    // 3. Portões de contexto: HTF, S/R, sessão e notícia
+    const htfOk = !cl.useHtf || cl.htfDir === dir;
+    const srOk = dir === 1 ? !cl.srVetoLong : !cl.srVetoShort;
+    const portoesOk = htfOk && srOk && cl.sessaoForte && !riscoNoticia;
+    // 4. Evidência estatística: amostra ≥10 e expectativa positiva no limite inferior
+    const evidOk = g.pN >= 10 && g.expOpLB != null && g.expOpLB >= 0;
+    // 5. Calibração ao vivo: previsão da IA sustentada pelo placar real
+    const res = registro.filter(r => r.resultado === 'WIN' || r.resultado === 'LOSS');
+    let calibOk = null;
+    if (res.length >= 3) {
+        const wins = res.filter(r => r.resultado === 'WIN').length;
+        const cc = iaCache[symbolAtual() + '|' + (reg || '')] || iaCache[symbolAtual()];
+        calibOk = !cc || cc.wr == null || cc.wr >= wilsonLB(wins, res.length) - 0.02;
+    }
+    // 6. Execução coerente: expiração 1–6× o TF e payout viável (≥80%)
+    const razao = expMinutes() / tfMinutes();
+    const payout = Math.max(0.01, (parseFloat(document.getElementById('payout').value) || 87) / 100);
+    const execOk = razao >= 1 && razao <= 6 && payout >= 0.8;
+
+    const elo = (ok, rot, dica) => {
+        const cls = ok === null ? 'funil-nd' : ok ? 'funil-ok' : 'funil-no';
+        const ico = ok === null ? '·' : ok ? '✓' : '✕';
+        return `<span class="funil-elo ${cls}" title="${dica}">${ico} ${rot}</span>`;
+    };
+    const okCount = [regimeOk, confOk, portoesOk, evidOk, calibOk, execOk].filter(x => x === true).length;
+    const faltasPortoes = (htfOk ? '' : 'contra o TF maior · ') + (srOk ? '' : 'colado em S/R · ')
+        + (cl.sessaoForte ? '' : 'sessão fraca (' + cl.sessao + ') · ') + (riscoNoticia ? 'notícia próxima · ' : '');
+    box.innerHTML = `<span class="funil-titulo">Funil de qualidade <strong>${okCount}/6</strong></span>` +
+        elo(regimeOk, 'Regime', reg ? (regimeOk ? 'fatores casam com o regime ' + (REGIME_ROTULO[reg] || reg) : 'fatores não casam com o regime ' + (REGIME_ROTULO[reg] || reg) + ' — clique no preset 🎯 Auto') : 'regime indisponível') +
+        elo(confOk, 'Confluência', confOk ? dom + '/' + en + ' fatores a favor' : 'score fraco (' + dom + '/' + en + ') — espere ≥4 fatores ou 70%') +
+        elo(portoesOk, 'Portões', portoesOk ? 'HTF · S/R · sessão · notícia OK' : faltasPortoes) +
+        elo(evidOk, 'Evidência', g.pN >= 10 ? (evidOk ? 'edge LB ≥ 0 com ' + g.pN + ' ops' : 'sem edge no limite inferior (95%)') : 'amostra ' + (g.pN || 0) + ' ops — precisa ≥10 (rode a 🤖 IA)') +
+        elo(calibOk, 'Calibração', calibOk === null ? 'aguardando 3+ resultados reais no Registro' : calibOk ? 'previsão da IA dentro do placar real' : 'IA otimista vs placar real — reotimize') +
+        elo(execOk, 'Execução', 'expiração ' + expMinutes() + 'm ÷ TF ' + tfMinutes() + 'm = ' + razao.toFixed(1) + '× (ideal 1–6×) · payout ' + Math.round(payout * 100) + '% (mín. 80%)');
+}
+
 function atualizarDecisao() {
     const v = document.getElementById('decisionVerdict');
     const r = document.getElementById('decisionReason');
@@ -1664,6 +1722,9 @@ function atualizarDecisao() {
         }
         ultimoVerdictSom = verdictKey;
     }
+
+    // Funil de qualidade: mostra quais dos 6 elos de assertividade estão fechados
+    try { renderFunilQualidade(riscoNoticia); } catch (e) { }
 
     // Contexto histórico: o score atual costuma acertar quanto? (assertividade medida)
     const scoreAtivo = Math.max(long, short);
