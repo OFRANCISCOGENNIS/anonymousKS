@@ -55,6 +55,7 @@
                             <option value="twelvedata">Forex/Índices/Ouro — Twelve Data (chave)</option>
                             <option value="yahoo">Forex/Índices/Ouro — Yahoo (SEM chave) ⭐</option>
                             <option value="ambos">Binance + Twelve Data (cripto + forex juntos)</option>
+                            <option value="ambos3">Binance + Twelve Data + Yahoo (forex sem chave no fallback) ⭐</option>
                             <option value="sim">Simulado (offline)</option>
                         </select>
                     </label>
@@ -62,7 +63,7 @@
                         Chave Twelve Data (grátis)
                         <input type="text" id="tdKey" value="demo" spellcheck="false" autocomplete="off" style="width:100%;">
                     </label>
-                    <p class="group-note"><strong>Forex sem chave:</strong> escolha <strong>Yahoo (SEM chave) ⭐</strong> — dá EUR/USD, USD/JPY, ouro, índices etc. de graça, sem cadastro (vai por proxies públicos; se um cair, tenta o próximo). Alternativa keyless e em tempo real: os pares fiat da <strong>Binance</strong> (EUR/USDT, GBP/USDT…) no modo cripto. O <strong>Twelve Data</strong> (com chave grátis de twelvedata.com) é opcional, para forex mais estável. O TradingView do topo é só gráfico visual — não fornece dados para a análise.</p>
+                    <p class="group-note"><strong>Tudo junto (recomendado):</strong> <strong>Binance + Twelve Data + Yahoo ⭐</strong> roda cripto (Binance) e forex numa passada só — o forex tenta a Twelve Data e, se não tiver chave ou estourar a cota, cai sozinho no <strong>Yahoo keyless</strong>. Sem chave nenhuma: escolha <strong>Yahoo (SEM chave) ⭐</strong> (EUR/USD, USD/JPY, ouro, índices, via proxies públicos). Em tempo real e keyless: pares fiat da <strong>Binance</strong> (EUR/USDT…). O TradingView do topo é só gráfico visual — não fornece dados para a análise.</p>
                     <label>
                         Par / moeda (cripto)
                         <input type="text" id="symbol" value="BTCUSDT" list="listaSimbolos" autocomplete="off" spellcheck="false">

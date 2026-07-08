@@ -54,6 +54,32 @@ const combo = await p.evaluate(() => ({
 check('modo combinado lista cripto + forex', combo.qtd > 24 && combo.temCripto && combo.temForex, 'qtd=' + combo.qtd);
 check('modo combinado roteia BTCUSDT→binance', combo.rotaCripto === 'binance');
 check('modo combinado roteia EURUSD→twelvedata', combo.rotaForex === 'twelvedata');
+// Modo triplo (ambos3): forex vira 'forex3' (Twelve Data com fallback Yahoo)
+await p.selectOption('#fonte', 'ambos3'); await p.waitForTimeout(300);
+const tri = await p.evaluate(() => ({
+  qtd: document.querySelectorAll('#scanFiltro input[data-sym]').length,
+  rotaCripto: fonteDe('BTCUSDT'), rotaForex: fonteDe('EURUSD'), combinado: modoCombinado()
+}));
+check('modo triplo é combinado (cripto+forex)', tri.combinado && tri.qtd > 24);
+check('modo triplo roteia BTCUSDT→binance', tri.rotaCripto === 'binance');
+check('modo triplo roteia EURUSD→forex3 (TD+Yahoo)', tri.rotaForex === 'forex3');
+// fallback: TD falha → cai no Yahoo keyless
+const fb = await p.evaluate(async () => {
+  const orig = window.fetch;
+  const okBody = JSON.stringify({ chart: { result: [{ timestamp: [1, 2], indicators: { quote: [{ open: [1, 1], high: [1, 1], low: [1, 1], close: [1, 1], volume: [1, 1] }] } }], error: null } });
+  let usouYahoo = false;
+  window.fetch = async (u) => {
+    u = String(u);
+    if (u.includes('twelvedata')) throw new Error('sem chave');           // TD falha
+    if (u.includes('yahoo') || u.includes('allorigins') || u.includes('codetabs') || u.includes('thingproxy')) { usouYahoo = true; return { ok: true, text: async () => okBody }; }
+    throw new Error('inesperado');
+  };
+  let velas = [];
+  try { velas = await carregarHistoricoTF('EURUSD', 5, 50); } catch (e) {}
+  window.fetch = orig;
+  return { usouYahoo, temVelas: velas.length > 0 };
+});
+check('forex3: TD falha → cai no Yahoo keyless', fb.usouYahoo && fb.temVelas, JSON.stringify(fb));
 await p.selectOption('#fonte', 'sim'); await p.waitForTimeout(200);
 
 // 2) Fatores extras MACD/Bollinger entram na confluência

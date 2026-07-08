@@ -253,16 +253,23 @@ async function carregarHistoricoYahoo(codigo, intervalMin, limit) {
     return candles.slice(Math.max(0, candles.length - limit));
 }
 
-// ---- MODO COMBINADO: Binance (cripto) + Twelve Data (forex) rodando juntos ----
-// Cada símbolo é roteado para a fonte certa: pares em PARES_YAHOO → Twelve Data;
-// o resto → Binance. Scanner e IA varrem os dois universos numa passada só.
-function modoCombinado() { return fonte() === 'ambos'; }
+// ---- MODOS COMBINADOS: várias fontes rodando juntas, roteadas por símbolo ----
+//  'ambos'  = Binance (cripto) + Twelve Data (forex)
+//  'ambos3' = Binance (cripto) + forex via Twelve Data COM fallback keyless p/ Yahoo
+// Scanner e IA varrem cripto + forex numa passada só, cada símbolo na sua fonte.
+function modoCombinado() { const f = fonte(); return f === 'ambos' || f === 'ambos3'; }
+// Fonte para CARREGAR dados de um símbolo (scanner/IA). 'forex3' = TD→Yahoo.
 function fonteDe(symbol) {
-    if (modoCombinado()) return PARES_YAHOO[symbol] ? 'twelvedata' : 'binance';
-    return fonte();
+    if (!modoCombinado()) return fonte();
+    if (!PARES_YAHOO[symbol]) return 'binance';
+    return fonte() === 'ambos3' ? 'forex3' : 'twelvedata';
 }
-// Fonte efetiva do gráfico atual (resolve o símbolo aberto no modo combinado).
-function fonteEfetiva() { return modoCombinado() ? fonteDe(symbolAtual()) : fonte(); }
+// Fonte efetiva do gráfico AO VIVO. Para forex devolve 'twelvedata' — a branch
+// desse loader em carregar() já cai para o Yahoo sozinha se a TD falhar.
+function fonteEfetiva() {
+    if (!modoCombinado()) return fonte();
+    return PARES_YAHOO[symbolAtual()] ? 'twelvedata' : 'binance';
+}
 
 // Fonte "Forex-like" (Forex/índices/ouro): sem volume agressor real
 function ehForex() { const f = fonteEfetiva(); return f === 'yahoo' || f === 'twelvedata'; }

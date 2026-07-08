@@ -92,6 +92,11 @@ async function carregarHistoricoTF(symbol, tfMin, limit) {
     const f = fonteDe(symbol);   // no modo combinado, cada símbolo vai p/ sua fonte
     const chave = f + '|' + symbol + '|' + tfMin + '|' + limit;   // cache TTL 60s (IA em lote reusa)
     if (symbol === 'CRYPTOIDX') return comCache(chave, () => carregarHistoricoCryptoIDX(intervalPorFonte('binance', tfMin), limit));
+    // forex3: tenta Twelve Data e, se falhar (sem chave/limite), cai no Yahoo keyless
+    if (f === 'forex3') return comCache(chave, async () => {
+        try { return await carregarHistoricoTwelveData(symbol, tfMin, limit); }
+        catch (e) { return await carregarHistoricoYahoo(symbol, tfMin, limit); }
+    });
     return comCache(chave, () => loaderPorFonte(f)(symbol, intervalPorFonte(f, tfMin), limit));
 }
 // TF maior correspondente ao TF de trabalho (para o filtro Multi-Timeframe)
