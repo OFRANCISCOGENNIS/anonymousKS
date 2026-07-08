@@ -33,6 +33,28 @@ def vba_routines():
         pass
     return out
 
+def vba_calls(routines):
+    """Grafo de chamadas do .bas: caller -> callee (determinístico, EXTRACTED)."""
+    edges, cur = set(), None
+    try:
+        with open(BAS, encoding="utf-8", errors="replace") as f:
+            for ln in f:
+                m = re.match(r"\s*(?:Public |Private )?(?:Sub|Function) (\w+)", ln)
+                if m:
+                    cur = m.group(1)
+                    continue
+                if re.match(r"\s*End (Sub|Function)", ln):
+                    cur = None
+                    continue
+                if cur:
+                    code = ln.split("'")[0]  # ignora comentários
+                    for r in routines:
+                        if r != cur and re.search(r"\b" + re.escape(r) + r"\b", code):
+                            edges.add((cur, r))
+    except OSError:
+        pass
+    return sorted(edges)
+
 def notes():
     os.makedirs(BRAIN, exist_ok=True)
     out = {}
@@ -54,7 +76,7 @@ def _components(node_ids, edges):
         ra, rb = find(a), find(b)
         if ra != rb:
             parent[ra] = rb
-    for a, b, _ in edges:
+    for a, b, *_ in edges:
         if a in parent and b in parent:
             union(a, b)
     roots = {}
@@ -79,11 +101,20 @@ def build_graph():
         for target in re.findall(r"\[\[([^\]|#]+)", txt):
             target = target.strip()
             add(target, "note" if target in ns else "ghost")
-            edges.append([name, target, "extracted"])  # wikilink explícito
+            edges.append([name, target, "extracted", "links"])  # wikilink explícito
         for r in routines:
             if re.search(r"\b" + re.escape(r) + r"\b", txt):
                 add(r, "vba")
-                edges.append([name, r, "inferred"])  # menção por regex, não link declarado
+                edges.append([name, r, "inferred", "mentions"])  # menção por regex
+    # grafo de chamadas do próprio .bas (só rotinas já presentes ou chamadas
+    # por/para elas entram, para não poluir o grafo com as 131 de uma vez;
+    # exceto se não houver nota nenhuma — aí mostra o call graph inteiro)
+    calls = vba_calls(routines)
+    seed = {n["id"] for n in nodes if n["kind"] == "vba"} or set(routines)
+    for a, b in calls:
+        if a in seed or b in seed:
+            add(a, "vba"); add(b, "vba")
+            edges.append([a, b, "extracted", "calls"])
     comm = _components([n["id"] for n in nodes], edges)
     for n in nodes:
         n["community"] = comm[n["id"]]
@@ -94,7 +125,7 @@ def build_graph():
 def shortest_path(frm, to):
     g = build_graph()
     adj = {}
-    for a, b, _ in g["edges"]:
+    for a, b, *_ in g["edges"]:
         adj.setdefault(a, set()).add(b)
         adj.setdefault(b, set()).add(a)
     if frm not in adj or to not in adj:
@@ -214,7 +245,44 @@ class H(BaseHTTPRequestHandler):
         else:
             self._send("404", code=404)
 
+def cli_explain(nid):
+    g = build_graph()
+    node = next((n for n in g["nodes"] if n["id"] == nid), None)
+    if not node:
+        cands = [n["id"] for n in g["nodes"] if nid.lower() in n["id"].lower()]
+        sys.exit(f"nó '{nid}' não encontrado." +
+                 (f" Parecidos: {', '.join(cands[:5])}" if cands else ""))
+    rts = vba_routines()
+    out_e = [(b, p, r) for a, b, p, r in g["edges"] if a == nid]
+    in_e = [(a, p, r) for a, b, p, r in g["edges"] if b == nid]
+    print(f"Node: {nid}")
+    if nid in rts:
+        print(f"  Source:    vba/AnaliseCKCP_OTIMIZADO.bas L{rts[nid]}")
+    print(f"  Kind:      {node['kind']}")
+    print(f"  Community: {node['community']}")
+    print(f"  Degree:    {len(out_e) + len(in_e)}\n")
+    print(f"Connections ({len(out_e) + len(in_e)}):")
+    for b, p, r in out_e:
+        print(f"  --> {b} [{r}] [{p.upper()}]")
+    for a, p, r in in_e:
+        print(f"  <-- {a} [{r}] [{p.upper()}]")
+
+def cli_path(a, b):
+    p = shortest_path(a, b)
+    if not p:
+        sys.exit("sem caminho")
+    print(f"Shortest path ({len(p) - 1} hops):")
+    print("  " + " --> ".join(p))
+
 if __name__ == "__main__":
-    port = int(sys.argv[1]) if len(sys.argv) > 1 else 8765
-    print(f"🧠 brain em http://localhost:{port}  (notas: .claude/brain/*.md)")
-    HTTPServer(("127.0.0.1", port), H).serve_forever()
+    args = sys.argv[1:]
+    if args and args[0] == "explain" and len(args) == 2:
+        cli_explain(args[1])
+    elif args and args[0] == "path" and len(args) == 3:
+        cli_path(args[1], args[2])
+    else:
+        port = int(args[1]) if len(args) > 1 and args[0] == "serve" else \
+               int(args[0]) if args and args[0].isdigit() else 8765
+        print(f"🧠 brain em http://localhost:{port}  (notas: .claude/brain/*.md)")
+        print("CLI: brain_server.py explain <nó> | path <de> <até> | serve [porta]")
+        HTTPServer(("127.0.0.1", port), H).serve_forever()

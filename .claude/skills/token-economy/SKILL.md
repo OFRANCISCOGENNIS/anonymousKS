@@ -40,7 +40,13 @@ re-pago em TODOS os turnos seguintes. Disco (arquivos) é quase grátis. Logo:
 
 ## Cérebro (grafo estilo Obsidian)
 
-`python3 scripts/brain_server.py [porta]` sobe http://localhost:8765 com o grafo interativo ligando notas de `.claude/brain/*.md` (+ MEMORY.md) via `[[wikilinks]`] e menções a rotinas do `.bas`. Clique num nó abre a nota ou o corpo da rotina. Destile pesquisas em notas curtas ali — vira memória navegável entre sessões.
+`python3 scripts/brain_server.py [porta]` sobe http://localhost:8765 com o grafo interativo: notas de `.claude/brain/*.md` (+ MEMORY.md) via `[[wikilinks]]`, menções a rotinas do `.bas`, e o grafo de chamadas caller→callee extraído do próprio código. Arestas com proveniência (sólida=EXTRACTED, tracejada=INFERRED), cor=comunidade, busca de caminho na UI.
+
+CLI sem navegador (barato em tokens — use no lugar de ler código para rastrear fluxo):
+- `brain_server.py explain Gerar_MaterialVsServico` → fonte+linha, grau, conexões com direção/proveniência
+- `brain_server.py path "Nota A" RotinaB` → cadeia mais curta entre dois nós
+
+Destile pesquisas em notas curtas em `.claude/brain/` — vira memória navegável entre sessões.
 
 ## Gatilho mental
 
