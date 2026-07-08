@@ -196,14 +196,20 @@ function pararPollYahoo() { if (yahooPollTimer) { clearInterval(yahooPollTimer);
 async function fetchYahooJson(url, rodadas) {
     rodadas = rodadas || 3;
     let ultimoErro;
+    // ordem dos proxies: o que funcionou por último vai PRIMEIRO (evita ficar
+    // ciclando os que estão fora do ar a cada requisição → keyless mais estável)
+    const ordem = YAHOO_PROXIES
+        .map((p, i) => ({ p, i }))
+        .sort((a, b) => (a.i === _yahooProxyBom ? -1 : b.i === _yahooProxyBom ? 1 : 0));
     for (let r = 0; r < rodadas; r++) {
-        for (const p of YAHOO_PROXIES) {
+        for (const { p, i } of ordem) {
             try {
                 const resp = await fetch(p.montar(url));
                 if (!resp.ok) throw new Error(p.nome + ' HTTP ' + resp.status);
                 const inner = JSON.parse(await p.texto(resp));
                 if (inner.chart && inner.chart.error) throw new Error(inner.chart.error.description || 'erro Yahoo');
                 if (!inner.chart || !inner.chart.result || !inner.chart.result[0]) throw new Error('resposta vazia');
+                _yahooProxyBom = i;   // memoriza o proxy que respondeu
                 return inner.chart.result[0];
             } catch (e) {
                 ultimoErro = e;   // tenta o próximo proxy

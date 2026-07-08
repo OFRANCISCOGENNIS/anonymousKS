@@ -22,8 +22,10 @@ const YAHOO_PROXIES = YAHOO_PROXY_OVERRIDE
     : [
         { nome: 'allorigins-raw', montar: u => 'https://api.allorigins.win/raw?url=' + encodeURIComponent(u), texto: r => r.text() },
         { nome: 'codetabs', montar: u => 'https://api.codetabs.com/v1/proxy/?quest=' + encodeURIComponent(u), texto: r => r.text() },
+        { nome: 'thingproxy', montar: u => 'https://thingproxy.freeboard.io/fetch/' + u, texto: r => r.text() },
         { nome: 'allorigins-get', montar: u => 'https://api.allorigins.win/get?url=' + encodeURIComponent(u), texto: async r => JSON.parse(await r.text()).contents }
     ];
+let _yahooProxyBom = 0;   // índice do último proxy que funcionou — tentado primeiro
 const PARES_YAHOO = {
     EURUSD: { yahoo: 'EURUSD=X', td: 'EUR/USD', tv: 'FX:EURUSD', label: 'EUR/USD' },
     USDJPY: { yahoo: 'USDJPY=X', td: 'USD/JPY', tv: 'FX:USDJPY', label: 'USD/JPY' },

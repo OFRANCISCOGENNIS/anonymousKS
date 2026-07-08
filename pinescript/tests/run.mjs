@@ -176,6 +176,20 @@ const retry = await p.evaluate(async () => {
 });
 check('fetchRetry repete e vence ao 3º', retry.n === 3 && retry.ok, 'n=' + retry.n);
 
+// 7.75) Forex keyless: proxy Yahoo memoriza o que funcionou (tenta-o primeiro)
+const yh = await p.evaluate(async () => {
+  const orig = window.fetch;
+  const okBody = JSON.stringify({ chart: { result: [{ timestamp: [1], indicators: { quote: [{ open: [1], high: [1], low: [1], close: [1], volume: [1] }] } }], error: null } });
+  let hits = [];
+  window.fetch = async (u) => { hits.push(String(u)); if (String(u).includes('codetabs')) return { ok: true, text: async () => okBody }; throw new Error('proxy fora do ar'); };
+  await fetchYahooJson('https://query1.finance.yahoo.com/x');   // só codetabs responde
+  hits = [];
+  await fetchYahooJson('https://query1.finance.yahoo.com/y');   // agora deve tentar codetabs 1º
+  window.fetch = orig;
+  return { primeira: hits[0] || '' };
+});
+check('proxy Yahoo keyless memoriza o que funcionou', /codetabs/.test(yh.primeira), yh.primeira);
+
 // 7.8) Web Worker do backtest: existe e dá resultado IDÊNTICO ao fallback
 const wk = await p.evaluate(async () => {
   if (!dados || dados.length < 210) dados = gerarDadosSim(300, 2);
