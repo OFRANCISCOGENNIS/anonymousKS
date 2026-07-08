@@ -1,14 +1,18 @@
 #!/usr/bin/env python3
-"""Cérebro estilo Obsidian: servidor local que liga todas as notas/pesquisas
-num grafo interativo (força-dirigido, canvas, sem dependências externas).
+"""Cérebro estilo Obsidian/Graphify: servidor local que liga todas as
+notas/pesquisas num grafo interativo (força-dirigido, canvas, sem deps).
 
 Nós = notas .md em .claude/brain/ + .claude/MEMORY.md + rotinas do módulo VBA.
-Arestas = [[wikilinks]] entre notas e menções a nomes de Sub/Function.
+Arestas = [[wikilinks]] (EXTRACTED, explícita) e menções a Sub/Function
+(INFERRED, por regex) — proveniência inspirada no Graphify (tree-sitter
+EXTRACTED/INFERRED). Comunidades = componentes conexos, coloridos por grupo.
+Caminho entre dois nós via /api/path?from=&to= (BFS, ideia do `graphify path`).
 
 Uso: brain_server.py [porta]           (padrão 8765)
 Notas: escreva .md em .claude/brain/ com [[NomeDeOutraNota]] ou nomes de rotinas.
 """
-import glob, html, json, os, re, sys
+import glob, json, os, re, sys
+from collections import deque
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from urllib.parse import urlparse, parse_qs
 
@@ -38,6 +42,26 @@ def notes():
         out["MEMORY"] = MEMORY
     return out
 
+def _components(node_ids, edges):
+    """Comunidades = componentes conexos (union-find leve, sem dependências)."""
+    parent = {n: n for n in node_ids}
+    def find(x):
+        while parent[x] != x:
+            parent[x] = parent[parent[x]]
+            x = parent[x]
+        return x
+    def union(a, b):
+        ra, rb = find(a), find(b)
+        if ra != rb:
+            parent[ra] = rb
+    for a, b, _ in edges:
+        if a in parent and b in parent:
+            union(a, b)
+    roots = {}
+    for n in node_ids:
+        roots.setdefault(find(n), len(roots))
+    return {n: roots[find(n)] for n in node_ids}
+
 def build_graph():
     ns, routines = notes(), vba_routines()
     nodes, edges, seen = [], [], set()
@@ -55,13 +79,40 @@ def build_graph():
         for target in re.findall(r"\[\[([^\]|#]+)", txt):
             target = target.strip()
             add(target, "note" if target in ns else "ghost")
-            edges.append([name, target])
+            edges.append([name, target, "extracted"])  # wikilink explícito
         for r in routines:
             if re.search(r"\b" + re.escape(r) + r"\b", txt):
                 add(r, "vba")
-                edges.append([name, r])
+                edges.append([name, r, "inferred"])  # menção por regex, não link declarado
+    comm = _components([n["id"] for n in nodes], edges)
+    for n in nodes:
+        n["community"] = comm[n["id"]]
     return {"nodes": nodes, "edges": edges,
-            "stats": {"notas": len(ns), "rotinas_vba": len(routines)}}
+            "stats": {"notas": len(ns), "rotinas_vba": len(routines),
+                       "comunidades": len(set(comm.values()))}}
+
+def shortest_path(frm, to):
+    g = build_graph()
+    adj = {}
+    for a, b, _ in g["edges"]:
+        adj.setdefault(a, set()).add(b)
+        adj.setdefault(b, set()).add(a)
+    if frm not in adj or to not in adj:
+        return None
+    prev, q = {frm: None}, deque([frm])
+    while q:
+        cur = q.popleft()
+        if cur == to:
+            path = []
+            while cur is not None:
+                path.append(cur)
+                cur = prev[cur]
+            return list(reversed(path))
+        for nxt in adj.get(cur, ()):
+            if nxt not in prev:
+                prev[nxt] = cur
+                q.append(nxt)
+    return None
 
 PAGE = """<!doctype html><meta charset=utf-8><title>Brain — AnaliseCKCP</title>
 <style>body{margin:0;background:#16161d;color:#dcd7ba;font:13px/1.4 system-ui}
@@ -69,17 +120,22 @@ PAGE = """<!doctype html><meta charset=utf-8><title>Brain — AnaliseCKCP</title
 #top b{color:#7e9cd8}canvas{display:block}#note{position:fixed;right:0;top:42px;
 bottom:0;width:34%;overflow:auto;background:#1f1f28;padding:14px;white-space:pre-wrap;
 border-left:1px solid #2a2a37;display:none}input{background:#16161d;color:#dcd7ba;
-border:1px solid #2a2a37;padding:4px 8px;border-radius:4px}</style>
+border:1px solid #2a2a37;padding:4px 8px;border-radius:4px;width:110px}
+#pathmsg{color:#e6c384}</style>
 <div id=top><b>🧠 Brain</b><span id=stats></span>
-<input id=q placeholder="filtrar..."><span style="color:#727169">notas=azul · VBA=verde · fantasma=cinza · clique abre</span></div>
+<input id=q placeholder="filtrar...">
+<input id=pf placeholder="caminho: de"><input id=pt placeholder="até">
+<button onclick="findPath()">path</button><span id=pathmsg></span>
+<span style="color:#727169">cor=comunidade · tracejado=inferido · sólido=extraído · clique abre</span></div>
 <canvas id=c></canvas><div id=note></div>
 <script>
-let G,N=[],E=[],sel=null;const c=document.getElementById('c'),x=c.getContext('2d');
+let G,N=[],E=[],highlight=null;const c=document.getElementById('c'),x=c.getContext('2d');
 function fit(){c.width=innerWidth;c.height=innerHeight-42}fit();onresize=fit;
+const PAL=['#7e9cd8','#98bb6c','#e6c384','#c34043','#957fb8','#7fb4ca','#dca561'];
 fetch('/api/graph').then(r=>r.json()).then(g=>{G=g;
-document.getElementById('stats').textContent=`${g.stats.notas} notas · ${g.stats.rotinas_vba} rotinas VBA · ${g.edges.length} ligações`;
+document.getElementById('stats').textContent=`${g.stats.notas} notas · ${g.stats.rotinas_vba} rotinas VBA · ${g.edges.length} ligações · ${g.stats.comunidades} comunidades`;
 N=g.nodes.map(n=>({...n,x:Math.random()*c.width,y:Math.random()*c.height,vx:0,vy:0}));
-E=g.edges.map(([a,b])=>[N.findIndex(n=>n.id==a),N.findIndex(n=>n.id==b)]).filter(e=>e[0]>=0&&e[1]>=0);
+E=g.edges.map(([a,b,t])=>[N.findIndex(n=>n.id==a),N.findIndex(n=>n.id==b),t]).filter(e=>e[0]>=0&&e[1]>=0);
 loop()});
 function loop(){for(let it=0;it<3;it++){
 for(const[a,b]of E){const A=N[a],B=N[b],dx=B.x-A.x,dy=B.y-A.y,d=Math.hypot(dx,dy)||1,f=(d-90)*0.002;
@@ -90,19 +146,30 @@ A.vx-=dx*f;A.vy-=dy*f;B.vx+=dx*f;B.vy+=dy*f}
 for(const n of N){n.vx+=(c.width/2-n.x)*0.0005;n.vy+=(c.height/2-n.y)*0.0005;
 n.x+=n.vx*=0.85;n.y+=n.vy*=0.85}}
 draw();requestAnimationFrame(loop)}
-const col={note:'#7e9cd8',vba:'#98bb6c',ghost:'#54546d'};
 function draw(){x.clearRect(0,0,c.width,c.height);const q=document.getElementById('q').value.toLowerCase();
-x.strokeStyle='#2a2a37';for(const[a,b]of E){x.beginPath();x.moveTo(N[a].x,N[a].y);x.lineTo(N[b].x,N[b].y);x.stroke()}
+for(const[a,b,t]of E){const A=N[a],B=N[b];
+x.strokeStyle=highlight&&highlight.has(a)&&highlight.has(b)?'#e6c384':'#2a2a37';
+x.lineWidth=highlight&&highlight.has(a)&&highlight.has(b)?2:1;
+x.setLineDash(t=='inferred'?[4,3]:[]);
+x.beginPath();x.moveTo(A.x,A.y);x.lineTo(B.x,B.y);x.stroke()}
+x.setLineDash([]);
 for(const n of N){const hit=q&&n.id.toLowerCase().includes(q);
-x.fillStyle=hit?'#e6c384':col[n.kind];x.beginPath();
+x.fillStyle=hit?'#ffffff':PAL[n.community%PAL.length];x.beginPath();
 x.arc(n.x,n.y,n.kind=='note'?7:5,0,7);x.fill();
-x.fillStyle=hit?'#e6c384':'#9c9a90';x.fillText(n.id,n.x+9,n.y+4)}}
+x.fillStyle=hit?'#ffffff':'#9c9a90';x.fillText(n.id,n.x+9,n.y+4)}}
 c.onclick=e=>{const mx=e.offsetX,my=e.offsetY;
 const n=N.find(n=>Math.hypot(n.x-mx,n.y-my)<10);const box=document.getElementById('note');
 if(!n){box.style.display='none';return}
 fetch('/api/node?id='+encodeURIComponent(n.id)).then(r=>r.text()).then(t=>{
 box.textContent=t;box.style.display='block'})};
 document.getElementById('q').oninput=draw;
+function findPath(){
+const a=document.getElementById('pf').value,b=document.getElementById('pt').value;
+fetch(`/api/path?from=${encodeURIComponent(a)}&to=${encodeURIComponent(b)}`).then(r=>r.json()).then(p=>{
+const m=document.getElementById('pathmsg');
+if(!p.path){m.textContent='sem caminho';highlight=null;return}
+m.textContent=p.path.join(' → ');
+highlight=new Set(p.path.map(id=>N.findIndex(n=>n.id==id)))})}
 </script>"""
 
 class H(BaseHTTPRequestHandler):
@@ -120,6 +187,10 @@ class H(BaseHTTPRequestHandler):
             self._send(PAGE)
         elif u.path == "/api/graph":
             self._send(json.dumps(build_graph()), "application/json")
+        elif u.path == "/api/path":
+            qs = parse_qs(u.query)
+            frm, to = qs.get("from", [""])[0], qs.get("to", [""])[0]
+            self._send(json.dumps({"path": shortest_path(frm, to)}), "application/json")
         elif u.path == "/api/node":
             nid = parse_qs(u.query).get("id", [""])[0]
             ns, rs = notes(), vba_routines()
