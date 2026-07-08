@@ -50,7 +50,7 @@ Tratamento de erro: `On Error GoTo TratarErro` captura `Err.Number/Description/S
 |-----|--------|-----------|
 | `PAINEL` | `CriarAbaPainel` | Dashboard executivo — primeira aba, números consolidados |
 | `Blocos` | `CriarAbaBlocosPorFamilia` | Todos os blocos (postes+cabos+outros+Piauí) organizados em seções por família |
-| `Textos` | fluxo principal | 1 linha por TEXT/MTEXT do desenho, com classificação completa |
+| `Textos` | fluxo principal | 1 linha por TEXT/MTEXT do desenho, com classificação completa (colunas 1-13 + coluna 14 "Nome do Material") |
 | `Resumo` | fluxo principal | Agregações por família/status/altura/cabo + 2 gráficos (barras, pizza) |
 | `Mat. Instalados` | `CriarAbaStatus` | Blocos com status "MATERIAIS INSTALADOS" |
 | `Mat. Desinstalados` | `CriarAbaStatus` | Blocos com status "MATERIAIS DESINSTALADOS" |
@@ -78,6 +78,7 @@ arrConfianca() As String  ' "Alta" / "Media" / "Baixa" (NivelConfianca)
 arrX(), arrY() As Double  ' ponto de inserção
 arrH()        As Double   ' altura do texto
 arrCodEst()   As String   ' Mid(texto, 10, 7) — código de estrutura fixo por posição
+arrNomeMaterial() As String ' NOME DO MATERIAL (planilha RECLASSIFICAR MATERIAL — ver abaixo)
 ```
 
 ### Arrays paralelos — blocos unificados (u*)
@@ -114,6 +115,7 @@ Fallback quando o bloco não define status.
 |---|---|
 | `RAMAIS_NO_MODEL` / `RAMAIS NO MODEL` | MATERIAIS INSTALADOS (regra explícita, prioridade máxima) |
 | `#INSTALADO` | MATERIAIS INSTALADOS |
+| `#RETIRADO` | MATERIAIS DESINSTALADOS |
 | `TEXTOS A IMPLANTAR` / `A IMPLANTAR` | MATERIAIS INSTALADOS |
 | `TEXTOS A REMOVER` / `A REMOVER` | MATERIAIS DESINSTALADOS |
 | `TEXTOS EXISTENTES` / `EXISTENTES` | MATERIAIS EXISTENTES |
@@ -135,9 +137,38 @@ Fallback quando o bloco não define status.
 
 ### Classificação de família — texto livre (`ClassificarFamilia` + `ClassificarComConfianca`)
 
-Famílias reconhecidas por palavra-chave no conteúdo do TEXT/MTEXT: `ATERRAMENTO`, `MUFLA`, `PARA RAIO BT/MT`, `ELO`, `CH FUS`, `CH FACA`, `TRAFO`, `RAMAL` (padrão `mm²`), `COND NU` (padrão `#CAA`), `POSTE DT`, `POSTE CIRCULAR`, `ESTRUTURA MT` (regex `[TNU]\d`). Sem match → `CLASSIFICAR`.
+Famílias reconhecidas por palavra-chave no conteúdo do TEXT/MTEXT: `ATERRAMENTO`, `MUFLA`, `PARA RAIO BT/MT`, `ELO`, `CH FUS`, `CH FACA`, `TRAFO`, `RAMAL` (padrão `mm²` **ou** padrão `<qtd><CODIGO>(<metros>+...)` — ver abaixo), `COND NU` (padrão `#CAA`), `POSTE DT` (prefixo `DT`), `POSTE CIRCULAR` (prefixo `C`), `POSTE DE MADEIRA` (prefixo `M`, ex. `M9`, `M11`), `POSTE FIBRA` (prefixo `V`, ex. `V9600`, `V11300`), `ESTRUTURA MT` (regex `[TNU]\d`). Sem match → `CLASSIFICAR`.
 
-Score de confiança (0-100, ver `ClassificarComConfianca`): soma pontos por padrão de conteúdo (sinais fortes = 40-45 pts: `ATERR`, `MUFLA`, `PARA RAIO`, `CH.FUS`, `CH.FACA`, `KVA`, `#CAA`, `ELO`; sinais médios = 10-30 pts) + reforço/correção pelo nome do **layer** (`FamiliaPorLayer`, ±25-30 pts). Nível: `>=70` Alta, `45..69` Media, `<45` Baixa (`NivelConfianca`).
+Antes de qualquer comparação, `ClassificarFamilia`/`ExtrairNomeBasePoste` chamam `RemoverEnvoltorioHashtag`, que desembrulha textos de material desinstalado no formato `#(...)` (ex.: `"#(M9-S203-EPP)"` → `"M9-S203-EPP"`) para que as regras de prefixo continuem funcionando — o `#` em si já é tratado à parte para o STATUS.
+
+Score de confiança (0-100, ver `ClassificarComConfianca`): soma pontos por padrão de conteúdo (sinais fortes = 40-50 pts: `ATERR`, `MUFLA`, `PARA RAIO`, `CH.FUS`, `CH.FACA`, `KVA`, `#CAA`, `ELO`, padrão RAMAL com parênteses; sinais médios = 10-30 pts) + reforço/correção pelo nome do **layer** (`FamiliaPorLayer`, ±25-30 pts, agora com dicas para `MADEIRA`/`FIBRA` também). Nível: `>=70` Alta, `45..69` Media, `<45` Baixa (`NivelConfianca`).
+
+#### RAMAL com metragem entre parênteses (`EhPadraoRamalMetros` / `ExtrairCodigoRamal` / `SomarMetrosRamal`)
+
+Padrão reconhecido: `<quantidade opcional><CODIGO letras+dígitos>(<trecho1>+<trecho2>+...)`, ex.: `"7T10(30m+18m+25m+30m+26m+10m+10)"` ou `"4T10(12m+11m+15m+14m)-2Q10(20m+18m)"` (pode haver múltiplos grupos separados por `-`; múltiplos grupos possíveis). Também aceito envolto em `"#(...)"` quando desinstalado.
+- `ExtrairCodigoRamal` retorna o **primeiro** código encontrado (ex.: `"T10"`) — usado como "NOME DO MATERIAL" mesmo quando há mais de um grupo no mesmo texto.
+- `SomarMetrosRamal` soma **todos** os valores numéricos dentro de **todos** os grupos de parênteses do texto (aceita valores com ou sem sufixo `"m"`).
+
+#### Postes por prefixo de código (`FamiliaPosteDoPrefixo`)
+
+Quando o poste é identificado via o "Cod. Estrutura" posicional (`Mid(texto,10,7)`, ver abaixo) em vez do início do texto, a família específica é deduzida pelo prefixo do código extraído:
+
+| Prefixo | Família |
+|---|---|
+| `D...` (ex.: `D11600`) | `POSTE DT` |
+| `V...` (ex.: `V9600`, `V11300`) | `POSTE FIBRA` |
+| `C...` | `POSTE CIRCULAR` |
+| `M...` (ex.: `M9`, `M11`) | `POSTE DE MADEIRA` |
+| outro | `POSTE` (genérico) |
+
+#### Coluna "Nome do Material" (`ExtrairNomeMaterial`)
+
+Nova coluna na aba `Textos` (posição 14, após "Cod. Estrutura"), calculada a partir da família já determinada:
+- Famílias de poste (`POSTE DT/FIBRA/CIRCULAR/DE MADEIRA`) → código do poste (`D11600`, `V9600`, `M9`, etc.), priorizando o valor extraído via Cod. Estrutura quando presente.
+- `RAMAL` → código do material via `ExtrairCodigoRamal` (ex.: `T10`).
+- Demais famílias → vazio.
+
+Essa reclassificação foi levantada a partir da planilha `RECLASSIFICAR.xlsx` (abas `TEXTOS` e `BLOCO`), fornecida pelo usuário como base de exemplos reais para calibrar as regras acima.
 
 ### Classificação de família — blocos com atributos (`FamiliaDeBloco`)
 Prioridade: (1) `FamiliaForcadaBloco` (mapa fixo por nome de bloco — ver tabela de status acima), (2) `EhBlocoCabo`/`EhBlocoPoste` (nome ou palavra "CABO"/"POSTE"), (3) palavra-chave em nome+atributos (RELIGADOR, REGULADOR, PARA RAIO, FUSIVEL, CH FACA, CHAVE, TRAFO, MUFLA, ATERR, MEDIDOR, CAPACITOR, RAMAL) → senão `OUTRO`.
@@ -154,7 +185,7 @@ Ao montar os arrays `u*`, a descrição do bloco de poste/outro é reavaliada:
 Extrai prefixo de letras (até 3) + primeiro bloco de dígitos + opcionalmente `/dígitos`. Ex.: `"C12/600 N3-N3D S021"` → `"C12/600"`; `"M11 N1 S024 EA1"` → `"M11"`; `"DT11/300 N1 S034"` → `"DT11/300"`.
 
 ### Código de Estrutura fixo
-Para cada TEXT/MTEXT, extrai `Mid(conteudo, 10, 7)` como "Cod. Estrutura" (coluna fixa por posição de caractere — assume um formato de texto padronizado do desenho). Se esse trecho tiver padrão de poste válido e a família ainda não foi determinada, força família = `POSTE` (score 85).
+Para cada TEXT/MTEXT, extrai `Mid(conteudo, 10, 7)` como "Cod. Estrutura" (coluna fixa por posição de caractere — assume um formato de texto padronizado do desenho, ex.: `"66046515-D11600-N3-PR-S1I"` → `"D11600"`). Se esse trecho tiver padrão de poste válido e a família ainda não foi determinada, a família passa a ser deduzida pelo prefixo do código via `FamiliaPosteDoPrefixo` (score 85) em vez do genérico `POSTE`.
 
 ### Vínculo por proximidade (`CalcularProximidade`)
 Para cada item que não é poste, encontra o poste mais próximo (distância euclidiana em X,Y). Postes vinculam consigo mesmos (distância 0). Usado na aba `Vinculos`.

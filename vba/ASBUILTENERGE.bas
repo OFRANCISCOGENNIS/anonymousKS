@@ -126,6 +126,9 @@ Private Function StatusPorLayer(ByVal layerName As String) As String
     ' Layer "#INSTALADO" -> MATERIAIS INSTALADOS
     ElseIf InStr(s, "#INSTALADO") > 0 Then
         StatusPorLayer = "MATERIAIS INSTALADOS"
+    ' Layer "#RETIRADO" -> MATERIAIS DESINSTALADOS (planilha RECLASSIFICAR)
+    ElseIf InStr(s, "#RETIRADO") > 0 Then
+        StatusPorLayer = "MATERIAIS DESINSTALADOS"
     ElseIf InStr(s, "TEXTOS A IMPLANTAR") > 0 Or InStr(s, "A IMPLANTAR") > 0 Then
         StatusPorLayer = "MATERIAIS INSTALADOS"
     ElseIf InStr(s, "TEXTOS A REMOVER") > 0 Or InStr(s, "A REMOVER") > 0 Then
@@ -251,6 +254,31 @@ Private Function ComecaComHashtag(ByVal txt As String) As Boolean
     Else
         ComecaComHashtag = False
     End If
+End Function
+
+' Remove o envoltorio "#(...)" (ou apenas "#") de textos de material
+' DESINSTALADO, devolvendo o conteudo "limpo" para fins de CLASSIFICACAO
+' (o "#" em si ja e tratado por ComecaComHashtag/StatusPorLayer para o STATUS).
+' Ex.: "#(M9-S203-EPP)" -> "M9-S203-EPP"
+'      "#(7T10(30m+18m))" -> "7T10(30m+18m)"
+'      "#(M11-N1-S021D"   -> "M11-N1-S021D"   (parenteses desbalanceados)
+' Textos que nao comecam com "#" retornam inalterados.
+Private Function RemoverEnvoltorioHashtag(ByVal s As String) As String
+    Dim r As String
+    r = s
+    If Left$(r, 1) = "#" Then
+        r = Trim$(Mid$(r, 2))
+        If Len(r) > 0 Then
+            If Left$(r, 1) = "(" Then
+                If Right$(r, 1) = ")" Then
+                    r = Mid$(r, 2, Len(r) - 2)
+                Else
+                    r = Mid$(r, 2)
+                End If
+            End If
+        End If
+    End If
+    RemoverEnvoltorioHashtag = r
 End Function
 
 ' Retorna True se 'nomeUpper' for igual a 'alvo' OU comecar com 'alvo' seguido
@@ -434,6 +462,7 @@ Private Function ExtrairNomeBasePoste(ByVal txt As String) As String
     Dim s As String, i As Long, ch As String
     Dim prefix As String, digits1 As String, digits2 As String
     s = UCase$(Trim$(RemoverCodigosMText(txt)))
+    s = RemoverEnvoltorioHashtag(s)
     ' Extrai letras do prefixo (C, DT, M, V, etc.) - max 3
     prefix = ""
     i = 1
@@ -518,6 +547,7 @@ End Function
 Private Function ClassificarFamilia(ByVal txt As String) As String
     Dim s As String
     s = UCase$(Trim$(RemoverCodigosMText(txt)))
+    s = RemoverEnvoltorioHashtag(s)
     If Len(s) = 0 Then
         ClassificarFamilia = "-"
         Exit Function
@@ -558,7 +588,8 @@ Private Function ClassificarFamilia(ByVal txt As String) As String
         Exit Function
     End If
     If (InStr(s, "MM²") > 0 Or InStr(s, "MM2") > 0) Or _
-       (InStr(s, "Ø") > 0 And InStr(s, "MM") > 0) Then
+       (InStr(s, "Ø") > 0 And InStr(s, "MM") > 0) Or _
+       EhPadraoRamalMetros(s) Then
         ClassificarFamilia = "RAMAL"
         Exit Function
     End If
@@ -572,10 +603,20 @@ Private Function ClassificarFamilia(ByVal txt As String) As String
         ClassificarFamilia = "POSTE DT"
         Exit Function
     End If
-    If (Left$(s, 1) = "C" And InStr(s, "/") > 0) Or _
-       (Left$(s, 1) = "M" And (InStr(s, " ") > 0 Or InStr(s, "-") > 0) And _
-        (IsNumeric(Mid$(s, 2, 1)) Or IsNumeric(Mid$(s, 2, 2)))) Then
+    If Left$(s, 1) = "C" And InStr(s, "/") > 0 Then
         ClassificarFamilia = "POSTE CIRCULAR"
+        Exit Function
+    End If
+    ' Poste de MADEIRA: prefixo "M" (ex.: M9, M11) - planilha RECLASSIFICAR MATERIAL
+    If Left$(s, 1) = "M" And (InStr(s, " ") > 0 Or InStr(s, "-") > 0) And _
+       (IsNumeric(Mid$(s, 2, 1)) Or IsNumeric(Mid$(s, 2, 2))) Then
+        ClassificarFamilia = "POSTE DE MADEIRA"
+        Exit Function
+    End If
+    ' Poste de FIBRA: prefixo "V" (ex.: V9600, V11300) - planilha RECLASSIFICAR MATERIAL
+    If Left$(s, 1) = "V" And (InStr(s, " ") > 0 Or InStr(s, "-") > 0) And _
+       (IsNumeric(Mid$(s, 2, 1)) Or IsNumeric(Mid$(s, 2, 2))) Then
+        ClassificarFamilia = "POSTE FIBRA"
         Exit Function
     End If
     If RegExEstruturaMT(s) Then
@@ -604,6 +645,128 @@ Private Function RegExEstruturaMT(ByVal s As String) As Boolean
         End If
     End If
     RegExEstruturaMT = False
+End Function
+
+' =============================================================================
+'  RAMAL COM METRAGEM ENTRE PARENTESES (planilha RECLASSIFICAR MATERIAL)
+'  -----------------------------------------------------------------------------
+'  Padrao: "<qtd opcional><CODIGO letras+digitos>(<trecho1>+<trecho2>+...)"
+'  Ex.: "7T10(30m+18m+25m+30m+26m+10m+10)"
+'       "4T10(12m+11m+15m+14m)-2Q10(20m+18m)"
+'  Pode vir envolto em "#(...)" quando desinstalado - ja tratado por
+'  RemoverEnvoltorioHashtag antes de chamar estas funcoes.
+' =============================================================================
+Private Function EhPadraoRamalMetros(ByVal s As String) As Boolean
+    Dim i As Long, j As Long, ch As String, digs As String
+    For i = 1 To Len(s) - 1
+        ch = Mid$(s, i, 1)
+        If ch >= "A" And ch <= "Z" Then
+            digs = ""
+            j = i + 1
+            Do While j <= Len(s) And Mid$(s, j, 1) >= "0" And Mid$(s, j, 1) <= "9"
+                digs = digs & Mid$(s, j, 1)
+                j = j + 1
+            Loop
+            If Len(digs) > 0 And j <= Len(s) Then
+                If Mid$(s, j, 1) = "(" Then
+                    EhPadraoRamalMetros = True
+                    Exit Function
+                End If
+            End If
+        End If
+    Next i
+    EhPadraoRamalMetros = False
+End Function
+
+' Extrai o PRIMEIRO codigo de material do padrao RAMAL (ex.: "T10", "Q10").
+' Quando o texto tem mais de um grupo (ex.: T10(...)-Q10(...)), retorna
+' apenas o primeiro - condizente com a planilha de reclassificacao.
+Private Function ExtrairCodigoRamal(ByVal texto As String) As String
+    Dim s As String, i As Long, j As Long, ch As String, digs As String
+    s = UCase$(Trim$(RemoverCodigosMText(texto)))
+    s = RemoverEnvoltorioHashtag(s)
+    For i = 1 To Len(s) - 1
+        ch = Mid$(s, i, 1)
+        If ch >= "A" And ch <= "Z" Then
+            digs = ""
+            j = i + 1
+            Do While j <= Len(s) And Mid$(s, j, 1) >= "0" And Mid$(s, j, 1) <= "9"
+                digs = digs & Mid$(s, j, 1)
+                j = j + 1
+            Loop
+            If Len(digs) > 0 And j <= Len(s) Then
+                If Mid$(s, j, 1) = "(" Then
+                    ExtrairCodigoRamal = ch & digs
+                    Exit Function
+                End If
+            End If
+        End If
+    Next i
+    ExtrairCodigoRamal = ""
+End Function
+
+' Soma todos os valores numericos separados por "+" dentro dos parenteses
+' de um texto de RAMAL (com ou sem sufixo "m"). Soma todos os grupos
+' presentes no texto (ex.: T10(...) e Q10(...) juntos).
+Private Function SomarMetrosRamal(ByVal texto As String) As Double
+    Dim s As String, i As Long, ch As String, num As String, dentro As Boolean
+    Dim total As Double
+    s = UCase$(Trim$(RemoverCodigosMText(texto)))
+    s = RemoverEnvoltorioHashtag(s)
+    total = 0
+    dentro = False
+    num = ""
+    For i = 1 To Len(s)
+        ch = Mid$(s, i, 1)
+        If ch = "(" Then
+            dentro = True
+            num = ""
+        ElseIf ch = ")" Then
+            If dentro And Len(num) > 0 Then total = total + CDbl(num)
+            dentro = False
+            num = ""
+        ElseIf ch = "+" Then
+            If dentro And Len(num) > 0 Then total = total + CDbl(num)
+            num = ""
+        ElseIf dentro And ch >= "0" And ch <= "9" Then
+            num = num & ch
+        End If
+    Next i
+    SomarMetrosRamal = total
+End Function
+
+' Deduz a familia especifica de POSTE a partir do prefixo do codigo
+' extraido (ex.: via Cod. Estrutura Mid(texto,10,7)).
+'   D... -> POSTE DT       V... -> POSTE FIBRA
+'   C... -> POSTE CIRCULAR M... -> POSTE DE MADEIRA
+Private Function FamiliaPosteDoPrefixo(ByVal codigo As String) As String
+    Dim p As String
+    p = UCase$(Left$(Trim$(codigo), 1))
+    Select Case p
+        Case "D": FamiliaPosteDoPrefixo = "POSTE DT"
+        Case "V": FamiliaPosteDoPrefixo = "POSTE FIBRA"
+        Case "C": FamiliaPosteDoPrefixo = "POSTE CIRCULAR"
+        Case "M": FamiliaPosteDoPrefixo = "POSTE DE MADEIRA"
+        Case Else: FamiliaPosteDoPrefixo = "POSTE"
+    End Select
+End Function
+
+' Coluna "NOME DO MATERIAL" (planilha RECLASSIFICAR MATERIAL): codigo do
+' material identificado a partir da familia/nome base ja calculados.
+Private Function ExtrairNomeMaterial(ByVal familia As String, ByVal nomeBase As String, _
+                                      ByVal nomeBaseEst As String, ByVal texto As String) As String
+    Select Case familia
+        Case "POSTE DT", "POSTE FIBRA", "POSTE CIRCULAR", "POSTE DE MADEIRA"
+            If Len(nomeBaseEst) > 0 Then
+                ExtrairNomeMaterial = nomeBaseEst
+            Else
+                ExtrairNomeMaterial = nomeBase
+            End If
+        Case "RAMAL"
+            ExtrairNomeMaterial = ExtrairCodigoRamal(texto)
+        Case Else
+            ExtrairNomeMaterial = ""
+    End Select
 End Function
 
 ' =============================================================================
@@ -637,6 +800,7 @@ Private Sub ClassificarComConfianca(ByVal txt As String, ByVal layerName As Stri
     If InStr(s, "KVA") > 0 Then score = score + 40
     If InStr(s, "#CAA") > 0 Or InStr(s, "# CAA") > 0 Then score = score + 40
     If InStr(s, "ELO") > 0 Then score = score + 45
+    If EhPadraoRamalMetros(RemoverEnvoltorioHashtag(s)) Then score = score + 50
 
     ' Sinais medios
     If InStr(s, "PR -") > 0 Or InStr(s, "PR-") > 0 Then score = score + 25
@@ -649,7 +813,8 @@ Private Sub ClassificarComConfianca(ByVal txt As String, ByVal layerName As Stri
     ' Sinal forte: comeca com padrao estrutural de poste/estrutura
     ' (C12/400, M11, DT11/300, etc.)
     If ExtrairNomeBasePoste(txt) <> "" Then
-        If famBase = "POSTE CIRCULAR" Or famBase = "POSTE DT" Then
+        If famBase = "POSTE CIRCULAR" Or famBase = "POSTE DT" Or _
+           famBase = "POSTE DE MADEIRA" Or famBase = "POSTE FIBRA" Then
             score = score + 45  ' padrao estrutural + familia poste = quase certeza
         Else
             score = score + 20
@@ -726,6 +891,8 @@ Private Function FamiliaPorLayer(ByVal layerUpper As String) As String
        InStr(s, "CABO_NU") > 0 Then FamiliaPorLayer = "COND NU": Exit Function
     If InStr(s, "POSTE_DT") > 0 Or InStr(s, "POSTEDT") > 0 Then _
        FamiliaPorLayer = "POSTE DT": Exit Function
+    If InStr(s, "MADEIRA") > 0 Then FamiliaPorLayer = "POSTE DE MADEIRA": Exit Function
+    If InStr(s, "FIBRA") > 0 Then FamiliaPorLayer = "POSTE FIBRA": Exit Function
     If InStr(s, "POSTE") > 0 Then FamiliaPorLayer = "POSTE CIRCULAR": Exit Function
     If InStr(s, "ESTRUT") > 0 Then FamiliaPorLayer = "ESTRUTURA MT": Exit Function
     FamiliaPorLayer = ""
@@ -1467,6 +1634,7 @@ Private Sub CriarAbaBOM(ByVal wb As Object, _
                          ByRef arrFam() As String, _
                          ByRef arrTexto() As String, _
                          ByRef arrNomeBase() As String, _
+                         ByRef arrNomeMaterial() As String, _
                          ByVal n As Long)
     Dim ws As Object
     Set ws = wb.Worksheets.Add(After:=wb.Worksheets(wb.Worksheets.Count))
@@ -1496,15 +1664,20 @@ Private Sub CriarAbaBOM(ByVal wb As Object, _
         st  = arrStatus(i)
         fam = arrFam(i)
         cont = arrTexto(i)
-        eMetros = (fam = "COND NU" Or fam = "COND ISOLADO")
+        eMetros = (fam = "COND NU" Or fam = "COND ISOLADO" Or fam = "RAMAL")
 
         ' Descricao normalizada por familia
         Select Case fam
-            Case "POSTE CIRCULAR", "POSTE DT"
-                desc = arrNomeBase(i)
+            Case "POSTE CIRCULAR", "POSTE DT", "POSTE DE MADEIRA", "POSTE FIBRA"
+                desc = arrNomeMaterial(i)
+                If Len(desc) = 0 Then desc = arrNomeBase(i)
                 If Len(desc) = 0 Then desc = NormalizarChave(cont)
             Case "COND NU", "COND ISOLADO"
                 desc = NormalizarCabo(cont)
+            Case "RAMAL"
+                desc = arrNomeMaterial(i)
+                If Len(desc) = 0 Then desc = ExtrairCodigoRamal(cont)
+                If Len(desc) = 0 Then desc = NormalizarChave(cont)
             Case Else
                 desc = NormalizarChave(cont)
         End Select
@@ -1512,7 +1685,11 @@ Private Sub CriarAbaBOM(ByVal wb As Object, _
         key = st & "||" & fam & "||" & desc
 
         If eMetros Then
-            m = ExtrairMetrosCabo(cont)
+            If fam = "RAMAL" Then
+                m = SomarMetrosRamal(cont)
+            Else
+                m = ExtrairMetrosCabo(cont)
+            End If
             If agg.Exists(key) Then
                 agg(key) = agg(key) + 1
                 qtdM(key) = qtdM(key) + m
@@ -3588,6 +3765,7 @@ Public Sub ExportarTextosParaExcel()
     Dim arrY()      As Double
     Dim arrH()      As Double
     Dim arrCodEst() As String  ' Codigo estrutura extraido: Mid(texto,10,7)
+    Dim arrNomeMaterial() As String  ' NOME DO MATERIAL (planilha RECLASSIFICAR MATERIAL)
 
     Dim cap As Long
     cap = 1024
@@ -3604,6 +3782,7 @@ Public Sub ExportarTextosParaExcel()
     ReDim arrY(1 To cap)
     ReDim arrH(1 To cap)
     ReDim arrCodEst(1 To cap)
+    ReDim arrNomeMaterial(1 To cap)
     Dim n As Long
     n = 0
 
@@ -3636,6 +3815,7 @@ Public Sub ExportarTextosParaExcel()
                         ReDim Preserve arrY(1 To cap)
                         ReDim Preserve arrH(1 To cap)
                         ReDim Preserve arrCodEst(1 To cap)
+                        ReDim Preserve arrNomeMaterial(1 To cap)
                     End If
 
                     Dim lname As String, conteudo As String
@@ -3699,13 +3879,14 @@ Public Sub ExportarTextosParaExcel()
                     If Len(conteudo) >= 10 Then
                         codEst = Trim$(Mid$(conteudo, 10, 7))
                     End If
-                    ' Se extraido tiver padrao de POSTE -> classifica como POSTE
+                    ' Se extraido tiver padrao de POSTE -> classifica pelo prefixo
+                    ' do codigo (D=DT, V=FIBRA, C=CIRCULAR, M=MADEIRA)
                     If Len(codEst) > 0 Then
                         nomeBaseEst = ExtrairNomeBasePoste(codEst)
                         If Len(nomeBaseEst) > 0 Then
                             If famTmp = "CLASSIFICAR" Or famTmp = "-" Or _
                                famTmp = "NAO CLASSIFICADO" Then
-                                famTmp  = "POSTE"
+                                famTmp  = FamiliaPosteDoPrefixo(nomeBaseEst)
                                 scoreTmp = 85
                             End If
                         End If
@@ -3717,6 +3898,7 @@ Public Sub ExportarTextosParaExcel()
                     arrStatus(n)    = StatusPorLayer(lname)
                     arrNomeBase(n)  = ExtrairNomeBasePoste(conteudo)
                     arrCodEst(n)    = codEst
+                    arrNomeMaterial(n) = ExtrairNomeMaterial(famTmp, arrNomeBase(n), nomeBaseEst, conteudo)
                 End If
             Next ent
         End If
@@ -3751,12 +3933,13 @@ Public Sub ExportarTextosParaExcel()
     ws.Cells(1, 11).Value = "Y"
     ws.Cells(1, 12).Value = "Altura Texto"
     ws.Cells(1, 13).Value = "Cod. Estrutura"   ' Mid(texto,10,7)
+    ws.Cells(1, 14).Value = "Nome do Material"
 
     ' Escrita em bloco (mais rapido) -- so se houver textos
     Dim dados() As Variant
     Dim i As Long
     If n > 0 Then
-    ReDim dados(1 To n, 1 To 13)
+    ReDim dados(1 To n, 1 To 14)
     For i = 1 To n
         dados(i, 1)  = arrLayer(i)
         dados(i, 2)  = arrStatus(i)
@@ -3771,22 +3954,23 @@ Public Sub ExportarTextosParaExcel()
         dados(i, 11) = arrY(i)
         dados(i, 12) = arrH(i)
         dados(i, 13) = arrCodEst(i)
+        dados(i, 14) = arrNomeMaterial(i)
     Next i
     estagio = "escrevendo aba Textos (bloco de dados)"
-    ws.Range(ws.Cells(2, 1), ws.Cells(n + 1, 13)).Value = dados
+    ws.Range(ws.Cells(2, 1), ws.Cells(n + 1, 14)).Value = dados
     End If   ' n > 0
 
-    With ws.Range("A1:M1")
+    With ws.Range("A1:N1")
         .Font.Bold = True
         .Interior.Color = RGB(220, 230, 241)
     End With
-    ' Destaque visual coluna Cod. Estrutura
-    With ws.Cells(1, 13)
+    ' Destaque visual coluna Cod. Estrutura / Nome do Material
+    With ws.Range(ws.Cells(1, 13), ws.Cells(1, 14))
         .Interior.Color = RGB(255, 230, 153)
         .Font.Bold = True
     End With
-    ws.Range(ws.Cells(1, 1), ws.Cells(n + 1, 13)).Columns.AutoFit
-    ws.Range("A1:M1").AutoFilter
+    ws.Range(ws.Cells(1, 1), ws.Cells(n + 1, 14)).Columns.AutoFit
+    ws.Range("A1:N1").AutoFilter
 
     ' Formata condicional simples: pinta a celula Confianca por nivel
     Dim rng As Object, cel As Object
@@ -3864,8 +4048,12 @@ Public Sub ExportarTextosParaExcel()
 
         Select Case fam
 
-            Case "POSTE CIRCULAR", "POSTE DT"
-                nomeBase = ExtrairNomeBasePoste(cont)
+            Case "POSTE CIRCULAR", "POSTE DT", "POSTE DE MADEIRA", "POSTE FIBRA"
+                ' Prioriza o codigo ja identificado (arrNomeMaterial) - cobre
+                ' tambem os postes cujo nome base vem do meio do texto
+                ' (ex.: "66046515-D11600-N3-PR-S1I" via Cod. Estrutura).
+                nomeBase = arrNomeMaterial(i)
+                If Len(nomeBase) = 0 Then nomeBase = ExtrairNomeBasePoste(cont)
                 altPoste = ExtrairAlturaPoste(nomeBase)
                 If altPoste > 0 Then
                     altKey = CStr(altPoste) & "m"
@@ -3889,6 +4077,23 @@ Public Sub ExportarTextosParaExcel()
                 metros = ExtrairMetrosCabo(cont)
                 spec   = NormalizarCabo(cont)
                 key = stat & "|" & arrLayer(i) & "|" & fam & "|" & spec
+                If cabosItem.Exists(key) Then
+                    cabosItem(key) = cabosItem(key) + metros
+                    cabosQtd(key)  = cabosQtd(key) + 1
+                Else
+                    cabosItem.Add key, metros
+                    cabosQtd.Add key, 1
+                End If
+
+            Case "RAMAL"
+                ' Soma a metragem entre parenteses (planilha RECLASSIFICAR
+                ' MATERIAL); agrupa pelo codigo de material (ex.: T10, Q10).
+                Dim ramalCod As String
+                ramalCod = arrNomeMaterial(i)
+                If Len(ramalCod) = 0 Then ramalCod = ExtrairCodigoRamal(cont)
+                If Len(ramalCod) = 0 Then ramalCod = "RAMAL"
+                metros = SomarMetrosRamal(cont)
+                key = stat & "|" & arrLayer(i) & "|" & fam & "|" & ramalCod
                 If cabosItem.Exists(key) Then
                     cabosItem(key) = cabosItem(key) + metros
                     cabosQtd(key)  = cabosQtd(key) + 1
@@ -4001,9 +4206,9 @@ Public Sub ExportarTextosParaExcel()
         row = row + 2
     End If
 
-    ' === SECAO 5: Cabos por especificacao (com Status e Layer) ===
+    ' === SECAO 5: Cabos e ramais por especificacao (com Status e Layer) ===
     If cabosItem.Count > 0 Then
-        row = EscreverSecao(ws2, row, "5. CONDUTORES (CABOS) POR ESPECIFICACAO", _
+        row = EscreverSecao(ws2, row, "5. CONDUTORES E RAMAIS POR ESPECIFICACAO", _
                             Array("Status", "Layer", "Tipo", "Especificacao", "Qtd Trechos", "Total (m)"))
         keys = cabosItem.Keys
         Call OrdenarStringsAsc(keys)
@@ -4313,7 +4518,7 @@ ProxPoste:
 
         estagio = "aba BOM"
         Call CriarAbaBOM(wb, arrLayer, arrStatus, arrFam, arrTexto, _
-                         arrNomeBase, n)
+                         arrNomeBase, arrNomeMaterial, n)
     End If
 
     ' =====================================================================
