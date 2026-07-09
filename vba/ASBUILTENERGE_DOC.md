@@ -171,15 +171,24 @@ Nova coluna na aba `Textos` (posição 14, após "Cod. Estrutura"), calculada a 
 Essa reclassificação foi levantada a partir da planilha `RECLASSIFICAR.xlsx` (abas `TEXTOS` e `BLOCO`), fornecida pelo usuário como base de exemplos reais para calibrar as regras acima.
 
 ### Classificação de família — blocos com atributos (`FamiliaDeBloco`)
-Prioridade: (1) `FamiliaForcadaBloco` (mapa fixo por nome de bloco — ver tabela de status acima), (2) `EhBlocoCabo`/`EhBlocoPoste` (nome ou palavra "CABO"/"POSTE"), (3) palavra-chave em nome+atributos (RELIGADOR, REGULADOR, PARA RAIO, FUSIVEL, CH FACA, CHAVE, TRAFO, MUFLA, ATERR, MEDIDOR, CAPACITOR, RAMAL) → senão `OUTRO`.
+Prioridade: (1) `FamiliaForcadaBloco` (mapa fixo por nome de bloco — ver tabela de status acima), (2) `EhBlocoCabo`/`EhBlocoPoste` (nome ou palavra "CABO"/"POSTE"), (3) palavra-chave em nome+atributos (RELIGADOR, REGULADOR, PARA RAIO, FUSIVEL, CH FACA, CHAVE, **ISOLADOR**, TRAFO, MUFLA, ATERR, MEDIDOR, CAPACITOR, RAMAL) → senão `OUTRO`.
 
 ### Reclassificação na unificação (dentro de `ExportarTextosParaExcel`)
 Ao montar os arrays `u*`, a descrição do bloco de poste/outro é reavaliada:
 - contém `ATERR` → família `ATERRAMENTO`
 - começa com `MT`/`BT` → família `CABO` (mesmo vindo de um bloco "poste")
+- contém `ISOL` (ex.: `RDARA1100` com atributo "3 ISOL. SUSP.") → família `ISOLADOR`, com **quantidade extraída do número no início do texto** (`ExtrairQuantidadeInicial`) — "3 ISOL. SUSP." → 3 unidades
 - nome base com **1 dígito** (ex.: `CE1`, `N3`) → `ESTRUTURA` (não `POSTE`, que exige ≥2 dígitos — `ContaDigitosBase`)
 - caso contrário → `POSTE`
 - descrição começando com `#` → força `MATERIAIS DESINSTALADOS`
+
+### Quantidade embutida em blocos (campo "Metros" reaproveitado)
+Para famílias que **não** representam metragem real (tudo exceto `CABO`/`RAMAL`/`COND NU`/`COND ISOLADO` — ver `EhFamiliaComMetros`), o campo `uMet`/`bMet` é reaproveitado para carregar uma **quantidade** embutida no texto/atributo do bloco, em vez de comprimento:
+- **ISOLADOR**: quantidade = número no início da descrição (`ExtrairQuantidadeInicial`), ex. `"3 ISOL. SUSP."` → 3.
+- **CH FUSIVEL**: quantidade = valor da chave `Q2=` dentro da descrição pipe-delimitada (`ExtrairValorChaveNumerico`, ex.: `"ELO=15K | Q2=3 | MATERIAL=POL. | ..."` → 3 chaves fusíveis).
+- Demais famílias sem quantidade explícita: assume-se 1 unidade por bloco.
+
+Na aba de resumo (`CriarAbaStatus`), a coluna **Qtd** soma essa quantidade embutida (em vez de contar 1 por linha de bloco) para família sem metragem real; para `CABO`/`RAMAL`/`COND NU`/`COND ISOLADO`, a metragem real continua sendo somada na coluna **Metros (total)** como antes.
 
 ### Extração de nome base de poste (`ExtrairNomeBasePoste` / `ExtrairNomeBasePosteBloco`)
 Extrai prefixo de letras (até 3) + primeiro bloco de dígitos + opcionalmente `/dígitos`. Ex.: `"C12/600 N3-N3D S021"` → `"C12/600"`; `"M11 N1 S024 EA1"` → `"M11"`; `"DT11/300 N1 S034"` → `"DT11/300"`.

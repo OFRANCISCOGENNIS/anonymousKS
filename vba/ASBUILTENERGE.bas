@@ -392,6 +392,9 @@ Private Function FamiliaDeBloco(ByVal nomeBloco As String, _
     If InStr(s, "CHAVE") > 0 Then
         FamiliaDeBloco = "CHAVE": Exit Function
     End If
+    If InStr(s, "ISOLADOR") > 0 Or InStr(s, "ISOL.") > 0 Or InStr(s, "ISOL ") > 0 Then
+        FamiliaDeBloco = "ISOLADOR": Exit Function
+    End If
     If InStr(s, "TRAFO") > 0 Or InStr(s, "TRANSFORM") > 0 Or _
        InStr(s, "KVA") > 0 Then
         FamiliaDeBloco = "TRAFO": Exit Function
@@ -766,6 +769,75 @@ Private Function ExtrairNomeMaterial(ByVal familia As String, ByVal nomeBase As 
             ExtrairNomeMaterial = ExtrairCodigoRamal(texto)
         Case Else
             ExtrairNomeMaterial = ""
+    End Select
+End Function
+
+' Extrai a quantidade no INICIO de um texto (ex.: "3 ISOL. SUSP." -> 3).
+' Ignora o envoltorio "#(...)" quando presente. Retorna 0 se nao houver
+' digitos no inicio (planilha RECLASSIFICAR MATERIAL 2).
+Private Function ExtrairQuantidadeInicial(ByVal txt As String) As Double
+    Dim s As String, i As Long, ch As String, num As String
+    s = Trim$(RemoverEnvoltorioHashtag(Trim$(txt)))
+    num = ""
+    i = 1
+    Do While i <= Len(s)
+        ch = Mid$(s, i, 1)
+        If ch >= "0" And ch <= "9" Then
+            num = num & ch
+            i = i + 1
+        Else
+            Exit Do
+        End If
+    Loop
+    If Len(num) > 0 Then
+        ExtrairQuantidadeInicial = CDbl(num)
+    Else
+        ExtrairQuantidadeInicial = 0
+    End If
+End Function
+
+' Extrai o valor numerico de uma chave especifica dentro de uma descricao
+' no formato "TAG1=val1 | TAG2=val2 | ...". Ex.:
+'   ExtrairValorChaveNumerico("ELO=15K | Q2=3 | MATERIAL=POL.", "Q2") -> 3
+' Retorna 0 se a chave nao for encontrada ou nao tiver digitos.
+Private Function ExtrairValorChaveNumerico(ByVal desc As String, ByVal chave As String) As Double
+    Dim partes() As String, kv() As String
+    Dim i As Long, j As Long, tag As String, val As String, num As String, ch As String
+    partes = Split(desc, "|")
+    For i = LBound(partes) To UBound(partes)
+        kv = Split(Trim$(partes(i)), "=")
+        If UBound(kv) >= 1 Then
+            tag = UCase$(Trim$(kv(0)))
+            If tag = UCase$(chave) Then
+                val = Trim$(kv(1))
+                num = ""
+                For j = 1 To Len(val)
+                    ch = Mid$(val, j, 1)
+                    If ch >= "0" And ch <= "9" Then
+                        num = num & ch
+                    ElseIf Len(num) > 0 Then
+                        Exit For
+                    End If
+                Next j
+                If Len(num) > 0 Then
+                    ExtrairValorChaveNumerico = CDbl(num)
+                    Exit Function
+                End If
+            End If
+        End If
+    Next i
+    ExtrairValorChaveNumerico = 0
+End Function
+
+' Familias cuja "metragem" representa comprimento real (metros). Para as
+' demais familias de bloco, o campo Metros e reaproveitado como QUANTIDADE
+' embutida no texto/atributo (ex.: isoladores, chaves fusiveis por Q2=N).
+Private Function EhFamiliaComMetros(ByVal fam As String) As Boolean
+    Select Case fam
+        Case "CABO", "RAMAL", "COND NU", "COND ISOLADO"
+            EhFamiliaComMetros = True
+        Case Else
+            EhFamiliaComMetros = False
     End Select
 End Function
 
@@ -1171,18 +1243,33 @@ Private Sub CriarAbaStatus(ByVal wb As Object, ByVal wsAntes As Object, _
     Next i
 
     ' --- Agrega BLOCOS ------------------------------------------------------
+    ' Para familias com metragem real (CABO/RAMAL/COND), soma metros e conta
+    ' 1 por bloco. Para as demais, o campo Metros carrega uma QUANTIDADE
+    ' embutida no texto/atributo (ex.: isoladores, chaves fusiveis Q2=N) que
+    ' e somada na propria Qtd (0 ou vazio conta como 1 unidade).
+    Dim qtdBloco As Long
     For i = 1 To nBloco
         If bStat(i) = statusFiltro Then
             gFam = bTipo(i)
             gMat = Trim$(bBase(i))
             If Len(gMat) = 0 Then gMat = NormalizarChave(bDesc(i))
             gKey = gFam & "|" & gMat
-            If aggQtd.Exists(gKey) Then
-                aggQtd(gKey) = aggQtd(gKey) + 1
-                aggMet(gKey) = aggMet(gKey) + bMet(i)
+            If EhFamiliaComMetros(gFam) Then
+                qtdBloco = 1
             Else
-                aggQtd.Add gKey, 1
-                aggMet.Add gKey, bMet(i)
+                qtdBloco = 1
+                If bMet(i) > 0 Then qtdBloco = CLng(bMet(i))
+            End If
+            If aggQtd.Exists(gKey) Then
+                aggQtd(gKey) = aggQtd(gKey) + qtdBloco
+                If EhFamiliaComMetros(gFam) Then aggMet(gKey) = aggMet(gKey) + bMet(i)
+            Else
+                aggQtd.Add gKey, qtdBloco
+                If EhFamiliaComMetros(gFam) Then
+                    aggMet.Add gKey, bMet(i)
+                Else
+                    aggMet.Add gKey, 0
+                End If
             End If
         End If
     Next i
@@ -4431,16 +4518,24 @@ Public Sub ExportarTextosParaExcel()
         ' Reclassificacao por descricao:
         '   - contem "ATERR"      -> ATERRAMENTO
         '   - comeca com MT ou BT -> CABO
+        '   - contem "ISOL"       -> ISOLADOR (planilha RECLASSIFICAR MATERIAL 2)
         '   - caso contrario      -> POSTE
         Dim desc2U As String, descUpB As String
         desc2U  = UCase$(Left$(Trim$(descB), 2))
         descUpB = UCase$(Trim$(descB))
+        Dim qtdB As Double
+        qtdB = 0
         If InStr(descUpB, "ATERR") > 0 Then
             tipoB = "ATERRAMENTO"
             famB  = "ATERRAMENTO"
         ElseIf desc2U = "MT" Or desc2U = "BT" Then
             tipoB = "CABO"
             famB  = "CABO"
+        ElseIf InStr(descUpB, "ISOL") > 0 Then
+            ' Ex.: "3 ISOL. SUSP." -> 3 isoladores de suspensao
+            tipoB = "ISOLADOR"
+            famB  = "ISOLADOR"
+            qtdB  = ExtrairQuantidadeInicial(descB)
         ElseIf Len(baseB) > 0 And ContaDigitosBase(baseB) = 1 Then
             ' Nome base com 1 digito (CE1, N3, CUF3...) = ESTRUTURA, nao POSTE
             tipoB = "ESTRUTURA"
@@ -4466,7 +4561,7 @@ Public Sub ExportarTextosParaExcel()
         uDesc(u)  = descB
         uBase(u)  = baseB
         uDist(u)  = ""
-        uMet(u)   = 0
+        uMet(u)   = qtdB   ' quantidade embutida (ex.: isoladores); 0 para POSTE/ESTRUTURA
         uX(u)     = bX(kb)
         uY(u)     = bY(kb)
 ProxPoste:
@@ -4521,6 +4616,15 @@ ProxPoste:
         If Left$(Trim$(oDesc(kb)), 1) = "#" Then
             statO = "MATERIAIS DESINSTALADOS"
         End If
+        ' Quantidade embutida na descricao (ex.: "Q2=3" em chaves fusiveis)
+        ' planilha RECLASSIFICAR MATERIAL 2.
+        Dim qtdO As Double
+        qtdO = 0
+        If famO = "CH FUSIVEL" Or famO = "CH FUS" Then
+            qtdO = ExtrairValorChaveNumerico(oDesc(kb), "Q2")
+        ElseIf famO = "ISOLADOR" Then
+            qtdO = ExtrairQuantidadeInicial(oDesc(kb))
+        End If
         uTipo(u) = tipoO
         uFam(u)  = famO
         uBloco(u) = oNome(kb)
@@ -4529,7 +4633,7 @@ ProxPoste:
         uDesc(u) = oDesc(kb)
         uBase(u) = ""
         uDist(u) = ""
-        uMet(u) = 0
+        uMet(u) = qtdO
         uX(u) = oX(kb)
         uY(u) = oY(kb)
     Next kb
