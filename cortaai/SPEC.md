@@ -208,3 +208,74 @@ Progresso em tempo real reutiliza o WebSocket existente `/ws/progress/{job_id}`.
 - Cada geração concluída tem ações: **"Enviar para o editor"**, **"Salvar na biblioteca"**, **"Usar como capa"**.
 - Fallback: sem API, `mock-data.ts` fornece gerações de exemplo e o progresso é simulado no cliente (como a fila de render). Thumbnails/preview via SVG data-URI local.
 - Todos os estados (loading/vazio/erro/sucesso), pt-BR, sem botão morto.
+
+---
+
+# REVISÃO 2 — Sem pagamentos/planos · Radar real (keyless) · Geração real (FFmpeg)
+
+Mudança de rumo decidida com o usuário. Vale para front e back.
+
+## A) Remover pagamentos e planos TOTALMENTE
+
+O CortaAí deixa de ser um SaaS com cobrança. Remover por completo:
+
+- **Backend**: router `billing.py` e sua inclusão em `main.py`; `schemas/billing.py`;
+  `services/plans.py` (limites por plano); modelo `subscription.py` e a tabela
+  `subscriptions` (migration nova que a remove); campos `plan` e
+  `minutes_used_month` do modelo `user` (migration + schema + seed); TODOS os gates
+  de plano (respostas 402 `upgrade_required`, `studio_free_generation_limit`,
+  limites de resolução/minutos/radar) — tudo liberado para todos, sem limite.
+  Config: remover `stripe_*` e `studio_free_generation_limit`. Manter auth normal.
+- **Frontend**: excluir a rota `/precos`, `components/pricing-section.tsx`, o toggle
+  mensal/anual, e qualquer menção a Free/Pro/Studio, cota de minutos, marca d'água
+  por plano, badges "Plano X", travas de upgrade. Landing: trocar a seção de planos
+  por uma seção de recursos/CTA (sem preço). Dashboard/config: remover barras de
+  cota de plano. Tipos/mocks: remover `plan` de `User`.
+- Remover do README/`.env.example` as chaves Stripe e a linha de planos.
+
+## B) Radar Viral REAL sem YOUTUBE_API_KEY (via yt-dlp)
+
+`workers/tasks_radar.py` + `services/` passam a buscar tendências reais do YouTube
+**sem chave**, usando `yt-dlp` (já é dependência):
+
+- Busca por nicho/palavra-chave: `yt-dlp "ytsearchN:<termo> #shorts"` com
+  `--dump-json --flat-playlist` (extrai id, título, canal, duração, views, thumb).
+- Enriquecer top-N com `--dump-json` por vídeo (like_count, comment_count, data).
+- Calcular `retention_index` com `services/retention.py` (já existe) a partir dos
+  números reais (views/hora, like/view, comentário/view).
+- Cache em Redis com TTL (ex.: 30 min) por consulta, para não repetir chamadas.
+- Offline/sem rede: cair no seed mockado atual (fallback já existente).
+- Raio-X (`trend_analyses`): quando não houver LLM, seguir com o gerador
+  determinístico atual sobre os dados reais do vídeo (som/imagem/estrutura/curva).
+- `config`: remover `youtube_api_key` como requisito; manter opcional/sem uso.
+
+## C) Geração de vídeo REAL com FFmpeg (sem Kling, sem chave)
+
+`services/generative.py` + `workers/tasks_generative.py` param de mockar e passam a
+**produzir arquivos .mp4 de verdade** com FFmpeg (já disponível no container/Docker),
+salvando no storage (MinIO/local) e devolvendo `result_url` + thumbnail real
+(frame extraído do vídeo). Implementar por função (`function`):
+
+- **text_to_video**: clipe tipográfico animado — fundo em gradiente/cor da paleta,
+  o `prompt` em texto grande com fade/scale (drawtext), duração/aspect dos params.
+- **image_to_video**: anima a imagem de entrada com `zoompan` (Ken Burns) +
+  movimento de câmera dos params; duração configurável.
+- **frames**: crossfade/morph simples entre `input_asset_url` (início) e
+  `input_asset_url_2` (fim) via `xfade`.
+- **extend**: prolonga o clipe de origem (loop/`tpad`/boomerang) por `seconds`.
+- **motion_brush**: aplica deslocamento/parallax na(s) região(ões) dos `strokes`
+  sobre a imagem (aproximação real com crop+overlay animado).
+- **camera**: aplica a sequência de `moves` (zoom/pan/tilt) via `zoompan`/`crop`.
+- **effect_template**: efeitos reais por template (explodir=scale rápido, derreter=
+  wave/displace, etc.) com filtros FFmpeg.
+- **lip_sync**: sem modelo real de lip-sync sem chave — gerar clipe com a forma de
+  onda/legenda do áudio/TTS sincronizada (aproximação honesta) e comentar no código
+  que o lip-sync fotorrealista exigiria um modelo externo (ponto `# INTEGRAÇÃO PAGA`).
+- Progresso real por etapas do FFmpeg publicado no WS existente.
+- Se o FFmpeg não existir no ambiente de teste, cair em placeholder (mas nos testes,
+  verificar que o comando FFmpeg é montado corretamente e, quando `ffmpeg` existir,
+  que um .mp4 não-vazio é produzido).
+
+## Resultado esperado
+App sem qualquer cobrança/plano; Radar puxando vídeos reais do YouTube sem chave;
+Estúdio IA gerando vídeos .mp4 reais localmente. Builds e testes verdes.
