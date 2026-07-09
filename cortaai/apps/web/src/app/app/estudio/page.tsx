@@ -1,8 +1,9 @@
 "use client";
 
-// ESTÚDIO IA — geração e direção de vídeo por IA (estilo Kling). 8 ferramentas:
-// coluna esquerda (seleção), painel central (configuração + Gerar) e galeria
-// "Gerações recentes" com status/progresso ao vivo. Fallback 100% mockado.
+// ESTÚDIO IA — geração e direção de vídeo por IA. 8 ferramentas: coluna esquerda
+// (seleção), painel central (configuração + Gerar) e galeria "Gerações recentes"
+// com status/progresso ao vivo. A geração roda no nosso próprio motor de vídeo
+// (FFmpeg), sem custo. Sem API, cai no fallback local.
 
 import { useEffect, useState } from "react";
 import { Sparkles } from "lucide-react";
@@ -74,6 +75,9 @@ export default function EstudioPage() {
           </div>
           <p className="mt-1 text-sm text-zinc-500">
             Gere e dirija vídeo por IA — 8 ferramentas, do texto ao efeito pronto.
+          </p>
+          <p className="mt-1 text-xs text-zinc-600">
+            Gerado pelo nosso próprio motor de vídeo (FFmpeg), sem custo.
           </p>
         </div>
         {running > 0 && (

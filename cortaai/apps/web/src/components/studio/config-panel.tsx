@@ -103,7 +103,7 @@ function GenerateBar({
   const [submitting, setSubmitting] = useState(false);
   return (
     <div className="sticky bottom-0 -mx-5 mt-6 flex items-center justify-between gap-3 border-t border-line bg-surface-1/95 px-5 pt-4 backdrop-blur">
-      <p className="text-xs text-zinc-500">{hint ?? "A geração aparece em Gerações recentes com progresso ao vivo."}</p>
+      <p className="text-xs text-zinc-500">{hint ?? "Renderizado no nosso motor de vídeo (FFmpeg); aparece em Gerações recentes com progresso ao vivo."}</p>
       <Button
         onClick={async () => {
           setSubmitting(true);
@@ -403,6 +403,11 @@ function LipSyncForm() {
   return (
     <div className="space-y-5">
       <SourcePicker value={target} onChange={setTarget} label="Vídeo/corte de destino" />
+      <p className="rounded-xl border border-line bg-surface-2 px-3.5 py-2.5 text-xs leading-relaxed text-zinc-500">
+        O lip-sync roda no nosso motor de vídeo: a fala (texto ou áudio) é sincronizada com
+        legenda e forma de onda. É uma aproximação honesta — lip-sync fotorrealista exigiria um
+        modelo externo.
+      </p>
       <Field label="Origem da fala">
         <Tabs
           tabs={[

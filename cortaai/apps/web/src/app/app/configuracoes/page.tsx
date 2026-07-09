@@ -1,20 +1,16 @@
 "use client";
 
-// Settings: profile, plan usage, password change and account deletion.
+// Settings: profile, password change and account deletion.
 
 import { useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
-import Link from "next/link";
-import { AlertTriangle, CreditCard, KeyRound, Save, UserRound } from "lucide-react";
-import { PLANS } from "@/lib/presets";
+import { AlertTriangle, KeyRound, Save, UserRound } from "lucide-react";
 import { useAuthStore } from "@/store/auth";
 import { toast } from "@/store/toast";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Modal } from "@/components/ui/modal";
-import { Progress } from "@/components/ui/progress";
-import { Badge } from "@/components/ui/badge";
 
 export default function SettingsPage() {
   const router = useRouter();
@@ -33,10 +29,6 @@ export default function SettingsPage() {
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleteConfirmText, setDeleteConfirmText] = useState("");
   const [deleting, setDeleting] = useState(false);
-
-  const plan = PLANS.find((p) => p.id === (user?.plan ?? "free")) ?? PLANS[0];
-  const used = user?.minutesUsedMonth ?? 0;
-  const quotaPct = plan.minutesPerMonth ? Math.min(100, (used / plan.minutesPerMonth) * 100) : 0;
 
   async function saveProfile(e: FormEvent) {
     e.preventDefault();
@@ -80,7 +72,7 @@ export default function SettingsPage() {
     <div className="mx-auto max-w-3xl space-y-6">
       <div>
         <h1 className="text-2xl font-bold text-white">Configurações</h1>
-        <p className="mt-1 text-sm text-zinc-500">Perfil, plano e segurança da conta.</p>
+        <p className="mt-1 text-sm text-zinc-500">Perfil e segurança da conta.</p>
       </div>
 
       <Card>
@@ -99,43 +91,6 @@ export default function SettingsPage() {
               </Button>
             </div>
           </form>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>
-            <CreditCard className="mr-2 inline h-4 w-4 text-emerald-400" aria-hidden /> Plano e uso
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-lg font-bold text-white">
-                Plano {plan.name}{" "}
-                {plan.id !== "free" && <Badge variant="success">ativo</Badge>}
-              </p>
-              <p className="text-xs text-zinc-500">
-                {plan.minutesPerMonth ? `${plan.minutesPerMonth} minutos/mês` : "minutos ilimitados"} · exporta até{" "}
-                {plan.maxResolution === "2160p" ? "4K" : plan.maxResolution} ·{" "}
-                {plan.watermark ? "com marca d'água" : "sem marca d'água"}
-              </p>
-            </div>
-            <Link
-              href="/precos"
-              className="rounded-xl border border-line px-4 py-2 text-sm font-medium text-zinc-200 hover:border-violet-500/50 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-400"
-            >
-              Mudar de plano
-            </Link>
-          </div>
-          {plan.minutesPerMonth && (
-            <div>
-              <Progress value={quotaPct} label="Uso da cota mensal" />
-              <p className="mt-1.5 text-xs text-zinc-500">
-                {used} de {plan.minutesPerMonth} minutos usados neste ciclo ({Math.round(quotaPct)}%)
-              </p>
-            </div>
-          )}
         </CardContent>
       </Card>
 

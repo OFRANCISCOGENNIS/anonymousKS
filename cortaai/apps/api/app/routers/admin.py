@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.deps import require_admin
-from app.models import Cut, Job, Project, Subscription, TrendVideo, User
+from app.models import Cut, Generation, Job, Project, TrendVideo, User
 from app.schemas import JobOut, UserOut
 
 router = APIRouter(prefix="/admin", tags=["admin"])
@@ -20,23 +20,19 @@ def metrics(admin: User = Depends(require_admin), db: Session = Depends(get_db))
     jobs_by_status = dict(
         db.execute(sa.select(Job.status, sa.func.count(Job.id)).group_by(Job.status)).all()
     )
-    users_by_plan = dict(
-        db.execute(sa.select(User.plan, sa.func.count(User.id)).group_by(User.plan)).all()
-    )
-    total_minutes = db.execute(sa.select(sa.func.coalesce(sa.func.sum(User.minutes_used_month), 0.0))).scalar_one()
+    # Minutos processados = soma da duração de todos os projetos (fonte real).
+    total_minutes = (
+        db.execute(sa.select(sa.func.coalesce(sa.func.sum(Project.duration_seconds), 0.0))).scalar_one() or 0.0
+    ) / 60.0
     return {
         "users": count(User),
-        "usersByPlan": users_by_plan,
         "projects": count(Project),
         "cuts": count(Cut),
         "jobs": count(Job),
         "jobsByStatus": jobs_by_status,
         "trendVideos": count(TrendVideo),
-        "activeSubscriptions": db.execute(
-            sa.select(sa.func.count(Subscription.id)).where(Subscription.status == "active")
-        ).scalar_one()
-        or 0,
-        "minutesProcessedMonth": round(float(total_minutes), 1),
+        "generations": count(Generation),
+        "minutesProcessedTotal": round(float(total_minutes), 1),
     }
 
 

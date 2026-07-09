@@ -41,8 +41,6 @@ import type {
   Niche,
   NicheAlert,
   NichePattern,
-  PlanId,
-  PlanInterval,
   Project,
   RenderResult,
   Resolution,
@@ -109,7 +107,7 @@ export async function login(email: string, _password: string): Promise<{ token: 
 export async function register(name: string, email: string, password: string): Promise<{ token: string; user: User }> {
   return request(
     `/auth/register`,
-    () => ({ token: `mock-token-${uid()}`, user: { ...mockUser, name, email, plan: "free" as PlanId, minutesUsedMonth: 0 } }),
+    () => ({ token: `mock-token-${uid()}`, user: { ...mockUser, name, email } }),
     { method: "POST", body: JSON.stringify({ name, email, password }) },
   );
 }
@@ -468,19 +466,10 @@ export async function batchZip(jobIds: string[]): Promise<{ zipUrl: string }> {
   });
 }
 
-// ---------------------------------------------------------------- dashboard / billing / admin
+// ---------------------------------------------------------------- dashboard / admin
 
 export async function dashboardStats(): Promise<DashboardStats> {
   return request(`/dashboard/stats`, () => mockDashboardStats);
-}
-
-// INTEGRAÇÃO PAGA: Stripe — em produção retorna a URL real do Checkout.
-export async function billingCheckout(plan: PlanId, interval: PlanInterval): Promise<{ checkoutUrl: string }> {
-  return request(
-    `/billing/checkout`,
-    () => ({ checkoutUrl: `https://checkout.stripe.com/mock/${plan}-${interval}` }),
-    { method: "POST", body: JSON.stringify({ plan, interval }) },
-  );
 }
 
 export async function adminMetrics(): Promise<AdminMetrics> {
@@ -497,10 +486,10 @@ export async function adminJobs(): Promise<Job[]> {
 
 // ---------------------------------------------------------------- Estúdio IA (studio)
 //
-// INTEGRAÇÃO PAGA: Kling AI API (ou Runway/Luma/Pika). Cada função posta em
-// /studio/* e retorna uma Generation em status "queued". O progresso 0→100 é
-// simulado no cliente (store/studio.ts) ou, em produção, transmitido via
-// ws://.../ws/progress/{job_id}. Sem API, cai no mock determinístico abaixo.
+// A geração roda no nosso próprio motor de vídeo (FFmpeg), sem chave externa.
+// Cada função posta em /studio/* e retorna uma Generation em status "queued".
+// O progresso 0→100 é simulado no cliente (store/studio.ts) ou, em produção,
+// transmitido via ws://.../ws/progress/{job_id}. Sem API, cai no mock local abaixo.
 
 /** Resolução mock derivada da proporção escolhida (ou vertical padrão). */
 function resForAspect(aspect?: string): string {

@@ -13,7 +13,6 @@ from app.models import Cut, Job, User
 from app.routers.cuts import get_owned_cut
 from app.schemas import BatchZipIn, BatchZipOut, JobOut, RenderBatchOut, RenderJobOut, RenderRequestIn
 from app.services import storage
-from app.services.plans import check_minutes_quota, check_resolution, limits_for
 from app.workers.dispatch import dispatch_task
 from app.workers.tasks_render import render_task
 
@@ -24,14 +23,9 @@ router = APIRouter(prefix="/renders", tags=["renders"])
 def create_renders(
     body: RenderRequestIn, user: User = Depends(get_current_user), db: Session = Depends(get_db)
 ) -> RenderBatchOut:
-    # plan gating (SPEC): free = 720p max + watermark + minutes quota
-    check_resolution(user, body.resolution)
+    # Sem planos: qualquer resolução é permitida para qualquer usuário.
     cuts: list[Cut] = [get_owned_cut(db, user, cut_id) for cut_id in body.cut_ids]
-    total_minutes = sum(max(c.end_seconds - c.start_seconds, 0) for c in cuts) / 60.0
-    check_minutes_quota(user, total_minutes)
-    user.minutes_used_month += total_minutes
 
-    watermark = limits_for(user)["watermark"]
     jobs: list[Job] = []
     for cut in cuts:
         job = Job(
@@ -45,7 +39,6 @@ def create_renders(
                 "fps": body.fps,
                 "codec": body.codec,
                 "preset": body.preset,
-                "watermark": watermark,
             },
         )
         db.add(job)

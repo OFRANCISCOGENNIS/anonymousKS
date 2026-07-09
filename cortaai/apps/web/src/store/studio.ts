@@ -1,10 +1,10 @@
 "use client";
 
 // Estúdio IA generation queue. Enqueues AI-video generations via the API and
-// simulates GPU worker progress client-side (interval per item) so the UX is
-// complete standalone. In production the progress would stream over
-// ws://.../ws/progress/{job_id}. Persisted so an in-flight generation resumes
-// after a reload — modeled on store/render-queue.ts.
+// simulates worker progress client-side (interval per item) so the UX is
+// complete standalone. Generation runs on our own video engine (FFmpeg), no
+// external key. In production the progress streams over ws://.../ws/progress/{job_id}.
+// Persisted so an in-flight generation resumes after a reload — modeled on store/render-queue.ts.
 
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
@@ -57,7 +57,7 @@ function startSimulation(id: string, set: StoreSet) {
             ...item,
             progress: 100,
             status: "done" as const,
-            resultUrl: `mock://kling/${item.id}.mp4`,
+            resultUrl: `mock://studio/${item.id}.mp4`,
             finishedAt: new Date().toISOString(),
           };
         }

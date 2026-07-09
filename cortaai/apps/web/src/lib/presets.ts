@@ -1,6 +1,6 @@
-// Static product configuration from SPEC.md: plans, platform presets, caption presets, niches.
+// Static product configuration from SPEC.md: platform presets, caption presets, niches.
 
-import type { CaptionPresetId, Niche, Plan, PlatformPreset } from "./types";
+import type { CaptionPresetId, Niche, PlatformPreset } from "./types";
 
 export const NICHES: Niche[] = [
   "finanças",
@@ -11,63 +11,6 @@ export const NICHES: Niche[] = [
   "tecnologia",
   "beleza",
   "games",
-];
-
-export const PLANS: Plan[] = [
-  {
-    id: "free",
-    name: "Free",
-    priceMonthly: 0,
-    priceYearlyPerMonth: 0,
-    minutesPerMonth: 60,
-    maxResolution: "720p",
-    watermark: true,
-    radarLevel: "limitado",
-    features: [
-      "60 minutos de vídeo por mês",
-      "Exportação em até 720p",
-      "Marca d'água CortaAí",
-      "Radar Viral limitado (top 5, sem Raio-X completo)",
-      "Legendas automáticas em pt-BR",
-    ],
-  },
-  {
-    id: "pro",
-    name: "Pro",
-    priceMonthly: 79,
-    priceYearlyPerMonth: 63,
-    minutesPerMonth: 600,
-    maxResolution: "2160p",
-    watermark: false,
-    radarLevel: "completo",
-    highlight: true,
-    features: [
-      "600 minutos de vídeo por mês",
-      "Exportação em até 4K vertical",
-      "Sem marca d'água",
-      "Radar Viral completo com Raio-X",
-      "8 presets de legenda profissionais",
-      "Kit de marca personalizado",
-    ],
-  },
-  {
-    id: "studio",
-    name: "Studio",
-    priceMonthly: 199,
-    priceYearlyPerMonth: 159,
-    minutesPerMonth: null,
-    maxResolution: "2160p",
-    watermark: false,
-    radarLevel: "completo+",
-    features: [
-      "Minutos ilimitados",
-      "Exportação em até 4K vertical",
-      "Sem marca d'água",
-      "Radar completo + alertas de nicho",
-      "Acesso à API",
-      "Suporte prioritário",
-    ],
-  },
 ];
 
 export const PLATFORM_PRESETS: PlatformPreset[] = [

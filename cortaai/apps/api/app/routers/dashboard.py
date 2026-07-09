@@ -28,6 +28,16 @@ def stats(user: User = Depends(get_current_user), db: Session = Depends(get_db))
         .all()
     )
 
+    # Minutos processados = soma da duração dos vídeos-fonte do usuário (dado real,
+    # sem cota de plano).
+    total_seconds = (
+        db.execute(
+            sa.select(sa.func.coalesce(sa.func.sum(Project.duration_seconds), 0.0)).where(Project.user_id == user.id)
+        ).scalar_one()
+        or 0.0
+    )
+    minutes_processed = round(float(total_seconds) / 60.0, 1)
+
     # usage series: minutes of source video processed per day (last 14 days)
     now = datetime.now(timezone.utc)
     since = now - timedelta(days=14)
@@ -66,7 +76,7 @@ def stats(user: User = Depends(get_current_user), db: Session = Depends(get_db))
             break
 
     return DashboardStatsOut(
-        minutes_processed=round(user.minutes_used_month, 1),
+        minutes_processed=minutes_processed,
         cuts_generated=int(cuts_generated),
         recent_projects=[ProjectOut.model_validate(p) for p in recent],
         usage_series=usage_series,

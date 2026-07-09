@@ -12,9 +12,24 @@ import threading
 logger = logging.getLogger(__name__)
 
 
+def _broker_reachable() -> bool:
+    """Cheap, cached reachability check for the Redis broker (reuses the
+    progress service client: ~1s connect timeout, failure is cached). Avoids the
+    ~20s kombu connection backoff that ``apply_async`` incurs when the broker is
+    down — keeping the inline fallback snappy for offline dev/tests."""
+    try:
+        from app.services.progress import _get_redis
+
+        return _get_redis() is not None
+    except Exception:
+        return False
+
+
 def dispatch_task(task, *args) -> str:
     """Returns "celery" or "inline" depending on the execution path taken."""
     try:
+        if not _broker_reachable():
+            raise RuntimeError("broker unreachable")
         task.apply_async(args=args, retry=False)
         return "celery"
     except Exception:

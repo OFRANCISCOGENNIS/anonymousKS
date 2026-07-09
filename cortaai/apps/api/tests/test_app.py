@@ -1,4 +1,7 @@
-"""Sanity: app imports, routes registered, auth flow, error envelope, plan gating."""
+"""Sanity: app imports, routes registered, auth flow, error envelope.
+
+Sem planos/cobrança: todo recurso é ilimitado para qualquer usuário autenticado
+(sem 402/upgrade_required, sem rotas de billing)."""
 import uuid
 
 
@@ -49,8 +52,6 @@ def test_app_imports_and_routes_registered():
         "/api/v1/renders/{job_id}",
         "/api/v1/renders/batch-zip",
         "/api/v1/dashboard/stats",
-        "/api/v1/billing/checkout",
-        "/api/v1/billing/webhook",
         "/api/v1/admin/metrics",
         "/api/v1/admin/users",
         "/api/v1/admin/jobs",
@@ -58,6 +59,8 @@ def test_app_imports_and_routes_registered():
     }
     missing = expected - paths
     assert not missing, f"missing routes: {missing}"
+    # billing/payments foram removidos por completo
+    assert not [p for p in paths if p and "billing" in p]
 
 
 def test_healthz(client):
@@ -82,7 +85,9 @@ def _register(client) -> tuple[str, dict]:
     )
     assert resp.status_code == 201, resp.text
     data = resp.json()
-    assert data["user"]["plan"] == "free"
+    # sem planos: o campo plan não existe mais no schema do usuário
+    assert "plan" not in data["user"]
+    assert "minutesUsedMonth" not in data["user"]
     return data["token"], data["user"]
 
 
@@ -97,35 +102,46 @@ def test_register_login_me(client):
     assert me.json()["email"] == user["email"]
 
 
-def test_free_plan_xray_upgrade_required(client):
+def test_xray_no_plan_gate_returns_404_for_missing(client):
+    """Raio-X liberado para todos: um vídeo inexistente dá 404 (não 402)."""
     token, _ = _register(client)
     resp = client.get(
         f"/api/v1/radar/videos/{uuid.uuid4()}/xray", headers={"Authorization": f"Bearer {token}"}
     )
-    assert resp.status_code == 402
-    assert resp.json()["error"]["code"] == "upgrade_required"
+    assert resp.status_code == 404
+    assert resp.json()["error"]["code"] == "not_found"
 
 
-def test_free_plan_render_resolution_gate(client):
+def test_full_xray_available_to_everyone(client):
+    """Com dados seed, qualquer usuário obtém o Raio-X COMPLETO (som/imagem/
+    estrutura/curva de retenção) — sem trava de plano."""
+    from app.seed import run_seed
+
+    run_seed()
+    token, _ = _register(client)
+    auth = {"Authorization": f"Bearer {token}"}
+    trends = client.get("/api/v1/radar/trends?niche=finanças", headers=auth)
+    assert trends.status_code == 200
+    items = trends.json()["items"]
+    assert items, "seed deve popular tendências"
+    xray = client.get(f"/api/v1/radar/videos/{items[0]['id']}/xray", headers=auth)
+    assert xray.status_code == 200, xray.text
+    body = xray.json()
+    assert body["sound"] and body["image"] and body["structure"]
+    assert len(body["retentionTimeline"]) > 0
+
+
+def test_render_any_resolution_allowed(client):
+    """Sem cap de resolução: pedir 2160p passa pelo gate e só falha por corte
+    inexistente (404), nunca 402."""
     token, _ = _register(client)
     resp = client.post(
         "/api/v1/renders",
         headers={"Authorization": f"Bearer {token}"},
         json={"cutIds": [str(uuid.uuid4())], "resolution": "2160p", "fps": 30, "codec": "h264", "preset": "tiktok"},
     )
-    assert resp.status_code == 402
-    assert resp.json()["error"]["code"] == "upgrade_required"
-
-
-def test_billing_checkout_mock_url(client):
-    token, _ = _register(client)
-    resp = client.post(
-        "/api/v1/billing/checkout",
-        headers={"Authorization": f"Bearer {token}"},
-        json={"plan": "pro", "interval": "month"},
-    )
-    assert resp.status_code == 200
-    assert resp.json()["checkoutUrl"].startswith("https://checkout.stripe.com/")
+    assert resp.status_code == 404
+    assert resp.json()["error"]["code"] == "not_found"
 
 
 def test_radar_niches(client):

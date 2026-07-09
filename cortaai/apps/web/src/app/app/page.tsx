@@ -1,6 +1,6 @@
 "use client";
 
-// Dashboard: quota usage, cuts generated, usage chart, recent projects,
+// Dashboard: minutes processed, cuts generated, usage chart, recent projects,
 // Radar highlights for the user's niche.
 
 import { useEffect, useState } from "react";
@@ -8,7 +8,6 @@ import Link from "next/link";
 import dynamic from "next/dynamic";
 import { ArrowRight, Clock, FolderOpen, Radar, Scissors, TrendingUp } from "lucide-react";
 import * as api from "@/lib/api";
-import { PLANS } from "@/lib/presets";
 import type { DashboardStats } from "@/lib/types";
 import { formatDuration, timeAgo } from "@/lib/utils";
 import { MOCK_NOW } from "@/lib/mock-data";
@@ -16,7 +15,6 @@ import { useAuthStore } from "@/store/auth";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
-import { Progress } from "@/components/ui/progress";
 import { Skeleton, SkeletonCard } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { TrendCard } from "@/components/trend-card";
@@ -46,10 +44,7 @@ export default function DashboardPage() {
   }
   useEffect(load, []);
 
-  const plan = PLANS.find((p) => p.id === (user?.plan ?? "free")) ?? PLANS[0];
-  const quota = plan.minutesPerMonth;
-  const used = stats?.minutesProcessed ?? user?.minutesUsedMonth ?? 0;
-  const quotaPct = quota ? Math.min(100, (used / quota) * 100) : 0;
+  const used = stats?.minutesProcessed ?? 0;
 
   if (error) {
     return (
@@ -87,20 +82,9 @@ export default function DashboardPage() {
               <>
                 <p className="text-3xl font-extrabold text-white">
                   {used}
-                  <span className="ml-1 text-sm font-normal text-zinc-500">
-                    / {quota ? `${quota} min` : "ilimitado"}
-                  </span>
+                  <span className="ml-1 text-sm font-normal text-zinc-500">min</span>
                 </p>
-                {quota && (
-                  <div className="mt-3">
-                    <Progress value={quotaPct} label="Cota do plano" />
-                    <p className="mt-1.5 text-xs text-zinc-500">
-                      {quotaPct >= 90
-                        ? "Cota quase no fim — considere o próximo plano."
-                        : `${Math.round(100 - quotaPct)}% da cota do plano ${plan.name} disponível`}
-                    </p>
-                  </div>
-                )}
+                <p className="mt-1.5 text-xs text-zinc-500">nos últimos 30 dias · sem limite</p>
               </>
             )}
           </CardContent>

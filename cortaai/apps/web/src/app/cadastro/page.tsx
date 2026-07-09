@@ -31,7 +31,7 @@ export default function RegisterPage() {
     setLoading(true);
     try {
       await register(name.trim(), email, password);
-      toast("Conta criada!", { description: "Você ganhou 60 minutos grátis este mês." });
+      toast("Conta criada!", { description: "Tudo liberado, sem limites. Bora criar seus cortes!" });
       router.push("/app");
     } catch {
       toast("Não foi possível criar a conta", {
@@ -57,7 +57,7 @@ export default function RegisterPage() {
   }
 
   return (
-    <AuthCard title="Criar conta grátis" subtitle="60 minutos por mês, sem cartão de crédito.">
+    <AuthCard title="Criar conta grátis" subtitle="Tudo liberado, sem limites e sem cartão de crédito.">
       <GoogleButton onClick={handleGoogle} loading={googleLoading} />
       <AuthDivider />
       <form onSubmit={handleSubmit} noValidate className="space-y-4">

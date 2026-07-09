@@ -131,7 +131,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           </span>
           <div className="min-w-0 flex-1">
             <p className="truncate text-sm font-medium text-zinc-100">{user.name}</p>
-            <p className="truncate text-xs text-zinc-500 capitalize">Plano {user.plan}</p>
+            <p className="truncate text-xs text-zinc-500">{user.email}</p>
           </div>
           <button
             onClick={() => {

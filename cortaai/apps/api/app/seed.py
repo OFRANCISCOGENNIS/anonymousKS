@@ -12,7 +12,7 @@ import sqlalchemy as sa
 
 from app.constants import NICHES, PERIODS
 from app.database import SessionLocal, create_all_tables
-from app.models import Cut, Generation, NicheAlert, Project, Subscription, TrendVideo, User
+from app.models import Cut, Generation, NicheAlert, Project, TrendVideo, User
 from app.services import generative
 from app.services.scoring import compute_viral_score
 from app.services.security import hash_password
@@ -41,8 +41,6 @@ def _seed_users(db) -> tuple[User, User]:
             password_hash=hash_password("demo1234"),
             name="Ana Criadora",
             avatar_url="https://i.pravatar.cc/150?u=demo@cortaai.com",
-            plan="pro",
-            minutes_used_month=127.5,
             branding_kit={
                 "logo_url": None,
                 "font": "Montserrat",
@@ -58,24 +56,10 @@ def _seed_users(db) -> tuple[User, User]:
             email=ADMIN_EMAIL,
             password_hash=hash_password("admin1234"),
             name="Equipe CortaAí",
-            plan="studio",
-            minutes_used_month=0.0,
         )
         db.add(admin)
     db.flush()
 
-    if db.execute(sa.select(Subscription).where(Subscription.user_id == demo.id)).scalar_one_or_none() is None:
-        db.add(
-            Subscription(
-                user_id=demo.id,
-                stripe_customer_id="cus_mock_demo",
-                stripe_subscription_id="sub_mock_demo",
-                plan="pro",
-                interval="month",
-                status="active",
-                current_period_end=_now() + timedelta(days=23),
-            )
-        )
     if db.execute(sa.select(NicheAlert).where(NicheAlert.user_id == admin.id)).scalar_one_or_none() is None:
         db.add(NicheAlert(user_id=admin.id, niche="finanças", enabled=True))
     return demo, admin
@@ -240,8 +224,13 @@ def _seed_generations(db, demo: User) -> None:
         return  # idempotente: gerações demo já presentes
 
     for i, (function, prompt, params, asset) in enumerate(_GENERATIONS):
-        result = generative.run_generation(function, prompt, params, input_asset_url=asset)
         second_asset = "https://picsum.photos/seed/estudio-frame-b/720/1280" if function == "frames" else None
+        # Galeria de demonstração: clipes curtos (render rápido) — o shape dos
+        # params originais é preservado no registro.
+        render_params = {**params, "duration": 2, "seconds": 2}
+        result = generative.run_generation(
+            function, prompt, render_params, input_asset_url=asset, input_asset_url_2=second_asset
+        )
         db.add(
             Generation(
                 user_id=demo.id,

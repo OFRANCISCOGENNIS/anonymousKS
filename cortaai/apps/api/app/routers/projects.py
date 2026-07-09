@@ -20,7 +20,6 @@ from app.schemas import (
     UrlPreviewOut,
 )
 from app.services import storage, ytdlp
-from app.services.plans import check_minutes_quota
 from app.workers.dispatch import dispatch_task
 from app.workers.tasks_analyze import analyze_task
 from app.workers.tasks_import import import_url_task
@@ -39,7 +38,6 @@ def _get_owned_project(db: Session, user: User, project_id: str) -> Project:
 @router.post("/upload-init", response_model=UploadInitOut)
 def upload_init(body: UploadInitIn, user: User = Depends(get_current_user)) -> UploadInitOut:
     """Chunked multipart upload to MinIO — presigns one PUT URL per chunk."""
-    check_minutes_quota(user)
     if body.size_bytes > 20 * 1024 * 1024 * 1024:
         raise ApiError(413, "file_too_large", "O arquivo excede o limite de 20 GB.")
     result = storage.init_multipart_upload(body.filename, body.size_bytes, body.content_type)
@@ -73,11 +71,6 @@ def upload_complete(
     db.add(project)
     db.flush()
 
-    # minutes quota accounting (SPEC plan limits)
-    minutes = (project.duration_seconds or 0) / 60.0
-    check_minutes_quota(user, minutes)
-    user.minutes_used_month += minutes
-
     job = Job(user_id=user.id, project_id=project.id, type="transcribe", status="queued", payload={})
     db.add(job)
     db.commit()
@@ -101,8 +94,6 @@ def url_preview(url: str = Query(...), user: User = Depends(get_current_user)) -
 def import_url(body: ImportUrlIn, user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> ProjectOut:
     preview = ytdlp.url_preview(body.url)
     duration = preview.get("duration_seconds") or 900.0
-    minutes = duration / 60.0
-    check_minutes_quota(user, minutes)
 
     project = Project(
         user_id=user.id,
@@ -118,7 +109,6 @@ def import_url(body: ImportUrlIn, user: User = Depends(get_current_user), db: Se
     )
     db.add(project)
     db.flush()
-    user.minutes_used_month += minutes
 
     job = Job(user_id=user.id, project_id=project.id, type="import", status="queued", payload={"url": body.url, "quality": body.quality})
     db.add(job)

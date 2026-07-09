@@ -1,8 +1,5 @@
 // Types mirroring SPEC.md entities (contract between apps/web and apps/api).
 
-export type PlanId = "free" | "pro" | "studio";
-export type PlanInterval = "month" | "year";
-
 export type CaptionPresetId =
   | "hormozi"
   | "karaoke"
@@ -47,8 +44,6 @@ export interface User {
   name: string;
   avatarUrl: string | null;
   googleId: string | null;
-  plan: PlanId;
-  minutesUsedMonth: number;
   brandingKit: BrandingKit;
   isAdmin?: boolean;
   createdAt: string;
@@ -124,17 +119,6 @@ export interface Job {
   payload: Record<string, unknown>;
   createdAt: string;
   finishedAt: string | null;
-}
-
-export interface Subscription {
-  id: string;
-  userId: string;
-  stripeCustomerId: string;
-  stripeSubscriptionId: string;
-  plan: PlanId;
-  interval: PlanInterval;
-  status: string;
-  currentPeriodEnd: string;
 }
 
 export interface TrendVideo {
@@ -253,19 +237,6 @@ export interface RenderResult {
   metaTxtUrl: string;
 }
 
-export interface Plan {
-  id: PlanId;
-  name: string;
-  priceMonthly: number;
-  priceYearlyPerMonth: number;
-  minutesPerMonth: number | null; // null = unlimited
-  maxResolution: Resolution;
-  watermark: boolean;
-  radarLevel: "limitado" | "completo" | "completo+";
-  highlight?: boolean;
-  features: string[];
-}
-
 export interface PlatformPreset {
   id: "tiktok" | "reels" | "shorts";
   name: string;
@@ -276,8 +247,7 @@ export interface PlatformPreset {
 
 export interface AdminMetrics {
   totalUsers: number;
-  activeSubscriptions: number;
-  mrr: number;
+  activeUsers: number;
   minutesProcessedToday: number;
   rendersQueued: number;
   errorRatePct: number;
@@ -287,15 +257,14 @@ export interface AdminUserRow {
   id: string;
   name: string;
   email: string;
-  plan: PlanId;
-  minutesUsedMonth: number;
+  projectsCount: number;
   createdAt: string;
 }
 
 // ---------------------------------------------------------------------------
-// ESTÚDIO IA — geração de vídeo por IA (estilo Kling). Contrato do APÊNDICE
-// de SPEC.md. Toda a geração é uma INTEGRAÇÃO PAGA (Kling/Runway/Luma/Pika);
-// o frontend entrega a UI + o ponto de integração com fallback mock.
+// ESTÚDIO IA — geração de vídeo por IA. Contrato do APÊNDICE de SPEC.md.
+// A geração roda no nosso próprio motor de vídeo (FFmpeg), sem chave e sem
+// custo. O frontend entrega a UI + o ponto de integração com fallback local.
 // ---------------------------------------------------------------------------
 
 export type StudioFunction =

@@ -46,7 +46,7 @@ export const CAMERA_MOVE_TYPE_OPTIONS: { value: string; label: string }[] = [
   { value: "dolly", label: "Dolly" },
 ];
 
-/** Vozes pt-BR (Azure Neural, estilo Kling/TTS). */
+/** Vozes pt-BR para a narração (TTS). */
 export const TTS_VOICES: { value: string; label: string }[] = [
   { value: "pt-BR-Francisca", label: "Francisca (feminina, calorosa)" },
   { value: "pt-BR-Antonio", label: "Antônio (masculina, firme)" },

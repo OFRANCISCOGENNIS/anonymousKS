@@ -2,7 +2,8 @@
 
 // A single "Geração recente" card: thumbnail, function badge, prompt/summary,
 // live progress bar for running items, error state with retry, and — when done
-// — the three integration actions (editor / biblioteca / capa).
+// — the three integration actions (editor / biblioteca / capa). A geração é real,
+// produzida pelo nosso motor de vídeo (FFmpeg), sem custo.
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
@@ -100,6 +101,11 @@ export function GenerationCard({ gen }: { gen: Generation }) {
         <p className="mt-1 text-xs text-zinc-500">
           {gen.durationSeconds}s · {gen.resolution} · {gen.fps}fps · {timeAgo(gen.createdAt)}
         </p>
+        {gen.function === "lip_sync" && (
+          <p className="mt-1 text-[11px] text-zinc-600">
+            Lip-sync aproximado (fala sincronizada por legenda/onda), pelo nosso motor de vídeo.
+          </p>
+        )}
 
         {running && (
           <div className="mt-3">

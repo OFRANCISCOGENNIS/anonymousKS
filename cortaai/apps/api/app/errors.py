@@ -20,11 +20,6 @@ class ApiError(Exception):
         super().__init__(message)
 
 
-def upgrade_required(message: str = "Este recurso está disponível apenas nos planos Pro e Studio. Faça upgrade para desbloquear.") -> ApiError:
-    """402-style error used by plan gating (SPEC: {error:{code:"upgrade_required"}})."""
-    return ApiError(402, "upgrade_required", message)
-
-
 def not_found(message: str = "Recurso não encontrado.") -> ApiError:
     return ApiError(404, "not_found", message)
 
@@ -42,7 +37,6 @@ def register_exception_handlers(app: FastAPI) -> None:
     async def http_exception_handler(_: Request, exc: StarletteHTTPException) -> JSONResponse:
         codes = {
             401: "unauthorized",
-            402: "upgrade_required",
             403: "forbidden",
             404: "not_found",
             405: "method_not_allowed",

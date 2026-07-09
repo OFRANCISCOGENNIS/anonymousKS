@@ -14,7 +14,6 @@ import {
   Zap,
 } from "lucide-react";
 import { Logo } from "@/components/logo";
-import { PricingSection } from "@/components/pricing-section";
 import { Accordion } from "@/components/ui/accordion";
 import { Badge } from "@/components/ui/badge";
 
@@ -37,7 +36,7 @@ const FAQ_ITEMS = [
   {
     question: "Qual a qualidade máxima de exportação?",
     answer:
-      "Até 4K vertical (2160×3840) a 60fps em H.264 ou H.265 nos planos Pro e Studio. Nunca fazemos upscale: se a origem é 1080p, entregamos o melhor 1080p possível, com áudio normalizado em -14 LUFS.",
+      "Até 4K vertical (2160×3840) a 60fps em H.264 ou H.265, liberado para todo mundo. Nunca fazemos upscale: se a origem é 1080p, entregamos o melhor 1080p possível, com áudio normalizado em -14 LUFS.",
   },
   {
     question: "Funciona com lives da Twitch e vídeos do Vimeo?",
@@ -45,14 +44,14 @@ const FAQ_ITEMS = [
       "Sim. Cole o link de YouTube, Twitch ou Vimeo e importamos na melhor resolução disponível. Também aceitamos upload de arquivos MP4, MOV, MKV e WEBM de até 10 GB.",
   },
   {
-    question: "Os cortes ficam com marca d'água?",
+    question: "Os cortes ficam com marca d'água do CortaAí?",
     answer:
-      "Apenas no plano Free. Nos planos Pro e Studio os vídeos saem limpos, com seu próprio kit de marca: logo, fontes e cores aplicados automaticamente.",
+      "Não. Seus vídeos saem sempre limpos e com o seu próprio kit de marca: logo, fontes e cores aplicados automaticamente — se você quiser.",
   },
   {
-    question: "Posso cancelar quando quiser?",
+    question: "Preciso pagar alguma coisa?",
     answer:
-      "Sim, direto na tela de configurações, sem multa e sem falar com ninguém. Você mantém o acesso até o fim do período já pago.",
+      "Não. O CortaAí é gratuito e sem limites: Radar Viral completo, cortes por IA, editor 4K, Estúdio IA e exportação, tudo liberado — sem cartão de crédito.",
   },
 ];
 
@@ -181,7 +180,7 @@ export default function LandingPage() {
           <nav className="hidden items-center gap-6 text-sm text-zinc-400 md:flex" aria-label="Navegação principal">
             <a href="#como-funciona" className="hover:text-white">Como funciona</a>
             <a href="#radar" className="hover:text-white">Radar Viral</a>
-            <Link href="/precos" className="hover:text-white">Preços</Link>
+            <a href="#recursos" className="hover:text-white">Recursos</a>
             <a href="#faq" className="hover:text-white">Dúvidas</a>
           </nav>
           <div className="flex items-center gap-2">
@@ -227,14 +226,14 @@ export default function LandingPage() {
               >
                 Criar meus primeiros cortes grátis <ArrowRight className="h-4 w-4" aria-hidden />
               </Link>
-              <Link
-                href="/precos"
+              <a
+                href="#recursos"
                 className="inline-flex h-12 items-center rounded-xl border border-line px-7 text-base font-medium text-zinc-300 transition-colors hover:border-violet-500/50 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-400"
               >
-                Ver planos
-              </Link>
+                Ver recursos
+              </a>
             </div>
-            <p className="mt-4 text-xs text-zinc-600">60 minutos grátis por mês · sem cartão de crédito</p>
+            <p className="mt-4 text-xs text-zinc-600">Grátis e sem limites · sem cartão de crédito</p>
           </div>
           <FlowDemo />
         </section>
@@ -357,14 +356,67 @@ export default function LandingPage() {
           </div>
         </section>
 
-        {/* Pricing */}
-        <section id="precos" className="border-t border-line bg-surface-1/40 px-4 py-24">
+        {/* Recursos */}
+        <section id="recursos" className="border-t border-line bg-surface-1/40 px-4 py-24">
           <div className="mx-auto max-w-5xl">
             <div className="mx-auto mb-12 max-w-2xl text-center">
-              <h2 className="text-3xl font-extrabold text-white sm:text-4xl">Planos para cada fase do canal</h2>
-              <p className="mt-3 text-zinc-400">Comece grátis. Evolua quando os cortes começarem a pagar a conta.</p>
+              <Badge variant="accent" className="mb-4"><Sparkles className="h-3 w-3" /> Tudo incluído</Badge>
+              <h2 className="text-3xl font-extrabold text-white sm:text-4xl">Tudo o que você precisa, de graça</h2>
+              <p className="mt-3 text-zinc-400">
+                Sem planos, sem cota de minutos, sem marca d&apos;água. Todos os recursos liberados para todos os criadores.
+              </p>
             </div>
-            <PricingSection />
+            <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+              {[
+                {
+                  icon: <Radar className="h-5 w-5" />,
+                  title: "Radar Viral completo",
+                  desc: "Tendências reais de 8 nichos com Raio-X completo: som, imagem, estrutura e curva de retenção.",
+                },
+                {
+                  icon: <Scissors className="h-5 w-5" />,
+                  title: "Cortes por IA",
+                  desc: "5 a 20 cortes ranqueados por score viral, com título magnético, hashtags e trilha em alta.",
+                },
+                {
+                  icon: <Wand2 className="h-5 w-5" />,
+                  title: "Estúdio IA",
+                  desc: "Gere e dirija vídeo por IA no nosso próprio motor de vídeo — do texto ao efeito pronto, sem custo.",
+                },
+                {
+                  icon: <Captions className="h-5 w-5" />,
+                  title: "Legendas em 8 estilos",
+                  desc: "Hormozi, karaokê, neon e mais — aplicadas em 1 clique, com safe zones de cada rede.",
+                },
+                {
+                  icon: <Download className="h-5 w-5" />,
+                  title: "Exportação até 4K",
+                  desc: "Vertical 2160×3840 a 60fps em H.264/H.265, com .srt, capa e descrição — sem marca d'água.",
+                },
+                {
+                  icon: <Clapperboard className="h-5 w-5" />,
+                  title: "Editor no navegador",
+                  desc: "Timeline multi-trilha, atalhos de teclado e controle fino de cada camada — sem instalar nada.",
+                },
+              ].map((f) => (
+                <div key={f.title} className="rounded-2xl border border-line bg-surface-1 p-6 shadow-card">
+                  <span className="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-violet-500/15 text-violet-300">
+                    {f.icon}
+                  </span>
+                  <h3 className="mt-4 font-bold text-white">{f.title}</h3>
+                  <p className="mt-2 text-sm leading-relaxed text-zinc-400">{f.desc}</p>
+                </div>
+              ))}
+            </div>
+            <div className="mt-14 text-center">
+              <Link
+                href="/cadastro"
+                className="inline-flex h-12 items-center gap-2 rounded-xl bg-gradient-to-r from-violet-600 to-fuchsia-600 px-7 text-base font-semibold text-white shadow-glow transition-all hover:from-violet-500 hover:to-fuchsia-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-400"
+              >
+                Criar conta grátis <ArrowRight className="h-4 w-4" aria-hidden />
+              </Link>
+              <p className="mt-4 text-xs text-zinc-600">Sem cartão de crédito · sem limites</p>
+            </div>
           </div>
         </section>
 
@@ -401,7 +453,7 @@ export default function LandingPage() {
           <nav className="flex flex-wrap items-center gap-6 text-sm text-zinc-500" aria-label="Links do rodapé">
             <a href="#como-funciona" className="hover:text-white">Como funciona</a>
             <a href="#radar" className="hover:text-white">Radar Viral</a>
-            <Link href="/precos" className="hover:text-white">Preços</Link>
+            <a href="#recursos" className="hover:text-white">Recursos</a>
             <Link href="/entrar" className="hover:text-white">Entrar</Link>
             <Link href="/cadastro" className="hover:text-white">Criar conta</Link>
           </nav>

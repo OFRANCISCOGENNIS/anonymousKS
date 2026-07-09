@@ -14,10 +14,9 @@ import sqlalchemy as sa
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
-from app.config import settings
 from app.database import get_db
 from app.deps import get_current_user
-from app.errors import ApiError, not_found, upgrade_required
+from app.errors import ApiError, not_found
 from app.models import Cut, Generation, Job, Project, User
 from app.schemas import (
     CameraIn,
@@ -44,22 +43,6 @@ router = APIRouter(prefix="/studio", tags=["studio"])
 # ---------------------------------------------------------------------------
 # helpers
 # ---------------------------------------------------------------------------
-
-def _check_studio_quota(db: Session, user: User) -> None:
-    """Plano Grátis: teto de gerações do Estúdio IA (recurso pesado de GPU).
-
-    Mesma UX de gating dos outros routers (402 upgrade_required)."""
-    if user.plan != "free":
-        return
-    count = db.execute(
-        sa.select(sa.func.count(Generation.id)).where(Generation.user_id == user.id)
-    ).scalar_one()
-    if count >= settings.studio_free_generation_limit:
-        raise upgrade_required(
-            f"O plano Grátis permite até {settings.studio_free_generation_limit} gerações no "
-            "Estúdio IA. Faça upgrade para os planos Pro ou Studio para gerar sem limites."
-        )
-
 
 def _owned_project_id(db: Session, user: User, project_id: str | None) -> str | None:
     if project_id is None:
@@ -102,7 +85,6 @@ def _create_generation(
     cut_id: str | None = None,
 ) -> Generation:
     """Persiste a Generation + Job e despacha o worker (Celery ou inline)."""
-    _check_studio_quota(db, user)
     gen = Generation(
         user_id=user.id,
         project_id=project_id,

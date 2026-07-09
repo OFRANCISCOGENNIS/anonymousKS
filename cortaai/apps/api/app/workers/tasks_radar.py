@@ -1,9 +1,11 @@
 """Radar Viral workers: trend fetching + niche pattern computation.
 
-# INTEGRAÇÃO PAGA: YouTube Data API v3 (YOUTUBE_API_KEY) — search.list costs
-100 quota units per call, so results are cached in Redis (quota-safe layer,
-TTL settings.radar_cache_ttl_seconds). Offline/no-key fallback: deterministic
-seed-style mock videos so the Radar always has fresh-looking data.
+Radar REAL sem chave (keyless): as tendências vêm do YouTube via ``yt-dlp``
+(app/services/youtube_trends.py), sem ``YOUTUBE_API_KEY``. Os resultados por
+consulta (niche/query/period) são cacheados em Redis com TTL
+(``settings.radar_cache_ttl_seconds`` ~30 min) para não repetir chamadas de
+rede. Offline/bloqueado: cai no seed/mock determinístico — o Radar sempre tem
+dados com aparência atual e o app nunca quebra.
 
 Scheduled by Celery beat (app/workers/celery_app.py):
 - radar_scan_all              — hourly
@@ -17,25 +19,26 @@ import random
 from collections import Counter
 from datetime import datetime, timedelta, timezone
 
-import httpx
 import sqlalchemy as sa
 
 from app.config import settings
 from app.constants import CAPTION_PRESETS, NICHES, PERIODS
 from app.database import SessionLocal
 from app.models import NichePattern, TrendAnalysis, TrendVideo
-from app.services import llm
+from app.services import llm, youtube_trends
 from app.services.progress import _get_redis
 from app.services.retention import build_retention_timeline, compute_retention_index
 from app.workers.celery_app import celery_app
 
-YOUTUBE_SEARCH_URL = "https://www.googleapis.com/youtube/v3/search"
-YOUTUBE_VIDEOS_URL = "https://www.googleapis.com/youtube/v3/videos"
-
 _PERIOD_HOURS = {"24h": 24, "7d": 168, "30d": 720}
 
 
-# --- quota-safe cache layer -----------------------------------------------------
+# --- cache layer (Redis, TTL) ---------------------------------------------------
+
+def _cache_key(niche: str, query: str | None, period: str) -> str:
+    q = (query or niche).strip().lower()
+    return f"yt:{niche}:{q}:{period}"
+
 
 def _cache_get(key: str) -> list | None:
     client = _get_redis()
@@ -58,86 +61,44 @@ def _cache_set(key: str, value: list) -> None:
         pass
 
 
-# --- fetching -----------------------------------------------------------------
+# --- fetching (keyless via yt-dlp) ----------------------------------------------
 
-def _parse_iso8601_duration(value: str) -> float:
-    """PT1M32S → seconds."""
-    import re
-
-    m = re.fullmatch(r"PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?", value or "")
-    if not m:
-        return 0.0
-    h, mi, s = (int(g) if g else 0 for g in m.groups())
-    return float(h * 3600 + mi * 60 + s)
-
-
-def fetch_youtube_trending(niche: str) -> list[dict]:
-    """Real YouTube Data API fetch (cached). # INTEGRAÇÃO PAGA: YouTube Data API v3."""
-    cached = _cache_get(f"yt:{niche}")
+def fetch_youtube_trending(niche: str, query: str | None = None, period: str = "7d") -> list[dict]:
+    """Tendências reais do YouTube sem chave (yt-dlp), com cache Redis por
+    consulta. Em qualquer falha (offline/bloqueado) devolve o mock determinístico.
+    """
+    key = _cache_key(niche, query, period)
+    cached = _cache_get(key)
     if cached is not None:
         return cached
 
-    if not settings.youtube_api_key:
+    items = youtube_trends.fetch_trends(niche, query or niche, limit=10)
+    if not items:
+        # Sem dados reais (sem rede/bloqueado): seed/mock — NÃO cacheia, para que
+        # uma próxima tentativa com rede possa popular o cache com dados reais.
         return _mock_trending(niche)
 
-    try:
-        published_after = (datetime.now(timezone.utc) - timedelta(days=7)).strftime("%Y-%m-%dT%H:%M:%SZ")
-        search = httpx.get(
-            YOUTUBE_SEARCH_URL,
-            params={
-                "part": "snippet",
-                "q": f"{niche} shorts",
-                "type": "video",
-                "videoDuration": "short",
-                "order": "viewCount",
-                "publishedAfter": published_after,
-                "relevanceLanguage": "pt",
-                "regionCode": "BR",
-                "maxResults": 10,
-                "key": settings.youtube_api_key,
-            },
-            timeout=15,
-        )
-        search.raise_for_status()
-        ids = [item["id"]["videoId"] for item in search.json().get("items", [])]
-        if not ids:
-            return _mock_trending(niche)
-        videos = httpx.get(
-            YOUTUBE_VIDEOS_URL,
-            params={
-                "part": "snippet,statistics,contentDetails",
-                "id": ",".join(ids),
-                "key": settings.youtube_api_key,
-            },
-            timeout=15,
-        )
-        videos.raise_for_status()
-        items: list[dict] = []
-        for v in videos.json().get("items", []):
-            stats = v.get("statistics", {})
-            snippet = v.get("snippet", {})
-            published = snippet.get("publishedAt")
-            items.append(
-                {
-                    "platform": "youtube",
-                    "external_id": v["id"],
-                    "url": f"https://www.youtube.com/shorts/{v['id']}",
-                    "title": snippet.get("title", ""),
-                    "channel": snippet.get("channelTitle"),
-                    "thumbnail_url": (snippet.get("thumbnails", {}).get("high") or {}).get("url"),
-                    "niche": niche,
-                    "language": "pt-BR",
-                    "duration_seconds": _parse_iso8601_duration(v.get("contentDetails", {}).get("duration", "")),
-                    "views": int(stats.get("viewCount", 0)),
-                    "likes": int(stats.get("likeCount", 0)),
-                    "comments": int(stats.get("commentCount", 0)),
-                    "published_at": published,
-                }
-            )
-        _cache_set(f"yt:{niche}", items)
-        return items
-    except Exception:
-        return _mock_trending(niche)
+    _cache_set(key, items)
+    return items
+
+
+def get_cached_trends(niche: str, query: str | None = None, period: str = "7d") -> list[dict] | None:
+    """Somente-cache (sem rede): usado pelo endpoint de trends para hidratar o
+    banco com tendências reais já buscadas pelo worker, sem bloquear a request."""
+    return _cache_get(_cache_key(niche, query, period))
+
+
+def hydrate_from_cache(db, niche: str, query: str | None, period: str) -> int:
+    """Persiste no banco as tendências reais em cache (se houver). Retorna a
+    quantidade de vídeos hidratados (0 quando não há cache)."""
+    items = get_cached_trends(niche, query, period)
+    if not items:
+        return 0
+    for item in items:
+        video = upsert_trend_video(db, item)
+        ensure_analysis(db, video)
+    db.commit()
+    return len(items)
 
 
 _MOCK_TITLES: dict[str, list[str]] = {

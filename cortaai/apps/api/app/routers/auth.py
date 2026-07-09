@@ -28,7 +28,6 @@ def register(body: RegisterIn, db: Session = Depends(get_db)) -> AuthOut:
         email=body.email.lower(),
         password_hash=hash_password(body.password),
         name=body.name.strip(),
-        plan="free",
         branding_kit=None,
     )
     db.add(user)
@@ -74,7 +73,6 @@ def google_auth(body: GoogleAuthIn, db: Session = Depends(get_db)) -> AuthOut:
             name=info.get("name") or email.split("@")[0],
             avatar_url=info.get("picture"),
             google_id=info.get("sub"),
-            plan="free",
         )
         db.add(user)
     else:

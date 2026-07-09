@@ -85,12 +85,13 @@ def test_text_to_video_creates_generation_and_runs_inline():
         assert gen["status"] in ("queued", "running", "done")
         assert gen["params"]["aspectRatio"] == "9:16"
 
-        done = _wait_done(client, token, gen["id"])
+        done = _wait_done(client, token, gen["id"], timeout=30.0)
         assert done["status"] == "done", done
         assert done["progress"] == 100
         assert done["resultUrl"]
-        assert done["thumbnailUrl"].startswith("data:image/svg+xml")
-        assert done["model"] == "mock"
+        assert done["thumbnailUrl"]
+        # geração real com FFmpeg (ou "mock" caso o ffmpeg não exista no ambiente)
+        assert done["model"] in ("ffmpeg", "mock")
 
 
 def test_effect_templates_list():
@@ -139,7 +140,7 @@ def test_generation_to_cut_creates_cut():
             json={"prompt": "Ondas do mar em câmera lenta ao pôr do sol", "params": {"duration": 5}},
         )
         gen = resp.json()
-        _wait_done(client, token, gen["id"])
+        _wait_done(client, token, gen["id"], timeout=30.0)
 
         to_cut = client.post(
             f"/api/v1/studio/generations/{gen['id']}/to-cut", headers=_auth(token), json={}
@@ -151,25 +152,100 @@ def test_generation_to_cut_creates_cut():
         assert cut["editState"]["generationId"] == gen["id"]
 
 
-def test_free_plan_studio_generation_cap():
-    from app.config import settings
+def test_studio_generation_is_unlimited():
+    """Sem planos: não há teto de gerações no Estúdio IA — todas passam (202)."""
     from app.main import app
     from fastapi.testclient import TestClient
 
     with TestClient(app) as client:
-        token = _register(client)  # free plan
-        limit = settings.studio_free_generation_limit
-        for _ in range(limit):
+        token = _register(client)
+        for i in range(6):
             r = client.post(
                 "/api/v1/studio/text-to-video",
                 headers=_auth(token),
-                json={"prompt": "cena de teste", "params": {"duration": 5}},
+                json={"prompt": f"cena de teste {i}", "params": {"duration": 1}},
             )
             assert r.status_code == 202, r.text
-        blocked = client.post(
+
+
+def _probe_video(path):
+    import subprocess
+
+    out = subprocess.run(
+        ["ffprobe", "-v", "error", "-select_streams", "v:0", "-show_entries",
+         "stream=codec_name,width,height", "-of", "csv=p=0", path],
+        capture_output=True, text=True,
+    )
+    return out.stdout.strip()
+
+
+def _storage_path_for(result_url: str) -> str:
+    """Resolve a URL/pseudo-URL de storage para o arquivo local (fallback)."""
+    import os
+
+    from app.services import storage
+
+    key = result_url.split(f"/{storage.settings.s3_bucket}/", 1)[-1].split("?", 1)[0]
+    return os.path.join(str(storage.LOCAL_FALLBACK_DIR), key)
+
+
+def test_real_ffmpeg_output_text_to_video():
+    """Com ffmpeg presente, text_to_video produz um .mp4 h264 NÃO-VAZIO."""
+    import os
+    import shutil
+
+    import pytest
+
+    if shutil.which("ffmpeg") is None:
+        pytest.skip("ffmpeg ausente no ambiente")
+
+    from app.main import app
+    from fastapi.testclient import TestClient
+
+    with TestClient(app) as client:
+        token = _register(client)
+        resp = client.post(
             "/api/v1/studio/text-to-video",
             headers=_auth(token),
-            json={"prompt": "cena além do limite", "params": {"duration": 5}},
+            json={"prompt": "Ondas do mar em câmera lenta ao pôr do sol",
+                  "params": {"aspectRatio": "9:16", "duration": 2}},
         )
-        assert blocked.status_code == 402
-        assert blocked.json()["error"]["code"] == "upgrade_required"
+        assert resp.status_code == 202, resp.text
+        done = _wait_done(client, token, resp.json()["id"], timeout=40.0)
+        assert done["status"] == "done", done
+        assert done["model"] == "ffmpeg"
+        path = _storage_path_for(done["resultUrl"])
+        assert os.path.exists(path) and os.path.getsize(path) > 1000
+        assert _probe_video(path).startswith("h264"), _probe_video(path)
+
+
+def test_real_ffmpeg_output_image_to_video():
+    """image_to_video também produz um .mp4 h264 real (fundo sintetizado quando a
+    imagem de entrada não está acessível offline)."""
+    import os
+    import shutil
+
+    import pytest
+
+    if shutil.which("ffmpeg") is None:
+        pytest.skip("ffmpeg ausente no ambiente")
+
+    from app.main import app
+    from fastapi.testclient import TestClient
+
+    with TestClient(app) as client:
+        token = _register(client)
+        resp = client.post(
+            "/api/v1/studio/image-to-video",
+            headers=_auth(token),
+            json={"inputAssetUrl": "https://picsum.photos/seed/estudio-x/720/1280",
+                  "prompt": "dar vida ao retrato",
+                  "params": {"motion": "moderado", "duration": 2, "cameraMovement": "zoom_in"}},
+        )
+        assert resp.status_code == 202, resp.text
+        done = _wait_done(client, token, resp.json()["id"], timeout=40.0)
+        assert done["status"] == "done", done
+        assert done["model"] == "ffmpeg"
+        path = _storage_path_for(done["resultUrl"])
+        assert os.path.exists(path) and os.path.getsize(path) > 1000
+        assert _probe_video(path).startswith("h264"), _probe_video(path)

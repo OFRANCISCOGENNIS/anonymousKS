@@ -39,29 +39,22 @@ class Settings(BaseSettings):
     s3_region: str = "us-east-1"
     upload_chunk_size_bytes: int = 8 * 1024 * 1024  # 8 MiB multipart chunks
 
-    # --- External paid services -------------------------------------------
-    # INTEGRAÇÃO PAGA: Stripe
-    stripe_secret_key: str | None = None
-    stripe_webhook_secret: str | None = None
-    # INTEGRAÇÃO PAGA: YouTube Data API v3 (Radar Viral)
+    # --- External services (all optional) ---------------------------------
+    # Radar Viral busca tendências reais do YouTube SEM chave, via yt-dlp
+    # (app/services/youtube_trends.py). Este campo permanece apenas por
+    # compatibilidade de ambiente; não é mais requisito de nenhum fluxo.
     youtube_api_key: str | None = None
-    # INTEGRAÇÃO PAGA: LLM (títulos/descrições/hashtags/Raio-X)
+    # INTEGRAÇÃO PAGA: LLM (títulos/descrições/hashtags/Raio-X) — opcional.
+    # Sem chave, o gerador determinístico assume.
     openai_api_key: str | None = None
     anthropic_api_key: str | None = None
-    # INTEGRAÇÃO PAGA: Kling AI API (ESTÚDIO IA — geração de vídeo por IA).
-    # Alternativas equivalentes: Runway, Luma (Dream Machine), Pika.
-    # Sem chave, o Estúdio usa o mock determinístico (model="mock").
-    kling_api_key: str | None = None
-    kling_api_base: str = "https://api.klingai.com"
-    kling_model: str = "kling-v1"
-    # Teto de gerações do Estúdio IA no plano Grátis (SPEC: recurso pesado de GPU).
-    studio_free_generation_limit: int = 3
 
     # --- App behaviour -----------------------------------------------------
     cors_origins: str = "http://localhost:3000"
     seed_on_startup: bool = False  # SEED_ON_STARTUP=1 in docker-compose
     admin_emails: str = "admin@cortaai.com"
-    radar_cache_ttl_seconds: int = 1800  # quota-safe cache for the YouTube API
+    # Radar Viral: cache (Redis) de tendências reais por consulta (TTL ~30 min).
+    radar_cache_ttl_seconds: int = 1800
 
     @property
     def cors_origins_list(self) -> list[str]:

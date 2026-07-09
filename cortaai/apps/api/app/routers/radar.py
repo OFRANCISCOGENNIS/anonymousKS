@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 from app.constants import NICHES
 from app.database import get_db
 from app.deps import get_current_user
-from app.errors import ApiError, not_found, upgrade_required
+from app.errors import ApiError, not_found
 from app.models import Cut, Job, NicheAlert, NichePattern, Project, TrendAnalysis, TrendVideo, User
 from app.routers.cuts import get_owned_cut
 from app.schemas import (
@@ -25,7 +25,6 @@ from app.schemas import (
     UseCaptionStyleIn,
     UseSoundIn,
 )
-from app.services.plans import limits_for
 from app.workers.dispatch import dispatch_task
 from app.workers.tasks_analyze import analyze_task
 
@@ -53,6 +52,18 @@ def list_trends(
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> TrendListOut:
+    # Radar real (keyless): quando há tendências reais em cache (Redis), o worker
+    # já as buscou via yt-dlp; hidratamos o banco a partir do cache antes de
+    # consultar. Sem cache/offline, servimos os dados seed já persistidos — o
+    # schema de resposta é idêntico nos dois casos.
+    if niche:
+        try:
+            from app.workers.tasks_radar import hydrate_from_cache
+
+            hydrate_from_cache(db, niche, q, period)
+        except Exception:
+            pass
+
     stmt = sa.select(TrendVideo).order_by(TrendVideo.retention_index.desc())
     cutoff = datetime.now(timezone.utc) - timedelta(hours=_PERIOD_HOURS[period])
     stmt = stmt.where(sa.or_(TrendVideo.published_at.is_(None), TrendVideo.published_at >= cutoff))
@@ -70,12 +81,8 @@ def list_trends(
     if platform:
         stmt = stmt.where(TrendVideo.platform == platform)
 
-    # SPEC plan gating: free = top-5 only
-    top_n = limits_for(user)["radar_top_n"]
-    if top_n:
-        stmt = stmt.limit(top_n)
-    else:
-        stmt = stmt.limit(100)
+    # Sem planos: resultados completos para todos os usuários.
+    stmt = stmt.limit(100)
     items = db.execute(stmt).scalars().all()
     return TrendListOut(items=[TrendVideoOut.model_validate(v) for v in items])
 
@@ -87,9 +94,7 @@ def get_trend_video(video_id: str, user: User = Depends(get_current_user), db: S
 
 @router.get("/videos/{video_id}/xray", response_model=TrendAnalysisOut)
 def get_trend_xray(video_id: str, user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> TrendAnalysisOut:
-    # SPEC plan gating: full Raio-X requires Pro/Studio
-    if not limits_for(user)["radar_full"]:
-        raise upgrade_required("O Raio-X completo está disponível a partir do plano Pro. Faça upgrade para desbloquear.")
+    # Sem planos: Raio-X completo liberado para todos os usuários.
     video = _get_trend(db, video_id)
     analysis = db.execute(
         sa.select(TrendAnalysis).where(TrendAnalysis.trend_video_id == video.id)
@@ -126,9 +131,7 @@ def get_niche_patterns(
 
 @router.post("/alerts", response_model=NicheAlertOut, status_code=201)
 def create_alert(body: NicheAlertIn, user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> NicheAlertOut:
-    # SPEC: alerts are a Studio feature
-    if not limits_for(user)["alerts"]:
-        raise upgrade_required("Alertas de nicho estão disponíveis apenas no plano Studio.")
+    # Sem planos: alertas de nicho liberados para todos os usuários.
     if body.niche not in NICHES:
         raise ApiError(422, "invalid_niche", "Nicho inválido.")
     existing = db.execute(

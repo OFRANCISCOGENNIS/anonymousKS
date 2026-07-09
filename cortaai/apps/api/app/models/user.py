@@ -9,8 +9,9 @@ from app.models.base import Base, JsonB, created_at_col, uuid_pk
 
 
 class User(Base):
-    """SPEC: users — plan in (free|pro|studio); branding_kit jsonb
-    {logo_url, font, colors[], caption_preset}."""
+    """SPEC: users — branding_kit jsonb {logo_url, font, colors[], caption_preset}.
+
+    Sem planos/cobrança: todo usuário autenticado tem acesso ilimitado."""
 
     __tablename__ = "users"
 
@@ -20,8 +21,6 @@ class User(Base):
     name: Mapped[str] = mapped_column(sa.String(200), nullable=False)
     avatar_url: Mapped[str | None] = mapped_column(sa.String(1000))
     google_id: Mapped[str | None] = mapped_column(sa.String(200), index=True)
-    plan: Mapped[str] = mapped_column(sa.String(20), nullable=False, default="free")
-    minutes_used_month: Mapped[float] = mapped_column(sa.Float, nullable=False, default=0.0)
     branding_kit: Mapped[dict | None] = mapped_column(JsonB)
     created_at: Mapped[datetime] = created_at_col()
 

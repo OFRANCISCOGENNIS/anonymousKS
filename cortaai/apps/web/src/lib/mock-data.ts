@@ -35,8 +35,6 @@ export const mockUser: User = {
   name: "Marina Duarte",
   avatarUrl: null,
   googleId: null,
-  plan: "pro",
-  minutesUsedMonth: 412,
   brandingKit: {
     logoUrl: null,
     font: "Inter",
@@ -594,7 +592,7 @@ export const mockJobs: Job[] = [
 
 const usageRnd = seededRandom(4242);
 export const mockDashboardStats: DashboardStats = {
-  minutesProcessed: mockUser.minutesUsedMonth,
+  minutesProcessed: 412,
   cutsGenerated: 87,
   recentProjects: mockProjects,
   usageSeries: Array.from({ length: 14 }, (_, i) => ({
@@ -609,21 +607,20 @@ export const mockDashboardStats: DashboardStats = {
 
 export const mockAdminMetrics: AdminMetrics = {
   totalUsers: 12840,
-  activeSubscriptions: 3117,
-  mrr: 289450,
+  activeUsers: 3117,
   minutesProcessedToday: 41260,
   rendersQueued: 37,
   errorRatePct: 0.8,
 };
 
 export const mockAdminUsers: AdminUserRow[] = [
-  { id: "u-001", name: "Marina Duarte", email: "criador@cortaai.com.br", plan: "pro", minutesUsedMonth: 412, createdAt: iso(24 * 90) },
-  { id: "u-002", name: "Caio Mendes", email: "caio@agenciaclipe.com", plan: "studio", minutesUsedMonth: 2380, createdAt: iso(24 * 220) },
-  { id: "u-003", name: "Júlia Sato", email: "julia.sato@gmail.com", plan: "free", minutesUsedMonth: 44, createdAt: iso(24 * 12) },
-  { id: "u-004", name: "Pedro Antunes", email: "pedro@podcastbr.com", plan: "pro", minutesUsedMonth: 557, createdAt: iso(24 * 61) },
-  { id: "u-005", name: "Lívia Rocha", email: "livia.rocha@outlook.com", plan: "free", minutesUsedMonth: 58, createdAt: iso(24 * 5) },
-  { id: "u-006", name: "Estúdio Vira Clip", email: "contato@viraclip.tv", plan: "studio", minutesUsedMonth: 5910, createdAt: iso(24 * 300) },
-  { id: "u-007", name: "Renan Farias", email: "renan.f@gmail.com", plan: "pro", minutesUsedMonth: 129, createdAt: iso(24 * 33) },
+  { id: "u-001", name: "Marina Duarte", email: "criador@cortaai.com.br", projectsCount: 24, createdAt: iso(24 * 90) },
+  { id: "u-002", name: "Caio Mendes", email: "caio@agenciaclipe.com", projectsCount: 58, createdAt: iso(24 * 220) },
+  { id: "u-003", name: "Júlia Sato", email: "julia.sato@gmail.com", projectsCount: 3, createdAt: iso(24 * 12) },
+  { id: "u-004", name: "Pedro Antunes", email: "pedro@podcastbr.com", projectsCount: 31, createdAt: iso(24 * 61) },
+  { id: "u-005", name: "Lívia Rocha", email: "livia.rocha@outlook.com", projectsCount: 5, createdAt: iso(24 * 5) },
+  { id: "u-006", name: "Estúdio Vira Clip", email: "contato@viraclip.tv", projectsCount: 142, createdAt: iso(24 * 300) },
+  { id: "u-007", name: "Renan Farias", email: "renan.f@gmail.com", projectsCount: 12, createdAt: iso(24 * 33) },
 ];
 
 // ---------------------------------------------------------------- music library (editor)
@@ -666,7 +663,7 @@ export const mockGenerations: Generation[] = [
     status: "done",
     progress: 100,
     errorMessage: null,
-    resultUrl: "mock://kling/gen-0001.mp4",
+    resultUrl: "mock://studio/gen-0001.mp4",
     thumbnailUrl: svgThumb("Foguete ao amanhecer", "tecnologia"),
     durationSeconds: 5,
     resolution: "1080x1920",
@@ -688,7 +685,7 @@ export const mockGenerations: Generation[] = [
     status: "done",
     progress: 100,
     errorMessage: null,
-    resultUrl: "mock://kling/gen-0002.mp4",
+    resultUrl: "mock://studio/gen-0002.mp4",
     thumbnailUrl: svgThumb("Retrato animado", "beleza"),
     durationSeconds: 5,
     resolution: "1080x1080",
@@ -710,7 +707,7 @@ export const mockGenerations: Generation[] = [
     status: "done",
     progress: 100,
     errorMessage: null,
-    resultUrl: "mock://kling/gen-0003.mp4",
+    resultUrl: "mock://studio/gen-0003.mp4",
     thumbnailUrl: svgThumb("Loop perfeito", "finanças"),
     durationSeconds: 4,
     resolution: "1080x1920",
@@ -732,7 +729,7 @@ export const mockGenerations: Generation[] = [
     status: "done",
     progress: 100,
     errorMessage: null,
-    resultUrl: "mock://kling/gen-0004.mp4",
+    resultUrl: "mock://studio/gen-0004.mp4",
     thumbnailUrl: svgThumb("Transição início→fim", "tecnologia"),
     durationSeconds: 5,
     resolution: "1080x1920",
@@ -754,7 +751,7 @@ export const mockGenerations: Generation[] = [
     status: "done",
     progress: 100,
     errorMessage: null,
-    resultUrl: "mock://kling/gen-0005.mp4",
+    resultUrl: "mock://studio/gen-0005.mp4",
     thumbnailUrl: svgThumb("Lip sync pt-BR", "podcast"),
     durationSeconds: 6,
     resolution: "1080x1920",
@@ -776,7 +773,7 @@ export const mockGenerations: Generation[] = [
     status: "done",
     progress: 100,
     errorMessage: null,
-    resultUrl: "mock://kling/gen-0006.mp4",
+    resultUrl: "mock://studio/gen-0006.mp4",
     thumbnailUrl: svgThumb("Efeito Transformar ✨", "tecnologia"),
     durationSeconds: 5,
     resolution: "1080x1920",

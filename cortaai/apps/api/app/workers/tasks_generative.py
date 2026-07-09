@@ -1,25 +1,20 @@
-"""ESTÚDIO IA — worker de geração de vídeo por IA.
+"""ESTÚDIO IA — worker de geração de vídeo REAL com FFmpeg.
 
-# INTEGRAÇÃO PAGA: Kling AI API (ou Runway/Luma/Pika)
+Pipeline (sem Kling, sem chave):
 
-Pipeline real (documentado — o mock simula os mesmos passos):
+    1. Marca a Generation/Job como "running" e publica progresso inicial.
+    2. Chama ``generative.run_generation`` que monta o comando FFmpeg da função,
+       renderiza um .mp4 real, extrai um thumbnail (frame do vídeo) e persiste
+       ambos no storage (MinIO/local).
+    3. O progresso REAL vem da saída ``-progress`` do ffmpeg (via progress_cb) e
+       é publicado no barramento (app.services.progress) → WebSocket existente
+       ``/api/v1/ws/progress/{job_id}``.
+    4. Marca a Generation como "done" com result_url/thumbnail_url reais.
 
-    1. Montar o payload por função      -> app.services.generative.build_kling_request
-    2. Submeter à Kling                  -> POST /v1/videos/{fn}  => task_id
-    3. Polling do task_id                -> GET  /v1/videos/{fn}/{task_id}
-       enquanto task_status in (submitted|processing): sleep + republica progresso
-    4. Ao "succeed": baixar o mp4 temporário (task_result.videos[0].url)
-    5. Reupar mp4 no S3/MinIO + gerar thumbnail (ffmpeg -frames:v 1)
-    6. Marcar a Generation como done com result_url/thumbnail_url
-
-Sem KLING_API_KEY, ``generative.run_generation`` devolve um resultado
-determinístico (mp4 placeholder + thumbnail SVG). O progresso 0→100 é publicado
-no mesmo barramento do render (app.services.progress) e transmitido pelo
-WebSocket existente ``/api/v1/ws/progress/{job_id}``.
+Sem ffmpeg no ambiente, ``run_generation`` cai num placeholder (model="mock").
 """
 from __future__ import annotations
 
-import time
 from datetime import datetime, timezone
 
 from app.database import SessionLocal
@@ -44,20 +39,25 @@ def generate_task(self, job_id: str, generation_id: str) -> None:
             job.status = "running"
         db.commit()
         publish_progress(job_id, 0, "running", message="Iniciando geração no Estúdio IA...")
+        publish_progress(job_id, 10, "running", message="Preparando entradas e montando o comando FFmpeg...")
 
-        duration = float((gen.params or {}).get("duration") or (gen.params or {}).get("seconds") or 5)
-        # Passos simulados — na produção cada iteração é um poll do task_status.
-        for pct, msg in generative.PROGRESS_STEPS:
-            gen.progress = pct
-            if job is not None:
-                job.progress = pct
-                job.eta_seconds = int(duration * (100 - pct) / 100)
-            db.commit()
-            publish_progress(job_id, pct, "running", eta_seconds=int(duration * (100 - pct) / 100), message=msg)
-            time.sleep(0.25)
+        # Estado mutável para o callback de progresso (evita spam no banco).
+        last = {"pct": 10}
+
+        def progress_cb(pct: int, message: str) -> None:
+            pct = max(10, min(95, int(pct)))
+            if pct <= last["pct"]:
+                return
+            last["pct"] = pct
+            publish_progress(job_id, pct, "running", message=message)
 
         result = generative.run_generation(
-            gen.function, gen.prompt, gen.params, input_asset_url=gen.input_asset_url
+            gen.function,
+            gen.prompt,
+            gen.params,
+            input_asset_url=gen.input_asset_url,
+            input_asset_url_2=gen.input_asset_url_2,
+            progress_cb=progress_cb,
         )
 
         gen.result_url = result["result_url"]
@@ -80,7 +80,8 @@ def generate_task(self, job_id: str, generation_id: str) -> None:
                 "resultUrl": result["result_url"],
                 "thumbnailUrl": result["thumbnail_url"],
                 "storageKey": result["storage_key"],
-                "klingRequest": result["kling_request"],
+                "ffmpegCommand": result.get("ffmpeg_command"),
+                "model": result["model"],
             }
         db.commit()
         publish_progress(
@@ -95,12 +96,12 @@ def generate_task(self, job_id: str, generation_id: str) -> None:
         gen = db.get(Generation, generation_id)
         if gen is not None:
             gen.status = "error"
-            gen.error_message = "Falha na geração de vídeo por IA. Tente novamente."
+            gen.error_message = "Falha na geração de vídeo. Tente novamente."
             gen.finished_at = datetime.now(timezone.utc)
         job = db.get(Job, job_id)
         if job is not None:
             job.status = "error"
-            job.error_message = "Falha na geração de vídeo por IA."
+            job.error_message = "Falha na geração de vídeo."
             job.finished_at = datetime.now(timezone.utc)
         db.commit()
         publish_progress(job_id, 100, "error", message=str(exc))

@@ -5,6 +5,9 @@ NICHES: list[str] = ["finanças", "fitness", "podcast", "humor", "educação", "
 
 PERIODS: list[str] = ["24h", "7d", "30d"]
 
+# Mapa resolução -> altura em pixels (usado no pipeline de render; nunca faz upscale).
+RESOLUTION_HEIGHT: dict[str, int] = {"720p": 720, "1080p": 1080, "1440p": 1440, "2160p": 2160}
+
 # SPEC: 8 caption presets
 CAPTION_PRESETS: list[str] = [
     "hormozi",

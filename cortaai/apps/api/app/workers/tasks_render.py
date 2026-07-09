@@ -28,8 +28,8 @@ from datetime import datetime, timezone
 
 from app.database import SessionLocal
 from app.models import Cut, Job, Project
+from app.constants import RESOLUTION_HEIGHT
 from app.services import storage
-from app.services.plans import RESOLUTION_HEIGHT
 from app.services.progress import publish_progress
 from app.workers.celery_app import celery_app
 

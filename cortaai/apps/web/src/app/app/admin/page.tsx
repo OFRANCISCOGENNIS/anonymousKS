@@ -7,14 +7,13 @@ import {
   Activity,
   AlertOctagon,
   Clock,
-  DollarSign,
-  ListChecks,
+  UserCheck,
   Users,
 } from "lucide-react";
 import * as api from "@/lib/api";
 import { MOCK_NOW } from "@/lib/mock-data";
 import type { AdminMetrics, AdminUserRow, Job } from "@/lib/types";
-import { formatBRL, formatCompact, timeAgo } from "@/lib/utils";
+import { formatCompact, timeAgo } from "@/lib/utils";
 import { useAuthStore } from "@/store/auth";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -83,8 +82,7 @@ export default function AdminPage() {
   const statCards = metrics
     ? [
         { label: "Usuários", value: formatCompact(metrics.totalUsers), icon: <Users className="h-4 w-4 text-violet-400" /> },
-        { label: "Assinaturas ativas", value: formatCompact(metrics.activeSubscriptions), icon: <ListChecks className="h-4 w-4 text-fuchsia-400" /> },
-        { label: "MRR", value: formatBRL(metrics.mrr), icon: <DollarSign className="h-4 w-4 text-emerald-400" /> },
+        { label: "Usuários ativos", value: formatCompact(metrics.activeUsers), icon: <UserCheck className="h-4 w-4 text-fuchsia-400" /> },
         { label: "Minutos hoje", value: formatCompact(metrics.minutesProcessedToday), icon: <Clock className="h-4 w-4 text-sky-400" /> },
         { label: "Renders na fila", value: String(metrics.rendersQueued), icon: <Activity className="h-4 w-4 text-amber-400" /> },
         { label: "Taxa de erro", value: `${metrics.errorRatePct.toFixed(1).replace(".", ",")}%`, icon: <AlertOctagon className="h-4 w-4 text-rose-400" /> },
@@ -98,9 +96,9 @@ export default function AdminPage() {
         <p className="mt-1 text-sm text-zinc-500">Métricas da plataforma, usuários e fila de jobs.</p>
       </div>
 
-      <div className="grid gap-3 sm:grid-cols-3 lg:grid-cols-6">
+      <div className="grid gap-3 sm:grid-cols-3 lg:grid-cols-5">
         {metrics === null
-          ? Array.from({ length: 6 }).map((_, i) => <Skeleton key={i} className="h-24 w-full" />)
+          ? Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-24 w-full" />)
           : statCards.map((s) => (
               <Card key={s.label}>
                 <CardContent className="pt-4">
@@ -126,8 +124,7 @@ export default function AdminPage() {
                 <thead>
                   <tr className="border-b border-line text-xs uppercase tracking-wide text-zinc-500">
                     <th className="py-2.5 pr-4 font-medium">Usuário</th>
-                    <th className="py-2.5 pr-4 font-medium">Plano</th>
-                    <th className="py-2.5 pr-4 font-medium">Minutos no mês</th>
+                    <th className="py-2.5 pr-4 font-medium">Projetos</th>
                     <th className="py-2.5 font-medium">Cadastro</th>
                   </tr>
                 </thead>
@@ -138,12 +135,7 @@ export default function AdminPage() {
                         <p className="font-medium text-zinc-100">{u.name}</p>
                         <p className="text-xs text-zinc-500">{u.email}</p>
                       </td>
-                      <td className="py-3 pr-4">
-                        <Badge variant={u.plan === "studio" ? "accent" : u.plan === "pro" ? "success" : "outline"} className="capitalize">
-                          {u.plan}
-                        </Badge>
-                      </td>
-                      <td className="py-3 pr-4 font-mono text-zinc-300">{u.minutesUsedMonth.toLocaleString("pt-BR")}</td>
+                      <td className="py-3 pr-4 font-mono text-zinc-300">{u.projectsCount.toLocaleString("pt-BR")}</td>
                       <td className="py-3 text-xs text-zinc-500">{timeAgo(u.createdAt, MOCK_NOW)}</td>
                     </tr>
                   ))}

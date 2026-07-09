@@ -1,13 +1,10 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Literal
 
 from pydantic import EmailStr, Field
 
 from app.schemas.common import CamelModel
-
-Plan = Literal["free", "pro", "studio"]
 
 
 class BrandingKit(CamelModel):
@@ -22,8 +19,6 @@ class UserOut(CamelModel):
     email: EmailStr
     name: str
     avatar_url: str | None = None
-    plan: Plan = "free"
-    minutes_used_month: float = 0.0
     branding_kit: BrandingKit | None = None
     created_at: datetime | None = None
 
