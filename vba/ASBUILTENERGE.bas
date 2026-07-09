@@ -168,6 +168,11 @@ Private Function StatusPorBloco(ByVal nomeBloco As String) As String
         StatusPorBloco = "DUPLO"
     ElseIf BlocoCasa(s, "RDARA1100") Then
         StatusPorBloco = "DUPLO"
+    ' Bloco "_POSTE" (atributos PST_EXISTENTE / PST_INSTALAR): mesma logica
+    ' DUPLO. Estrutura existente sozinha -> EXISTENTES; existente + a instalar
+    ' -> existente vira DESINSTALADOS e a instalar vira INSTALADOS.
+    ElseIf BlocoCasa(s, "_POSTE") Then
+        StatusPorBloco = "DUPLO"
     ElseIf BlocoCasa(s, "RDARA1110") Then
         StatusPorBloco = "MATERIAIS INSTALADOS"
     ElseIf BlocoCasa(s, "RDARA1111") Then
@@ -2153,7 +2158,8 @@ Private Sub LerBlocosComAtributos(ByRef bnome() As String, _
 
                         Select Case True
                             Case (tg = "NUMERO" Or tg = "N" Or tg = "NUM" Or _
-                                  InStr(tg, "NUMERO") > 0)
+                                  InStr(tg, "NUMERO") > 0 Or tg = "PST_ID")
+                                ' PST_ID = Nº Componente do bloco "_POSTE" (ex.: P43)
                                 vNum = vl
                             Case InStr(tg, "EXISTENTE") > 0
                                 vExt = vl
@@ -2251,8 +2257,8 @@ Private Sub LerBlocosComAtributos(ByRef bnome() As String, _
                         ' Linha 1 (EXISTENTE):
                         '   RDARA034: "#" no inicio  OU ambos preenchidos -> DESINSTALADOS
                         '             caso contrario                       -> EXISTENTES
-                        '   RDARA1100: ambos preenchidos -> DESINSTALADOS
-                        '              so EXISTENTE      -> EXISTENTES
+                        '   RDARA1100 / _POSTE: ambos preenchidos -> DESINSTALADOS
+                        '                       so EXISTENTE      -> EXISTENTES
                         Dim statusL1 As String, statusL2 As String
                         statusL2 = "MATERIAIS INSTALADOS"
                         If BlocoCasa(nomeU, "RDARA034") Then
@@ -2262,7 +2268,7 @@ Private Sub LerBlocosComAtributos(ByRef bnome() As String, _
                                 statusL1 = "MATERIAIS EXISTENTES"
                             End If
                         Else
-                            ' RDARA1100
+                            ' RDARA1100 / _POSTE (PST_EXISTENTE + PST_INSTALAR)
                             If Len(vExt) > 0 And Len(vPrj) > 0 Then
                                 statusL1 = "MATERIAIS DESINSTALADOS"
                             Else

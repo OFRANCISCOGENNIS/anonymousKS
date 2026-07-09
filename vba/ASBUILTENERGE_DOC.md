@@ -100,7 +100,7 @@ uX(), uY()        As Double   ' coordenadas
 
 | Função de leitura | Blocos alvo | Observações |
 |---|---|---|
-| `LerBlocosComAtributos` | `RDARA034`, `RDARA1100`, demais `RDARA*` com atributo NUMERO+EXISTENTE/PROJETADO | Postes/estruturas. `RDARA034`/`RDARA1100` são "DUPLO": geram 2 linhas (existente + projetado) |
+| `LerBlocosComAtributos` | `RDARA034`, `RDARA1100`, `_POSTE`, demais `RDARA*` com atributo NUMERO+EXISTENTE/PROJETADO | Postes/estruturas. `RDARA034`/`RDARA1100`/`_POSTE` são "DUPLO": geram 2 linhas (existente + projetado) |
 | `LerBlocosCabo` | `RDARA1110`/`RDARA1111` (ou nome contendo "CABO") | Cabos com atributos `TCABO`, `DISTANCIA`, `=DISTANC` (calculada), `AM_AI_FA`, `AM_AI_NE`, `DIST_OB` |
 | `LerBlocosOutros` | Demais `INSERT` com atributos, que não são poste nem cabo | Trafo, chave fusível/faca, para-raio, religador, regulador, mufla, aterramento, etc. Classificados via `FamiliaDeBloco` |
 | `LerBlocosPiaui` | Blocos-símbolo **sem atributos**, identificados só pelo **nome** (padrão Piauí/PLPT) | `PP`→poste instalado, `EP/PE/PEXIS`→poste existente, `CB_AT*/CB_BT*`→cabo instalado, `CHAVEP`→chave instalada, `CHFE`→chave existente, `STRAFOE`/`T7-E`→trafo existente |
@@ -125,6 +125,7 @@ Fallback quando o bloco não define status.
 | Bloco | Status |
 |---|---|
 | `RDARA034`, `RDARA1100` | `DUPLO` (existente=desinstalado quando ambos preenchidos ou hashtag; projetado=sempre instalado) |
+| `_POSTE` (atributos `PST_EXISTENTE` / `PST_INSTALAR`, `PST_ID`=Nº componente) | `DUPLO` (mesma lógica do `RDARA1100`): **Estrutura Existente** sozinha → `MATERIAIS EXISTENTES`; **Existente + a Instalar** → existente vira `MATERIAIS DESINSTALADOS`; **Estrutura a Instalar** → sempre `MATERIAIS INSTALADOS` |
 | `RDARA1110`, `RDARA1011`, `RDARA121` | MATERIAIS INSTALADOS |
 | `RDARA1111`, `RDARA120` | MATERIAIS DESINSTALADOS |
 | `RDARA164`, `RDARA511`, `RDARA513`, `RDARA514`, `RDARA532`, `RDARA537`, `RDARA547` | MATERIAIS EXISTENTES |
