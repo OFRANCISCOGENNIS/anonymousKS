@@ -256,6 +256,25 @@ Private Function ComecaComHashtag(ByVal txt As String) As Boolean
     End If
 End Function
 
+' Verifica se, apos remover digitos/espacos INICIAIS (tipicamente uma
+' quantidade, ex.: "1 ", "3 "), o texto restante comeca com 'palavra'.
+' Ex.: ComecaComPalavra("1 HAST PR RAIO", "HAST") -> True
+'      ComecaComPalavra("3 PR RAIO MT-1 HAST PR", "HAST") -> False
+Private Function ComecaComPalavra(ByVal txt As String, ByVal palavra As String) As Boolean
+    Dim s As String, i As Long, ch As String
+    s = UCase$(Trim$(txt))
+    i = 1
+    Do While i <= Len(s)
+        ch = Mid$(s, i, 1)
+        If (ch >= "0" And ch <= "9") Or ch = " " Then
+            i = i + 1
+        Else
+            Exit Do
+        End If
+    Loop
+    ComecaComPalavra = (Left$(Mid$(s, i), Len(palavra)) = UCase$(palavra))
+End Function
+
 ' Remove o envoltorio "#(...)" (ou apenas "#") de textos de material
 ' DESINSTALADO, devolvendo o conteudo "limpo" para fins de CLASSIFICACAO
 ' (o "#" em si ja e tratado por ComecaComHashtag/StatusPorLayer para o STATUS).
@@ -382,7 +401,8 @@ Private Function FamiliaDeBloco(ByVal nomeBloco As String, _
         FamiliaDeBloco = "PARA RAIO": Exit Function
     End If
     If InStr(s, "FUSIVEL") > 0 Or InStr(s, "CH.FUS") > 0 Or _
-       InStr(s, "CH FUS") > 0 Or InStr(s, "CHFUS") > 0 Then
+       InStr(s, "CH FUS") > 0 Or InStr(s, "CHFUS") > 0 Or _
+       InStr(s, "CORTA CIRCUITO") > 0 Or InStr(s, "CORTA-CIRCUITO") > 0 Then
         FamiliaDeBloco = "CH FUSIVEL": Exit Function
     End If
     If InStr(s, "CH.FACA") > 0 Or InStr(s, "CH FACA") > 0 Or _
@@ -402,7 +422,7 @@ Private Function FamiliaDeBloco(ByVal nomeBloco As String, _
     If InStr(s, "MUFLA") > 0 Then
         FamiliaDeBloco = "MUFLA": Exit Function
     End If
-    If InStr(s, "ATERR") > 0 Then
+    If InStr(s, "ATERR") > 0 Or InStr(s, "FRANKLIN") > 0 Then
         FamiliaDeBloco = "ATERRAMENTO": Exit Function
     End If
     If InStr(s, "MEDIDOR") > 0 Or InStr(s, "MEDIC") > 0 Then
@@ -555,7 +575,16 @@ Private Function ClassificarFamilia(ByVal txt As String) As String
         ClassificarFamilia = "-"
         Exit Function
     End If
-    If InStr(s, "ATERR") > 0 Then
+    If InStr(s, "ATERR") > 0 Or InStr(s, "FRANKLIN") > 0 Or _
+       InStr(s, "ATER" & Chr(34)) > 0 Or InStr(s, "ATER " & Chr(34)) > 0 Or _
+       ComecaComPalavra(s, "HAST") Then
+        ' "ATER" abreviado (ex.: ATER "EQP") so conta com aspas logo a seguir,
+        ' para nao colidir com "MATERIAL=..." (que contem "ATER" no meio).
+        ' "FRANKLIN" = haste captora de descargas atmosfericas (aterramento).
+        ' Texto que COMECA com "HAST" (ex.: "1 HAST PR RAIO") = haste de
+        ' aterramento, mesmo mencionando "PR RAIO" em seguida. Ja um texto
+        ' que so CONTEM "HAST" no meio (ex.: "3 PR RAIO MT-1 HAST PR")
+        ' continua sendo classificado pelo item principal (PARA RAIO).
         ClassificarFamilia = "ATERRAMENTO"
         Exit Function
     End If
@@ -563,8 +592,9 @@ Private Function ClassificarFamilia(ByVal txt As String) As String
         ClassificarFamilia = "MUFLA"
         Exit Function
     End If
-    If InStr(s, "PR -") > 0 Or InStr(s, "PR-") > 0 Or _
-       InStr(s, "PARA RAIO") > 0 Or InStr(s, "PARA-RAIO") > 0 Then
+    If InStr(s, "PR -") > 0 Or InStr(s, "PR-") > 0 Or InStr(s, "PR ") > 0 Or _
+       InStr(s, "PARA RAIO") > 0 Or InStr(s, "PARA-RAIO") > 0 Or _
+       InStr(s, "PARARAIO") > 0 Then
         If InStr(s, "BT") > 0 Then
             ClassificarFamilia = "PARA RAIO BT"
         Else
@@ -576,7 +606,12 @@ Private Function ClassificarFamilia(ByVal txt As String) As String
         ClassificarFamilia = "ELO"
         Exit Function
     End If
-    If InStr(s, "CH.FUS") > 0 Or InStr(s, "CH FUS") > 0 Then
+    If InStr(s, "CH.FUS") > 0 Or InStr(s, "CH FUS") > 0 Or InStr(s, "CH. FUS") > 0 Or _
+       InStr(s, "CORTA CIRCUITO") > 0 Or InStr(s, "CORTA-CIRCUITO") > 0 Or _
+       (InStr(s, "KV") > 0 And InStr(s, "KA") > 0) Then
+        ' "CORTA CIRCUITO" = sinonimo de chave fusivel (cutout).
+        ' Combinacao "kV" + "kA" = espec. tecnica de chave fusivel
+        ' (V_N/A0_N/NBI), ex.: "25KV-100A-6,3KA-125KV".
         ClassificarFamilia = "CH FUS"
         Exit Function
     End If
@@ -596,9 +631,11 @@ Private Function ClassificarFamilia(ByVal txt As String) As String
         ClassificarFamilia = "RAMAL"
         Exit Function
     End If
-    If InStr(s, "#CAA") > 0 Or InStr(s, "# CAA") > 0 Or _
+    If InStr(s, "#CAA") > 0 Or InStr(s, "# CAA") > 0 Or InStr(s, "CAA") > 0 Or _
        (InStr(s, "M MT ") > 0 And InStr(s, "KV") > 0) Or _
        (InStr(s, " MT ") > 0 And InStr(s, "KV") > 0 And InStr(s, "#") > 0) Then
+        ' "CAA" = Cabo de Aluminio com Alma de Aco (ex.: "3#4(4)CAA"), mesmo
+        ' quando o "#" nao esta imediatamente colado no "CAA".
         ClassificarFamilia = "COND NU"
         Exit Function
     End If
