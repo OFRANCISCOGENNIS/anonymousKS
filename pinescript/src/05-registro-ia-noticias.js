@@ -60,7 +60,7 @@ function renderRegistro() {
             `<span class="reg-par">${r.par}${r.live ? ' <span class="reg-tag" title="IA ao vivo">IA</span>' : ''}</span>` +
             (r.grade ? `<span class="reg-grade grade-${r.grade}">${r.grade}</span>` : '') +
             `<span class="${r.dir === 1 ? 'chip-dir-up' : 'chip-dir-down'}">${r.dir === 1 ? '▲ CALL' : '▼ PUT'} ${r.score}/${r.enabled}</span>${res}</div>`;
-    }).join('') : '<div class="metric-empty" style="padding:10px 4px;">Nenhuma entrada nível A ou B ainda — são as de maior qualidade. Desmarque o filtro para ver todas.</div>';
+    }).join('') : '<div class="metric-empty" style="padding:10px 4px;">Sem entradas A/B ainda · desmarque o filtro p/ ver todas.</div>';
     atualizarCalibracaoIA();
 }
 
@@ -361,7 +361,7 @@ async function otimizarIA() {
         fimIA(); return;
     }
     document.getElementById('iaContext').textContent =
-        `${comOk.length}/${symbols.length} moedas afinadas — o Scanner (🔎) já usa esses parâmetros. Melhor: ${comOk[0].label} (${pctTxt(comOk[0].porTf[0].val.wr)} val · edge garantido ${edgeTxtIA(comOk[0].porTf[0].edgeLB)}). Ordenadas pelo edge no limite inferior (95% conf.), não pelo acerto cru. Clique numa moeda para abri-la já otimizada.`;
+        `${comOk.length}/${symbols.length} afinadas · melhor: ${comOk[0].label} ${pctTxt(comOk[0].porTf[0].val.wr)} val (edge LB ${edgeTxtIA(comOk[0].porTf[0].edgeLB)}) · ordenado por edge LB · clique p/ abrir`;
     const rows = comOk.map((r, i) => {
         const b = r.porTf[0];
         const vwr = pctTxt(b.val.wr), lb = pctTxt(b.val.wrLB), twr = pctTxt(b.treino.wr);
@@ -404,7 +404,7 @@ function renderIAUmPar(resultado, isSim, el) {
     const rec = porTf[0];
     const expBest = (rec.expOp >= 0 ? '+' : '') + rec.expOp.toFixed(2);
     document.getElementById('iaContext').textContent =
-        `${par}: melhor setup é ${rotTf(rec.tf)} com expiração ${rec.exp}m — ${pctTxt(rec.val.wr)} fora da amostra (LB ${pctTxt(rec.val.wrLB)}, edge garantido ${edgeTxtIA(rec.edgeLB)}, expectativa ${expBest}/op). Ranqueado pelo edge no limite inferior de confiança. Clique para aplicar.`;
+        `${par}: ${rotTf(rec.tf)}·${rec.exp}m · ${pctTxt(rec.val.wr)} val · LB ${pctTxt(rec.val.wrLB)} · edge LB ${edgeTxtIA(rec.edgeLB)} · ${expBest}/op · clique p/ aplicar`;
     document.getElementById('iaList').innerHTML = porTf.map((r, i) => {
         const vwr = pctTxt(r.val.wr), lb = pctTxt(r.val.wrLB), twr = pctTxt(r.treino.wr);
         const cls = r.edgeLB >= 0.05 ? 'chip-dir-up' : r.edgeLB >= 0 ? '' : 'chip-dir-down';

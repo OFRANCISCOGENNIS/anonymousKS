@@ -956,34 +956,36 @@ function atualizarDecisao() {
     const lastT = dados.length ? dados[dados.length - 1].time : 0;
     const riscoNoticia = newsOn && lastT && noticiaProxima(lastT, newsJan);
 
+    // Texto do motivo OBJETIVO: só dados, sem prosa (detalhe fica no funil/❔)
     let cor, verdictKey = 'WAIT';
     if (riscoNoticia) {
         v.textContent = 'AGUARDAR ⚠';
         v.className = 'decision-verdict verdict-news';
-        r.textContent = `Notícia recente sobre ${baseAsset()} — dentro da janela de risco de ${newsJan} min. Não entrar agora.`;
+        r.textContent = `⚠ notícia · ${baseAsset()} · janela ${newsJan}m`;
         cor = 'var(--warning)';
         verdictKey = 'NEWS';
     } else if (enabled > 0 && long >= alvo && long > short) {
         v.textContent = 'ENTRAR CALL ▲';
         v.className = 'decision-verdict verdict-call';
-        r.textContent = `Confluência de alta ${long}/${enabled} — atingiu o mínimo de ${alvo} fatores.`;
+        r.textContent = `▲ ${long}/${enabled} fatores · mín. ${alvo}`;
         cor = 'var(--call)';
         verdictKey = 'CALL';
     } else if (enabled > 0 && short >= alvo && short > long) {
         v.textContent = 'ENTRAR PUT ▼';
         v.className = 'decision-verdict verdict-put';
-        r.textContent = `Confluência de baixa ${short}/${enabled} — atingiu o mínimo de ${alvo} fatores.`;
+        r.textContent = `▼ ${short}/${enabled} fatores · mín. ${alvo}`;
         cor = 'var(--put)';
         verdictKey = 'PUT';
     } else {
         v.textContent = 'AGUARDAR';
         v.className = 'decision-verdict verdict-wait';
-        r.textContent = `Confluência insuficiente: CALL ${long}/${enabled} · PUT ${short}/${enabled} — mínimo ${alvo}. Espere o alinhamento.`;
+        r.textContent = `CALL ${long}/${enabled} · PUT ${short}/${enabled} · mín. ${alvo}`;
         cor = 'var(--ink-muted)';
     }
     if (painel) painel.style.borderLeftColor = cor;
 
-    // Selo de qualidade A/B/C — amarra confluência + IA + HTF + S/R + sessão
+    // Selo de qualidade A/B/C — amarra confluência + IA + HTF + S/R + sessão.
+    // Extras em formato de DADO (curto); as ressalvas ficam nos elos do funil.
     const grEl = document.getElementById('decisionGrade');
     const usaGrade = document.getElementById('useGrade').checked;
     if (usaGrade && (verdictKey === 'CALL' || verdictKey === 'PUT')) {
@@ -993,12 +995,11 @@ function atualizarDecisao() {
         grEl.className = 'decision-grade grade-' + g.grade;
         grEl.style.display = 'inline-flex';
         const extras = [];
-        if (g.regime) extras.push('regime ' + REGIME_ROTULO[g.regime]);
-        if (g.pEst != null) extras.push('WR estimado ' + pctTxt(g.pEst) + (g.pLB != null ? ' (LB ' + pctTxt(g.pLB) + (g.pN ? ', ' + g.pN + ' ops' : '') + ')' : ''));
-        if (g.expOp != null) extras.push('expectativa ' + (g.expOp >= 0 ? '+' : '') + g.expOp.toFixed(2) + '/op');
-        if (g.kelly != null) extras.push('risco sugerido (½ Kelly) ' + (g.kelly * 100).toFixed(2) + '%');
-        if (extras.length) r.textContent += ' ' + extras.join(' · ') + '.';
-        if (g.motivos.length) r.textContent += ' Ressalvas: ' + g.motivos.join(', ') + '.';
+        if (g.regime) extras.push(REGIME_ROTULO[g.regime]);
+        if (g.pEst != null) extras.push('WR ' + pctTxt(g.pEst) + (g.pLB != null ? ' · LB ' + pctTxt(g.pLB) + (g.pN ? ' (' + g.pN + ' ops)' : '') : ''));
+        if (g.expOp != null) extras.push((g.expOp >= 0 ? '+' : '') + g.expOp.toFixed(2) + '/op');
+        if (g.kelly != null) extras.push('Kelly ' + (g.kelly * 100).toFixed(1) + '%');
+        if (extras.length) r.textContent += '  ·  ' + extras.join(' · ');
     } else {
         grEl.style.display = 'none';
     }
@@ -1041,19 +1042,19 @@ function atualizarDecisao() {
     if (byScoreGlobal && byScoreGlobal.scores[key]) {
         const o = byScoreGlobal.scores[key];
         const wrK = (o.w / o.t * 100).toFixed(0);
-        ctx.innerHTML = `Histórico neste gráfico: score <strong>${key}</strong> acertou <strong>${wrK}%</strong> em ${o.t} operações · empate exige <strong>${byScoreGlobal.beWR.toFixed(1)}%</strong> (payout atual).`;
+        ctx.innerHTML = `Score <strong>${key}</strong>: <strong>${wrK}%</strong> em ${o.t} ops · break-even <strong>${byScoreGlobal.beWR.toFixed(1)}%</strong>`;
     } else if (byScoreGlobal) {
-        ctx.innerHTML = `Sem histórico avaliado para o score <strong>${key}</strong> neste gráfico ainda · empate exige <strong>${byScoreGlobal.beWR.toFixed(1)}%</strong>.`;
+        ctx.innerHTML = `Score <strong>${key}</strong>: sem histórico · break-even <strong>${byScoreGlobal.beWR.toFixed(1)}%</strong>`;
     } else {
-        ctx.textContent = 'Aguardando operações avaliadas para medir a assertividade por score.';
+        ctx.textContent = 'Aguardando operações avaliadas.';
     }
 
     const hint = document.getElementById('entryHint');
     if (entradas.length === 0) {
         const poucas = dados.length < 200 && document.getElementById('useEma200').checked;
         hint.textContent = poucas
-            ? '💡 Filtro EMA 200 ativo com menos de 200 velas — aumente o histórico ou desligue a EMA 200.'
-            : '💡 Nenhuma entrada com estes filtros. A confluência estrita gera poucos sinais (por design) — afrouxe um filtro (ex.: Estrutura ou Momentum).';
+            ? '💡 EMA 200 exige 200+ velas — aumente o histórico ou desligue-a.'
+            : '💡 Nenhuma entrada — afrouxe um filtro (ex.: Estrutura ou RSI).';
         hint.style.display = 'block';
     } else { hint.style.display = 'none'; }
 }

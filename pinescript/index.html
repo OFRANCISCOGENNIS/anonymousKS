@@ -63,14 +63,14 @@
                         Chave Twelve Data (grátis)
                         <input type="text" id="tdKey" value="demo" spellcheck="false" autocomplete="off" style="width:100%;">
                     </label>
-                    <p class="group-note"><strong>Tudo junto (recomendado):</strong> <strong>Binance + Twelve Data + Yahoo ⭐</strong> roda cripto (Binance) e forex numa passada só — o forex tenta a Twelve Data e, se não tiver chave ou estourar a cota, cai sozinho no <strong>Yahoo keyless</strong>. Sem chave nenhuma: escolha <strong>Yahoo (SEM chave) ⭐</strong> (EUR/USD, USD/JPY, ouro, índices, via proxies públicos). Em tempo real e keyless: pares fiat da <strong>Binance</strong> (EUR/USDT…). O TradingView do topo é só gráfico visual — não fornece dados para a análise.</p>
+                    <p class="group-note"><strong>Binance + TD + Yahoo ⭐</strong> = cripto + forex juntos (forex sem chave no fallback) · <strong>Yahoo ⭐</strong> = forex sem chave · detalhes no ❔.</p>
                     <label>
                         Par / moeda (cripto)
                         <input type="text" id="symbol" value="BTCUSDT" list="listaSimbolos" autocomplete="off" spellcheck="false">
                         <datalist id="listaSimbolos"></datalist>
                     </label>
                     <button id="btnCryptoIdx" class="btn-mini" style="width:100%;">📊 Crypto IDX (proxy Binomo)</button>
-                    <p class="group-note">Crypto IDX = índice sintético <strong>proprietário da Binomo</strong> (sem dados públicos). Este é um <strong>proxy</strong>: cesta de criptos reais da Binance normalizada. Comportamento parecido, mas <strong>não idêntico</strong> às velas da Binomo — use para leitura/estudo, não como espelho exato.</p>
+                    <p class="group-note">Crypto IDX = proxy (cesta Binance normalizada) · parecido, <strong>não idêntico</strong> à Binomo.</p>
                     <label>
                         Pares Forex / Índices / Ouro
                         <select id="parPopular">
@@ -196,7 +196,7 @@
                         <button class="btn-preset" data-preset="vol" type="button">🔥 Volátil</button>
                         <button class="btn-preset btn-preset-auto" data-preset="auto" type="button">🎯 Auto (regime atual)</button>
                     </div>
-                    <p class="group-note">Liga os fatores e portões mais assertivos para cada regime (baseado nos pesos por regime da IA). <strong>Auto</strong> detecta o regime do gráfico atual e aplica o preset certo.</p>
+                    <p class="group-note">Liga os fatores certos p/ cada regime · <strong>Auto</strong> detecta e aplica.</p>
                 </section>
 
                 <!-- Confluência -->
@@ -227,13 +227,13 @@
                 <section class="control-group">
                     <h3>🎓 Treino</h3>
                     <button id="btnTreinar" class="btn-primary">Treinar leitura (replay)</button>
-                    <p class="group-note">Esconde o futuro do gráfico e testa sua leitura vela a vela, pontuando você contra o indicador.</p>
+                    <p class="group-note">Replay com futuro oculto · pontua sua leitura vs o indicador.</p>
                 </section>
 
                 <!-- Filtro de moedas do Scanner / IA -->
                 <section class="control-group">
                     <h3>🎯 Moedas p/ análise <span id="scanFiltroMeta" class="tv-sync-tag"></span></h3>
-                    <p class="group-note">Marque quais moedas o Scanner (🔎 abaixo) deve analisar. A lista muda conforme a <strong>Fonte</strong>: cripto (Binance) ou Forex/Índices/Ouro.</p>
+                    <p class="group-note">Moedas que o Scanner 🔎 e a IA 🤖 analisam (lista segue a Fonte).</p>
                     <div id="scanFiltro" class="scan-fil-grid"></div>
                     <div class="scan-fil-actions">
                         <button id="scanFilTodas" class="btn-mini" type="button">Marcar todas</button>
@@ -249,10 +249,10 @@
                     <button id="btnTestarSom" class="btn-mini" style="width:100%; margin-top:4px;">🔊 Testar som</button>
                     <button id="btnScan" class="btn-primary" style="margin-top:8px;">🔎 Escanear melhores entradas</button>
                     <button id="btnIA" class="btn-primary" style="margin-top:6px;">🤖 IA: otimizar parâmetros</button>
-                    <p class="group-note">A IA otimiza as moedas marcadas em <strong>🎯 Moedas p/ análise</strong> (uma a uma) e deixa o Scanner pronto com os melhores parâmetros de cada. No modo <strong>Simulado</strong>, otimiza só o par atual. Durante a execução, clique de novo no botão para <strong>cancelar</strong>.</p>
+                    <p class="group-note">Otimiza as moedas de 🎯 uma a uma · clique de novo p/ <strong>cancelar</strong>.</p>
                     <label><input type="checkbox" id="iaRapida" checked> <span>IA rápida (busca inteligente — ~⅓ das combinações)</span></label>
                     <label>Amostra mínima (validação) <input type="number" id="iaMinVal" value="3" min="3" max="30" step="1"></label>
-                    <p class="group-note">Nº mínimo de operações fora da amostra para um par ser considerado “afinado”. Maior = mais evidência exigida, menos pares passam (o treino exige o dobro).</p>
+                    <p class="group-note">Ops mínimas na validação (treino exige 2×) · maior = mais evidência.</p>
                     <label><input type="checkbox" id="autoReopt"> <span>Auto-reotimizar a cada 60 min</span></label>
                     <div class="scan-fil-actions" style="margin-top:6px;">
                         <button id="btnIAExport" class="btn-mini" type="button">💾 Exportar IA</button>
@@ -272,7 +272,7 @@
                         Pares de referência
                         <input type="text" id="refPairs" value="BTCUSDT,ETHUSDT" spellcheck="false" style="width:100%;">
                     </label>
-                    <p class="group-note">Compra = volume agressor (taker buy) da Binance; venda = restante. Correlação vota pela maioria dos pares de referência na mesma janela. <strong>Indisponível para Forex/Índices/Ouro</strong> (sem volume real) — desativado automaticamente nessa fonte.</p>
+                    <p class="group-note">Delta compra×venda (taker buy Binance) · <strong>indisponível em Forex</strong> (desliga sozinho).</p>
                 </section>
 
                 <!-- Anti-Ruído -->
@@ -347,7 +347,7 @@
                 <!-- Agentes de Estudo: estudo contínuo do mercado em segundo plano -->
                 <div class="chart-container" id="agentesPanel">
                     <h2>🕵️ Agentes de Estudo <span id="agentesStatus" class="tv-sync-tag">○ desligados</span></h2>
-                    <label class="reg-filtro"><input type="checkbox" id="agentesAtivo"> <span>Estudo contínuo: reotimiza as moedas marcadas em rodízio (🧪), vigia a virada de regime (🔭), audita a calibração (⚖️) e mede os fatores (🧠)</span></label>
+                    <label class="reg-filtro"><input type="checkbox" id="agentesAtivo"> <span>Estudo contínuo (🧪 rodízio de moedas · 🔭 regime · ⚖️ calibração · 🧠 fatores)</span></label>
                     <div id="agentesLog" class="reg-list"></div>
                 </div>
 
