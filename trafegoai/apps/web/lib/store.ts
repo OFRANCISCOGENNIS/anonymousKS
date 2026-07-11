@@ -7,8 +7,10 @@ interface AuthState {
   token: string | null;
   user: { name: string; email: string } | null;
   org: { id: string; name: string; plan: string } | null;
+  hydrated: boolean; // true depois que o persist reidratou do localStorage
   setSession: (token: string) => void;
   setProfile: (user: AuthState['user'], org: AuthState['org']) => void;
+  setHydrated: () => void;
   logout: () => void;
 }
 
@@ -18,11 +20,19 @@ export const useAuthStore = create<AuthState>()(
       token: null,
       user: null,
       org: null,
+      hydrated: false,
       setSession: (token) => set({ token }),
       setProfile: (user, org) => set({ user, org }),
+      setHydrated: () => set({ hydrated: true }),
       logout: () => set({ token: null, user: null, org: null }),
     }),
-    { name: 'trafegoai-auth' },
+    {
+      name: 'trafegoai-auth',
+      // não persistir o flag de hidratação
+      partialize: (s) => ({ token: s.token, user: s.user, org: s.org }),
+      // marca hidratado quando o localStorage é lido (evita bounce p/ login no refresh)
+      onRehydrateStorage: () => (state) => state?.setHydrated(),
+    },
   ),
 );
 

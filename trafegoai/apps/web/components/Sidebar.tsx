@@ -16,6 +16,7 @@ const NAV = [
   { href: '/relatorios', label: 'Relatórios', icon: '📄' },
   { href: '/conexoes', label: 'Conexões', icon: '🔌' },
   { href: '/auditoria', label: 'Auditoria', icon: '🧾' },
+  { href: '/planos', label: 'Planos', icon: '💳' },
 ];
 
 export function Sidebar() {

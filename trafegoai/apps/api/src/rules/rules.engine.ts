@@ -1,21 +1,33 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { Platform } from '@prisma/client';
+import { AutomationRule, Platform } from '@prisma/client';
 import { PrismaService } from '../common/prisma.service';
 import { addInto, derive, emptyTotals, round } from '../common/metrics.util';
 import { AuditService } from '../audit/audit.service';
 
 /**
  * Motor das regras de automação "se → então".
- * Avalia a métrica na janela configurada (windowDays) por campanha e, se a
- * condição valer em TODOS os dias da janela, dispara a ação.
- * Executado pelo worker (BullMQ, job repetível a cada 15 min) e sob demanda.
  *
- * Nota de segurança: só executa ações dentro de regras que o PRÓPRIO usuário
- * criou e ativou — a IA nunca gasta/pausa nada sozinha fora disso.
+ * Avalia a métrica na janela configurada (windowDays) por campanha; a condição
+ * precisa valer em TODOS os dias da janela para disparar (evita reagir a ruído
+ * de um único dia). Executado pelo worker (BullMQ, a cada 15 min) e sob demanda.
+ *
+ * Guardrails de segurança:
+ *  - só executa regras que o PRÓPRIO usuário criou e ATIVOU (a IA nunca gasta sozinha);
+ *  - cooldown de 24h por alvo (não redispara na mesma campanha);
+ *  - orçamento nunca passa de MAX_BUDGET nem cai abaixo de MIN_BUDGET;
+ *  - variação de verba por disparo limitada a MAX_STEP_PCT;
+ *  - no máximo MAX_ACTIONS_PER_RUN ações por execução (freio contra runaway).
+ *
+ * `preview()` faz um dry-run: retorna o que DISPARARIA, sem alterar nada.
  */
 @Injectable()
 export class RulesEngine {
   private readonly logger = new Logger(RulesEngine.name);
+
+  private static readonly MIN_BUDGET = 5; // R$/dia
+  private static readonly MAX_BUDGET = 100_000;
+  private static readonly MAX_STEP_PCT = 50; // teto de variação por disparo
+  private static readonly MAX_ACTIONS_PER_RUN = 50;
 
   constructor(private prisma: PrismaService, private audit: AuditService) {}
 
@@ -25,13 +37,25 @@ export class RulesEngine {
   }
 
   async runForOrg(orgId: string) {
+    return this.execute(orgId, false);
+  }
+
+  /** Dry-run: mostra o que cada regra ativa DISPARARIA agora, sem executar. */
+  async preview(orgId: string) {
+    return this.execute(orgId, true);
+  }
+
+  private async execute(orgId: string, dryRun: boolean) {
     const rules = await this.prisma.automationRule.findMany({ where: { orgId, enabled: true } });
-    const fired: string[] = [];
+    const fired: Array<{ rule: string; target: string; action: string; detail: string; from?: number; to?: number }> = [];
+    let actions = 0;
+
     for (const rule of rules) {
-      const scope = rule.scope as { level?: string; platform?: string; accountId?: string };
+      const scope = rule.scope as { level?: string; platform?: string; accountId?: string; campaignIds?: string[] };
       const campaigns = await this.prisma.campaign.findMany({
         where: {
           status: 'ACTIVE',
+          ...(scope.campaignIds?.length ? { id: { in: scope.campaignIds } } : {}),
           account: {
             orgId,
             ...(scope.platform ? { platform: scope.platform as Platform } : {}),
@@ -46,59 +70,86 @@ export class RulesEngine {
       since.setUTCDate(since.getUTCDate() - rule.windowDays);
 
       for (const campaign of campaigns) {
+        if (!dryRun && actions >= RulesEngine.MAX_ACTIONS_PER_RUN) {
+          this.logger.warn(`Limite de ${RulesEngine.MAX_ACTIONS_PER_RUN} ações/execução atingido — regras restantes adiadas.`);
+          break;
+        }
         const rows = await this.prisma.metricDaily.findMany({
           where: { level: 'CAMPAIGN', refId: campaign.id, date: { gte: since } },
           orderBy: { date: 'asc' },
         });
         if (rows.length < rule.windowDays) continue;
 
-        // A condição precisa valer em todos os dias da janela (evita reagir a ruído de 1 dia)
-        const holdsEveryDay = rows.every((r) => {
-          const d = derive({ spend: Number(r.spend), revenue: Number(r.revenue), impressions: r.impressions, clicks: r.clicks, conversions: r.conversions });
-          const value = { CPA: d.cpa, ROAS: d.roas, SPEND: d.spend, CTR: d.ctr, CPC: d.cpc }[rule.metric] ?? 0;
-          return rule.operator === 'GT' ? value > Number(rule.threshold) : value < Number(rule.threshold);
-        });
+        const holdsEveryDay = rows.every((r) => this.conditionHolds(rule, {
+          spend: Number(r.spend), revenue: Number(r.revenue), impressions: r.impressions, clicks: r.clicks, conversions: r.conversions,
+        }));
         if (!holdsEveryDay) continue;
 
-        // Evita disparo repetido no mesmo alvo em 24h
+        // Cooldown de 24h por alvo (mesmo em dry-run, sinalizamos que está em cooldown)
         const recent = await this.prisma.ruleExecution.findFirst({
           where: { ruleId: rule.id, targetId: campaign.id, firedAt: { gte: new Date(Date.now() - 86_400_000) } },
         });
-        if (recent) continue;
+        if (recent && !dryRun) continue;
 
         const t = emptyTotals();
         rows.forEach((r) => addInto(t, r));
         const agg = derive(t);
-        const detail = `${rule.metric} ${rule.operator === 'GT' ? '>' : '<'} ${rule.threshold} por ${rule.windowDays} dias (valor agregado: ${agg[rule.metric.toLowerCase() as 'cpa']}).`;
+        const aggValue = (agg as any)[rule.metric.toLowerCase()] ?? 0;
+        const detail = `${rule.metric} ${rule.operator === 'GT' ? '>' : '<'} ${rule.threshold} por ${rule.windowDays} dias (agregado: ${aggValue}).${recent ? ' [em cooldown]' : ''}`;
 
-        switch (rule.action) {
-          case 'PAUSE':
-            // PONTO DE INTEGRAÇÃO: pausa real via conector da plataforma
-            await this.prisma.campaign.update({ where: { id: campaign.id }, data: { status: 'PAUSED' } });
-            break;
-          case 'INCREASE_BUDGET':
-          case 'DECREASE_BUDGET': {
-            const factor = 1 + (Number(rule.actionValue ?? 10) / 100) * (rule.action === 'INCREASE_BUDGET' ? 1 : -1);
-            const next = round(Math.max(Number(campaign.budgetDaily ?? 0) * factor, 1));
-            await this.prisma.campaign.update({ where: { id: campaign.id }, data: { budgetDaily: next } });
-            break;
-          }
-          case 'NOTIFY':
-            await this.prisma.anomaly.create({
-              data: { orgId, accountId: campaign.accountId, severity: 'INFO', metric: 'RULE_NOTIFY', message: `Regra "${rule.name}": ${campaign.name} — ${detail}` },
-            });
-            break;
+        let from: number | undefined;
+        let to: number | undefined;
+        if (rule.action.includes('BUDGET')) {
+          from = Number(campaign.budgetDaily ?? 0);
+          to = this.nextBudget(rule, from);
         }
 
-        await this.prisma.ruleExecution.create({
-          data: { ruleId: rule.id, targetType: 'CAMPAIGN', targetId: campaign.id, targetName: campaign.name, detail: `${detail} Ação: ${rule.action}.` },
-        });
-        await this.audit.log({ orgId }, 'RULE_FIRED', 'CAMPAIGN', campaign.id, null, { rule: rule.name, action: rule.action });
-        fired.push(`${rule.name} → ${campaign.name}`);
+        if (!dryRun && !recent) {
+          await this.applyAction(rule, campaign, orgId, from, to);
+          await this.prisma.ruleExecution.create({
+            data: { ruleId: rule.id, targetType: 'CAMPAIGN', targetId: campaign.id, targetName: campaign.name, detail: `${detail} Ação: ${rule.action}.` },
+          });
+          await this.audit.log({ orgId }, 'RULE_FIRED', 'CAMPAIGN', campaign.id, from !== undefined ? { budgetDaily: from } : null, { rule: rule.name, action: rule.action, ...(to !== undefined ? { budgetDaily: to } : {}) });
+          actions++;
+        }
+        fired.push({ rule: rule.name, target: campaign.name, action: rule.action, detail, from, to });
       }
-      await this.prisma.automationRule.update({ where: { id: rule.id }, data: { lastRunAt: new Date() } });
+      if (!dryRun) await this.prisma.automationRule.update({ where: { id: rule.id }, data: { lastRunAt: new Date() } });
     }
-    if (fired.length) this.logger.log(`Regras disparadas: ${fired.join('; ')}`);
-    return { fired };
+
+    if (!dryRun && fired.length) this.logger.log(`Regras disparadas: ${fired.map((f) => `${f.rule} → ${f.target}`).join('; ')}`);
+    return { dryRun, count: fired.length, fired };
+  }
+
+  private conditionHolds(rule: AutomationRule, raw: { spend: number; revenue: number; impressions: number; clicks: number; conversions: number }): boolean {
+    const d = derive(raw);
+    const value = ({ CPA: d.cpa, ROAS: d.roas, SPEND: d.spend, CTR: d.ctr, CPC: d.cpc } as Record<string, number>)[rule.metric] ?? 0;
+    return rule.operator === 'GT' ? value > Number(rule.threshold) : value < Number(rule.threshold);
+  }
+
+  /** Próximo orçamento respeitando teto de variação, piso e teto absolutos. */
+  private nextBudget(rule: AutomationRule, current: number): number {
+    const rawPct = Number(rule.actionValue ?? 10);
+    const pct = Math.min(Math.abs(rawPct), RulesEngine.MAX_STEP_PCT) * (rule.action === 'INCREASE_BUDGET' ? 1 : -1);
+    const next = current * (1 + pct / 100);
+    return round(Math.min(Math.max(next, RulesEngine.MIN_BUDGET), RulesEngine.MAX_BUDGET));
+  }
+
+  private async applyAction(rule: AutomationRule, campaign: { id: string; accountId: string; name: string }, orgId: string, from?: number, to?: number) {
+    switch (rule.action) {
+      case 'PAUSE':
+        // PONTO DE INTEGRAÇÃO: pausa real via conector da plataforma
+        await this.prisma.campaign.update({ where: { id: campaign.id }, data: { status: 'PAUSED' } });
+        break;
+      case 'INCREASE_BUDGET':
+      case 'DECREASE_BUDGET':
+        if (to !== undefined) await this.prisma.campaign.update({ where: { id: campaign.id }, data: { budgetDaily: to } });
+        break;
+      case 'NOTIFY':
+        await this.prisma.anomaly.create({
+          data: { orgId, accountId: campaign.accountId, severity: 'INFO', metric: 'RULE_NOTIFY', message: `Regra "${rule.name}": ${campaign.name} atingiu a condição configurada.` },
+        });
+        break;
+    }
   }
 }

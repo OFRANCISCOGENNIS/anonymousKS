@@ -25,6 +25,8 @@ import { GoalsController } from './goals/goals.controller';
 import { CreativesController } from './creatives/creatives.controller';
 import { ReportsController } from './reports/reports.controller';
 import { ClientsController } from './clients/clients.controller';
+import { BillingController } from './billing/billing.controller';
+import { BillingService } from './billing/billing.service';
 import { SyncService } from './jobs/sync.service';
 import { RealtimeGateway } from './realtime/realtime.gateway';
 
@@ -49,6 +51,7 @@ import { RealtimeGateway } from './realtime/realtime.gateway';
     CreativesController,
     ReportsController,
     ClientsController,
+    BillingController,
   ],
   providers: [
     PrismaService,
@@ -66,6 +69,7 @@ import { RealtimeGateway } from './realtime/realtime.gateway';
     RulesEngine,
     SyncService,
     RealtimeGateway,
+    BillingService,
   ],
 })
 export class AppModule {}

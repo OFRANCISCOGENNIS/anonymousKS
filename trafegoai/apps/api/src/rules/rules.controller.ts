@@ -59,6 +59,12 @@ export class RulesController {
     return this.engine.runForOrg(auth.orgId);
   }
 
+  /** Dry-run: mostra o que as regras ativas DISPARARIAM agora, sem executar nada. */
+  @Get('preview')
+  preview(@Auth() auth: JwtPayload) {
+    return this.engine.preview(auth.orgId);
+  }
+
   @Get(':id/executions')
   async executions(@Auth() auth: JwtPayload, @Param('id') id: string) {
     await this.prisma.automationRule.findFirstOrThrow({ where: { id, orgId: auth.orgId } });

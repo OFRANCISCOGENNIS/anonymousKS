@@ -21,11 +21,25 @@ const ACTION_LABEL: Record<string, string> = {
   NOTIFY: 'me notificar',
 };
 
+interface PreviewFire { rule: string; target: string; action: string; detail: string; from?: number; to?: number }
+
 export default function RegrasPage() {
   const rules = useApi<Rule[]>(() => api.get('/rules', true), []);
   const [showForm, setShowForm] = useState(false);
   const [busy, setBusy] = useState(false);
   const [form, setForm] = useState({ name: '', metric: 'CPA', operator: 'GT', threshold: 50, windowDays: 3, action: 'PAUSE', actionValue: 20 });
+  const [preview, setPreview] = useState<PreviewFire[] | null>(null);
+  const [previewBusy, setPreviewBusy] = useState(false);
+
+  async function runPreview() {
+    setPreviewBusy(true);
+    try {
+      const res = await api.get<{ fired: PreviewFire[] }>('/rules/preview', true);
+      setPreview(res.fired);
+    } finally {
+      setPreviewBusy(false);
+    }
+  }
 
   async function create(e: FormEvent) {
     e.preventDefault();
@@ -55,8 +69,39 @@ export default function RegrasPage() {
       <PageHeader
         title="Regras de automação"
         subtitle='Regras "se → então" que rodam em background a cada 15 minutos — só o que VOCÊ criou e ativou.'
-        actions={<button className="btn-primary" onClick={() => setShowForm((v) => !v)}>{showForm ? 'Fechar' : '+ Nova regra'}</button>}
+        actions={
+          <div className="flex gap-2">
+            <button className="btn-ghost" onClick={runPreview} disabled={previewBusy}>{previewBusy ? 'Simulando…' : '🔍 Simular (dry-run)'}</button>
+            <button className="btn-primary" onClick={() => setShowForm((v) => !v)}>{showForm ? 'Fechar' : '+ Nova regra'}</button>
+          </div>
+        }
       />
+
+      {/* Resultado do dry-run: o que dispararia agora, sem executar nada */}
+      {preview && (
+        <div className="card mb-6 border-accent/40" role="status">
+          <div className="mb-2 flex items-center justify-between">
+            <h2 className="font-medium">🔍 Simulação — o que dispararia agora</h2>
+            <button className="btn-ghost !px-2 !py-1 !text-xs" onClick={() => setPreview(null)}>Fechar</button>
+          </div>
+          {preview.length === 0 ? (
+            <p className="text-sm text-muted">Nenhuma regra dispararia neste momento com os dados atuais.</p>
+          ) : (
+            <ul className="space-y-1.5 text-sm">
+              {preview.map((f, i) => (
+                <li key={i} className="flex flex-wrap items-center gap-2">
+                  <Badge tone="accent">{f.rule}</Badge>
+                  <span className="text-ink-2">→ <strong>{f.target}</strong>: {f.detail}</span>
+                  {f.from !== undefined && f.to !== undefined && (
+                    <span className="text-xs text-muted">verba {f.from} → {f.to}</span>
+                  )}
+                </li>
+              ))}
+            </ul>
+          )}
+          <p className="mt-2 text-xs text-muted">Dry-run: nada foi alterado. Use “Executar agora” em uma regra para aplicar de verdade.</p>
+        </div>
+      )}
 
       {showForm && (
         <form className="card mb-6 grid gap-3 md:grid-cols-2" onSubmit={create}>
