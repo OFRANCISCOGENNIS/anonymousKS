@@ -54,6 +54,7 @@ import type {
   User,
 } from "./types";
 import { decodeGoogleJwt } from "./google";
+import { getBackendUrl } from "./backend";
 import { isAdminEmail } from "./admins";
 import { friendlyMediaTitle, svgThumb, uid } from "./utils";
 import { addUserCut, addUserGeneration, addUserProject, isDemoSession, readUserData } from "./session-scope";
@@ -73,8 +74,18 @@ function emptyDashboardStats(): DashboardStats {
   };
 }
 
-const BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000/api/v1";
-const TIMEOUT_MS = 1500;
+// URL base: um backend REAL conectado em Configurações (localStorage) tem
+// prioridade; sem ele, a env de build; sem ambos, localhost (dev). Com backend
+// conectado o timeout é maior — a intenção é usar a API de verdade, não cair
+// no mock por lentidão de rede.
+function apiBase(): string {
+  const custom = getBackendUrl();
+  if (custom) return `${custom}/api/v1`;
+  return process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000/api/v1";
+}
+function timeoutMs(): number {
+  return getBackendUrl() ? 12_000 : 1500;
+}
 
 let authToken: string | null = null;
 export function setAuthToken(token: string | null) {
@@ -93,8 +104,8 @@ async function request<T>(
 ): Promise<T> {
   try {
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
-    const res = await fetch(`${BASE_URL}${path}`, {
+    const timer = setTimeout(() => controller.abort(), timeoutMs());
+    const res = await fetch(`${apiBase()}${path}`, {
       ...init,
       signal: controller.signal,
       headers: {
