@@ -46,4 +46,10 @@ export class CampaignsController {
   duplicate(@Auth() auth: JwtPayload, @Param('id') id: string) {
     return this.svc.duplicate(auth, id);
   }
+
+  /** Edita a segmentação básica de um conjunto de anúncios (com confirmação no front). */
+  @Patch('adsets/:id/targeting')
+  updateTargeting(@Auth() auth: JwtPayload, @Param('id') id: string, @Body('targeting') targeting: Record<string, unknown>) {
+    return this.svc.updateTargeting(auth, id, targeting);
+  }
 }

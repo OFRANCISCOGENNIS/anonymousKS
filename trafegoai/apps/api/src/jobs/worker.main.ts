@@ -14,10 +14,14 @@ import { GoogleAdsConnector } from '../connectors/google.connector';
 import { MetaAdsConnector } from '../connectors/meta.connector';
 import { TikTokAdsConnector } from '../connectors/tiktok.connector';
 import { decryptToken } from '../common/crypto.util';
+import { RealtimeRedisPublisher } from '../realtime/realtime.publisher';
+import { RealtimeGateway } from '../realtime/realtime.gateway';
 import { RULES_QUEUE, SYNC_QUEUE, redisConnection } from './sync.service';
 
 const prisma = new PrismaService();
-const rulesEngine = new RulesEngine(prisma, new AuditService(prisma));
+// O worker não tem WebSocket local; publica no Redis e a API relaia para os clientes.
+const realtime = new RealtimeRedisPublisher() as unknown as RealtimeGateway;
+const rulesEngine = new RulesEngine(prisma, new AuditService(prisma), realtime);
 const connectors = {
   GOOGLE: new GoogleAdsConnector(),
   META: new MetaAdsConnector(),

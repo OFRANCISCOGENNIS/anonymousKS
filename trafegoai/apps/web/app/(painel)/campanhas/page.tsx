@@ -308,13 +308,64 @@ export default function CampanhasPage() {
 }
 
 // ---------- Drill-down: conjuntos e anúncios de uma campanha ----------
+interface Targeting { idade?: string; genero?: string; local?: string; interesses?: string[] }
 interface AdSetNode {
   id: string; name: string; status: string; roas: number; cpa: number; ctr: number; spend: number; conversions: number;
+  targeting?: Targeting | null;
   ads: Array<{ id: string; name: string; status: string; roas: number; cpa: number; ctr: number; spend: number; conversions: number; creative: { headline: string } | null }>;
 }
 
+function TargetingEditor({ adSet, onSaved }: { adSet: AdSetNode; onSaved: (t: Targeting) => void }) {
+  const [open, setOpen] = useState(false);
+  const [t, setT] = useState<Targeting>({ idade: '', genero: 'todos', local: '', interesses: [], ...(adSet.targeting ?? {}) });
+  const [busy, setBusy] = useState(false);
+
+  async function save() {
+    setBusy(true);
+    try {
+      await api.patch(`/campaigns/adsets/${adSet.id}/targeting`, { targeting: { ...t, interesses: (t.interesses ?? []) } });
+      onSaved(t);
+      setOpen(false);
+    } finally { setBusy(false); }
+  }
+
+  if (!open) {
+    return (
+      <div className="flex items-center gap-2">
+        <span className="text-xs text-muted">
+          🎯 {adSet.targeting?.idade ?? '—'} · {adSet.targeting?.genero ?? 'todos'} · {adSet.targeting?.local ?? '—'}
+          {adSet.targeting?.interesses?.length ? ` · ${adSet.targeting.interesses.join(', ')}` : ''}
+        </span>
+        <button className="btn-ghost !px-2 !py-0.5 !text-xs" onClick={() => setOpen(true)}>Editar segmentação</button>
+      </div>
+    );
+  }
+  return (
+    <div className="mt-2 grid gap-2 rounded-lg border border-border bg-bg p-3 md:grid-cols-4">
+      <label className="text-xs text-ink-2">Idade
+        <input className="input mt-1 !py-1 !text-sm" value={t.idade ?? ''} onChange={(e) => setT({ ...t, idade: e.target.value })} placeholder="25-45" />
+      </label>
+      <label className="text-xs text-ink-2">Gênero
+        <select className="input mt-1 !py-1 !text-sm" value={t.genero ?? 'todos'} onChange={(e) => setT({ ...t, genero: e.target.value })}>
+          <option value="todos">Todos</option><option value="feminino">Feminino</option><option value="masculino">Masculino</option>
+        </select>
+      </label>
+      <label className="text-xs text-ink-2">Local
+        <input className="input mt-1 !py-1 !text-sm" value={t.local ?? ''} onChange={(e) => setT({ ...t, local: e.target.value })} placeholder="Brasil" />
+      </label>
+      <label className="text-xs text-ink-2">Interesses (vírgula)
+        <input className="input mt-1 !py-1 !text-sm" value={(t.interesses ?? []).join(', ')} onChange={(e) => setT({ ...t, interesses: e.target.value.split(',').map((s) => s.trim()).filter(Boolean) })} placeholder="fitness, saúde" />
+      </label>
+      <div className="flex gap-2 md:col-span-4">
+        <button className="btn-primary !py-1 !text-xs" onClick={save} disabled={busy}>{busy ? 'Salvando…' : 'Salvar segmentação'}</button>
+        <button className="btn-ghost !py-1 !text-xs" onClick={() => setOpen(false)}>Cancelar</button>
+      </div>
+    </div>
+  );
+}
+
 function DrilldownModal({ campaign, onClose, query }: { campaign: CampaignRow; onClose: () => void; query: string }) {
-  const { data, loading, error, retry } = useApi<AdSetNode[]>(() => api.get(`/campaigns/${campaign.id}/children${query}`), [campaign.id, query]);
+  const { data, loading, error, retry, setData } = useApi<AdSetNode[]>(() => api.get(`/campaigns/${campaign.id}/children${query}`), [campaign.id, query]);
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" role="dialog" aria-modal="true" aria-label={`Detalhes de ${campaign.name}`}>
       <div className="card max-h-[90vh] w-full max-w-4xl overflow-auto shadow-2xl">
@@ -327,9 +378,14 @@ function DrilldownModal({ campaign, onClose, query }: { campaign: CampaignRow; o
           <div className="space-y-4">
             {(data ?? []).map((s) => (
               <div key={s.id} className="rounded-lg border border-border">
-                <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border bg-border/20 px-3 py-2">
-                  <span className="font-medium">📁 {s.name} <Badge tone={s.status === 'ACTIVE' ? 'good' : 'neutral'}>{s.status === 'ACTIVE' ? 'Ativo' : 'Pausado'}</Badge></span>
-                  <span className="tnum text-xs text-muted">ROAS {ratio(s.roas)} · CPA {brl(s.cpa)} · CTR {pct(s.ctr)} · {brl(s.spend)}</span>
+                <div className="border-b border-border bg-border/20 px-3 py-2">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <span className="font-medium">📁 {s.name} <Badge tone={s.status === 'ACTIVE' ? 'good' : 'neutral'}>{s.status === 'ACTIVE' ? 'Ativo' : 'Pausado'}</Badge></span>
+                    <span className="tnum text-xs text-muted">ROAS {ratio(s.roas)} · CPA {brl(s.cpa)} · CTR {pct(s.ctr)} · {brl(s.spend)}</span>
+                  </div>
+                  <div className="mt-1.5">
+                    <TargetingEditor adSet={s} onSaved={(t) => setData((prev) => prev?.map((x) => x.id === s.id ? { ...x, targeting: t } : x) ?? null)} />
+                  </div>
                 </div>
                 <table className="w-full text-sm">
                   <tbody>

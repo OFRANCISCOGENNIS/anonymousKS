@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useApi } from '@/lib/useApi';
-import { api, API_URL } from '@/lib/api';
+import { api } from '@/lib/api';
 import { Badge, EmptyState, ErrorState, PageHeader, Skeleton } from '@/components/ui';
 import { relativeTime } from '@/lib/format';
 
@@ -63,7 +63,7 @@ export default function RelatoriosPage() {
               <div className="flex flex-wrap gap-2">
                 <a className="btn-ghost" href={`/r/${r.shareToken}`} target="_blank" rel="noreferrer">Ver dashboard</a>
                 <button className="btn-ghost" onClick={() => copyLink(r)}>Copiar link do cliente</button>
-                <a className="btn-ghost" href={`${API_URL}/reports/shared/${r.shareToken}`} target="_blank" rel="noreferrer" title="Dados do relatório (para exportar PDF via imprimir)">Exportar</a>
+                <a className="btn-ghost" href={`/r/${r.shareToken}?print=1`} target="_blank" rel="noreferrer" title="Abre o relatório e inicia a exportação em PDF">Exportar PDF</a>
                 <button className="btn-primary" onClick={() => send(r)}>Enviar agora</button>
               </div>
             </article>

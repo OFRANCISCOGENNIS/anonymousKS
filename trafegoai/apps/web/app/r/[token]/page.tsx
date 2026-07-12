@@ -32,6 +32,14 @@ export default function SharedReportPage({ params }: { params: { token: string }
       .catch(() => setError('Não foi possível carregar o relatório.'));
   }, [params.token]);
 
+  // Auto-impressão quando aberto com ?print=1 (usado pelo botão "Exportar" da agência)
+  useEffect(() => {
+    if (data && typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('print') === '1') {
+      const t = setTimeout(() => window.print(), 900); // aguarda os gráficos renderizarem
+      return () => clearTimeout(t);
+    }
+  }, [data]);
+
   if (error) {
     return <main className="flex min-h-screen items-center justify-center p-6 text-ink-2">{error}</main>;
   }
@@ -57,7 +65,10 @@ export default function SharedReportPage({ params }: { params: { token: string }
           <h1 className="font-display text-2xl font-bold">{data.name}</h1>
           {data.client && <p className="text-sm text-muted">Cliente: {data.client} · últimos 30 dias · atualizado em tempo real</p>}
         </div>
-        <span className="rounded-full px-3 py-1 text-xs text-white" style={{ background: data.brand.color ?? '#6366f1' }}>somente leitura</span>
+        <div className="flex items-center gap-2">
+          <button className="btn-primary print:hidden" onClick={() => window.print()}>⬇ Baixar PDF</button>
+          <span className="rounded-full px-3 py-1 text-xs text-white print:hidden" style={{ background: data.brand.color ?? '#6366f1' }}>somente leitura</span>
+        </div>
       </header>
 
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">

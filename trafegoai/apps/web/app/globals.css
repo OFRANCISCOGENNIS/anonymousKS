@@ -66,3 +66,11 @@ body {
 
 /* Números tabulares para colunas alinhadas */
 .tnum { font-variant-numeric: tabular-nums; }
+
+/* Impressão / exportação em PDF dos relatórios (window.print) */
+@media print {
+  :root { --bg: 255 255 255; --surface: 255 255 255; --ink: 17 17 17; --ink-2: 51 51 51; --border: 221 221 221; }
+  body { background: #fff; color: #111; }
+  .card { border-color: #ddd; break-inside: avoid; }
+  @page { margin: 1.2cm; }
+}

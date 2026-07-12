@@ -126,6 +126,19 @@ export class CampaignsService {
     return copy;
   }
 
+  async updateTargeting(auth: JwtPayload, adSetId: string, targeting: Record<string, unknown>) {
+    const adSet = await this.prisma.adSet.findFirst({
+      where: { id: adSetId, campaign: { account: { orgId: auth.orgId } } },
+      include: { campaign: { include: { account: true } } },
+    });
+    if (!adSet) throw new NotFoundException('Conjunto de anúncios não encontrado');
+    // PONTO DE INTEGRAÇÃO: aplicar a nova segmentação via API oficial da plataforma
+    // (Meta: POST /{adset_id} targeting; Google: criteria; TikTok: adgroup/update).
+    const updated = await this.prisma.adSet.update({ where: { id: adSetId }, data: { targeting: targeting as object } });
+    await this.audit.log(auth, 'TARGETING_CHANGED', 'ADSET', adSetId, { targeting: adSet.targeting }, { targeting });
+    return updated;
+  }
+
   private async getOwned(orgId: string, id: string) {
     const campaign = await this.prisma.campaign.findFirst({
       where: { id, account: { orgId } },

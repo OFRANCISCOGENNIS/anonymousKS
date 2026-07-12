@@ -16,6 +16,8 @@ const ACTION_LABEL: Record<string, string> = {
   CAMPAIGN_ACTIVATED: '▶️ Campanha ativada',
   CAMPAIGN_DUPLICATED: '📋 Campanha duplicada',
   BUDGET_CHANGED: '💰 Orçamento alterado',
+  TARGETING_CHANGED: '🎯 Segmentação alterada',
+  PLAN_CHANGED: '💳 Plano alterado',
   RECOMMENDATION_APPLIED: '🤖 Recomendação aplicada',
   RECOMMENDATION_UNDONE: '↩️ Recomendação desfeita',
   RULE_FIRED: '⚡ Regra de automação disparada',
