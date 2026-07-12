@@ -29,7 +29,7 @@ import type {
 import { decodeGoogleJwt } from "./google";
 import { isAdminEmail } from "./admins";
 import { friendlyMediaTitle, svgThumb, uid } from "./utils";
-import { addUserCut, addUserProject, isDemoSession, readUserData } from "./session-scope";
+import { addUserCut, addUserProject, isDemoSession, readUserData, updateUserCut } from "./session-scope";
 
 /** Dashboard stats for a real (non-demo) user who has no seeded activity. */
 function emptyDashboardStats(): DashboardStats {
@@ -325,8 +325,11 @@ export async function patchCut(cutId: string, patch: Partial<Cut>): Promise<Cut>
   return request(
     `/cuts/${cutId}`,
     () => {
-      const found =
-        readUserData().cuts.find((c) => c.id === cutId) ?? mockCuts.find((c) => c.id === cutId) ?? mockCuts[0];
+      // Persist the patch for real (autosave depends on this): user cuts are
+      // updated in place; demo/mock cuts just return the merged object.
+      const persisted = updateUserCut(cutId, patch);
+      if (persisted) return persisted;
+      const found = mockCuts.find((c) => c.id === cutId) ?? mockCuts[0];
       return { ...found, ...patch };
     },
     { method: "PATCH", body: JSON.stringify(patch) },

@@ -286,12 +286,32 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         /* ignore */
       }
     }
-    set({
-      cut,
-      doc: {
+    // Autosave persistido: um clipe editado antes reabre EXATAMENTE como foi
+    // deixado. O saved doc é mesclado sobre os defaults (compatível com docs
+    // antigos que não tenham campos novos).
+    const savedDoc = (cut.editState ?? null) as Partial<EditorDoc> | null;
+    let initialDoc: EditorDoc;
+    if (savedDoc) {
+      // Merge raso por seção: docs salvos por versões antigas ganham os campos
+      // novos dos defaults sem perder o que o usuário configurou.
+      const merged = { ...DEFAULT_DOC } as unknown as Record<string, unknown>;
+      for (const [key, value] of Object.entries(savedDoc)) {
+        const def = (DEFAULT_DOC as unknown as Record<string, unknown>)[key];
+        merged[key] =
+          def && value && typeof def === "object" && typeof value === "object" && !Array.isArray(def)
+            ? { ...(def as object), ...(value as object) }
+            : value;
+      }
+      initialDoc = merged as unknown as EditorDoc;
+    } else {
+      initialDoc = {
         ...DEFAULT_DOC,
         layers: { ...DEFAULT_DOC.layers, headlineText: cut.title },
-      },
+      };
+    }
+    set({
+      cut,
+      doc: initialDoc,
       past: [],
       future: [],
       playing: false,

@@ -316,7 +316,7 @@ export default function Editor({ cutId }: { cutId: string }) {
             <ChevronDown className="h-3 w-3" aria-hidden />
           </Button>
           {versionsOpen && (
-            <div className="absolute right-0 top-10 z-30 w-72 rounded-xl border border-line bg-surface-2 p-2 shadow-2xl animate-fade-up">
+            <div className="absolute right-0 top-10 z-50 w-72 rounded-xl border border-line bg-surface-2 p-2 shadow-2xl animate-fade-up">
               <VersionsList onRestored={() => setVersionsOpen(false)} />
             </div>
           )}
@@ -353,7 +353,7 @@ export default function Editor({ cutId }: { cutId: string }) {
             <MoreHorizontal className="h-4 w-4" />
           </Button>
           {moreOpen && (
-            <div className="absolute right-0 top-10 z-30 w-64 max-w-[calc(100vw-1rem)] rounded-xl border border-line bg-surface-2 p-2 shadow-2xl animate-fade-up">
+            <div className="absolute right-0 top-10 z-50 w-64 max-w-[calc(100vw-1rem)] rounded-xl border border-line bg-surface-2 p-2 shadow-2xl animate-fade-up">
               <Link
                 href={`/app/capa/editor?cut=${cut.id}`}
                 className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-xs text-zinc-200 hover:bg-white/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-400"
@@ -546,7 +546,7 @@ export default function Editor({ cutId }: { cutId: string }) {
       {/* click-away for the versions/more dropdowns */}
       {(versionsOpen || moreOpen) && (
         <button
-          className="fixed inset-0 z-20 cursor-default"
+          className="fixed inset-0 z-40 cursor-default"
           aria-hidden
           tabIndex={-1}
           onClick={() => {

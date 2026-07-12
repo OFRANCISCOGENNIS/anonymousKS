@@ -47,14 +47,7 @@ export default function LibraryPage() {
             all.push({ cut: c, project: p, thumb: svgThumb(c.title, "podcast", 360, 640) });
           }
         }
-        // Repeat items to make the virtualized list meaningfully long (demo).
-        const repeated: LibraryItem[] = [];
-        for (let i = 0; i < 8; i++) {
-          for (const item of all) {
-            repeated.push(i === 0 ? item : { ...item, cut: { ...item.cut, id: `${item.cut.id}-v${i}` } });
-          }
-        }
-        setItems(repeated);
+        setItems(all);
       })
       .catch(() => setError(true));
   }
@@ -143,7 +136,7 @@ export default function LibraryPage() {
           {filtered.slice(0, 40).map((item) => (
             <Link
               key={item.cut.id}
-              href={`/app/editor?cut=${item.cut.id.split("-v")[0]}`}
+              href={`/app/editor?cut=${item.cut.id}`}
               onMouseEnter={() => setHovered(item.cut.id)}
               onMouseLeave={() => setHovered(null)}
               onFocus={() => setHovered(item.cut.id)}
@@ -192,7 +185,7 @@ export default function LibraryPage() {
               return (
                 <Link
                   key={item.cut.id}
-                  href={`/app/editor?cut=${item.cut.id.split("-v")[0]}`}
+                  href={`/app/editor?cut=${item.cut.id}`}
                   role="listitem"
                   className="absolute inset-x-0 flex items-center gap-4 border-b border-line/50 px-4 hover:bg-white/[0.03] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-violet-400"
                   style={{ top: index * ROW_HEIGHT, height: ROW_HEIGHT }}

@@ -98,6 +98,20 @@ export function addUserCut(cut: Cut): void {
   writeUserData({ ...data, cuts: [cut, ...data.cuts.filter((c) => c.id !== cut.id)] });
 }
 
+/**
+ * Merge a patch into a stored user cut (autosave do editor). Returns the
+ * updated cut, or null when the cut isn't in the user's storage (demo/mock).
+ */
+export function updateUserCut(cutId: string, patch: Partial<Cut>): Cut | null {
+  if (isDemoSession()) return null;
+  const data = readUserData();
+  const existing = data.cuts.find((c) => c.id === cutId);
+  if (!existing) return null;
+  const updated = { ...existing, ...patch };
+  writeUserData({ ...data, cuts: data.cuts.map((c) => (c.id === cutId ? updated : c)) });
+  return updated;
+}
+
 /** Persist a newly-created studio generation for the current (non-demo) user. */
 export function addUserGeneration(generation: Generation): void {
   if (isDemoSession()) return;

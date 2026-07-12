@@ -19,6 +19,7 @@ import {
 import * as api from "@/lib/api";
 import type { Cut } from "@/lib/types";
 import { formatDuration, svgThumb } from "@/lib/utils";
+import { getMediaObjectUrl } from "@/lib/media-store";
 import { toast } from "@/store/toast";
 import { useRenderQueueStore, type RenderItem } from "@/store/render-queue";
 import { Badge } from "@/components/ui/badge";
@@ -27,7 +28,10 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { Progress } from "@/components/ui/progress";
 
 // Only the fields we need to build real client-side export artifacts.
-type ExportCut = Pick<Cut, "title" | "description" | "hashtags" | "transcript" | "startSeconds" | "endSeconds">;
+type ExportCut = Pick<
+  Cut,
+  "title" | "description" | "hashtags" | "transcript" | "startSeconds" | "endSeconds"
+> & { mediaId?: string; mediaUrl?: string };
 
 /** Resolve a queue item to its cut; falls back to a minimal shape if missing. */
 async function resolveCut(item: RenderItem): Promise<ExportCut> {
@@ -36,6 +40,103 @@ async function resolveCut(item: RenderItem): Promise<ExportCut> {
   } catch {
     return { title: item.cutTitle, description: "", hashtags: [], transcript: [], startSeconds: 0, endSeconds: 0 };
   }
+}
+
+/**
+ * Capture a REAL frame of the cut's video (~1s after the cut start) as a
+ * 1280×720 letterboxed PNG. Resolves null when there is no playable media —
+ * the caller falls back to the generated SVG card.
+ */
+function captureFramePng(src: string, atSeconds: number): Promise<Blob | null> {
+  return new Promise((resolve) => {
+    if (typeof document === "undefined") {
+      resolve(null);
+      return;
+    }
+    const video = document.createElement("video");
+    let settled = false;
+    const done = (blob: Blob | null) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      video.removeAttribute("src");
+      try {
+        video.load();
+      } catch {
+        /* ignore */
+      }
+      resolve(blob);
+    };
+    const timer = setTimeout(() => done(null), 10_000);
+    video.preload = "auto";
+    video.muted = true;
+    video.setAttribute("playsinline", "");
+    video.onerror = () => done(null);
+    video.onloadedmetadata = () => {
+      try {
+        video.currentTime = Math.min(Math.max(0, atSeconds), Math.max(0, (video.duration || 1) - 0.05));
+      } catch {
+        done(null);
+      }
+    };
+    video.onseeked = () => {
+      try {
+        const w = video.videoWidth;
+        const h = video.videoHeight;
+        if (!w || !h) {
+          done(null);
+          return;
+        }
+        const canvas = document.createElement("canvas");
+        canvas.width = 1280;
+        canvas.height = 720;
+        const ctx = canvas.getContext("2d");
+        if (!ctx) {
+          done(null);
+          return;
+        }
+        ctx.fillStyle = "#000";
+        ctx.fillRect(0, 0, 1280, 720);
+        const scale = Math.min(1280 / w, 720 / h);
+        const dw = Math.round(w * scale);
+        const dh = Math.round(h * scale);
+        ctx.drawImage(video, (1280 - dw) / 2, (720 - dh) / 2, dw, dh);
+        canvas.toBlob((b) => done(b), "image/png");
+      } catch {
+        done(null); // tainted (cross-origin) canvas etc.
+      }
+    };
+    try {
+      video.src = src;
+    } catch {
+      done(null);
+    }
+  });
+}
+
+/** Thumbnail: frame REAL do vídeo quando houver mídia; senão o card SVG gerado. */
+async function buildCutThumbPng(cut: ExportCut): Promise<Blob | null> {
+  let src: string | null = cut.mediaUrl ?? null;
+  let owned = false;
+  if (!src && cut.mediaId) {
+    src = await getMediaObjectUrl(cut.mediaId);
+    owned = src != null;
+  }
+  if (src) {
+    try {
+      const frame = await captureFramePng(src, cut.startSeconds + 1);
+      if (frame) return frame;
+    } finally {
+      if (owned && src) {
+        try {
+          URL.revokeObjectURL(src);
+        } catch {
+          /* ignore */
+        }
+      }
+    }
+  }
+  return buildThumbPng(cut.title);
 }
 
 function slug(s: string): string {
@@ -155,7 +256,7 @@ export default function ExportsPage() {
 
   async function downloadThumb(item: RenderItem) {
     const cut = await resolveCut(item);
-    const png = await buildThumbPng(cut.title);
+    const png = await buildCutThumbPng(cut);
     if (!png) {
       toast("Não foi possível gerar a thumbnail", { variant: "error" });
       return;
@@ -185,7 +286,7 @@ export default function ExportsPage() {
           new Blob([buildDescription(cut)], { type: "text/plain;charset=utf-8" }),
           `${slug(cut.title)}-descricao.txt`,
         );
-        const png = await buildThumbPng(cut.title);
+        const png = await buildCutThumbPng(cut);
         if (png) triggerDownload(png, `${slug(cut.title)}-thumb.png`);
         await new Promise((r) => setTimeout(r, 350)); // space out browser downloads
       }

@@ -47,7 +47,8 @@ export function OnboardingTour() {
 
   // Auto-open once for new users on the dashboard.
   useEffect(() => {
-    if (hydrated && !completed && pathname === "/app") {
+    const atHome = pathname === "/app" || pathname === "/app/"; // trailingSlash do export
+    if (hydrated && !completed && atHome) {
       setStep(0);
       setActive(true);
     }

@@ -99,12 +99,18 @@ export default function SettingsPage() {
     setPwErrors(errs);
     if (Object.keys(errs).length > 0) return;
     setPwSaving(true);
-    await new Promise((r) => setTimeout(r, 500));
+    // Honestidade: no modo local (sem servidor) não existe senha de verdade a
+    // trocar — a conta vive só neste navegador. Nada de "sucesso" fingido.
+    await new Promise((r) => setTimeout(r, 300));
     setPwSaving(false);
     setCurrentPw("");
     setNewPw("");
     setConfirmPw("");
-    toast("Senha alterada com sucesso");
+    toast("Sua conta é local, sem senha armazenada", {
+      description:
+        "Neste modo a conta vive apenas neste navegador e a troca de senha não se aplica — nada foi alterado.",
+      variant: "info",
+    });
   }
 
   function redoTour() {
