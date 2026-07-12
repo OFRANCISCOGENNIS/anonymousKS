@@ -191,49 +191,50 @@ export class InsightsService {
     return { created: created.length };
   }
 
-  /** Ranking de criativos com detecção de fadiga (CTR em queda + frequência subindo). */
+  /**
+   * Ranking de criativos com métricas REAIS por anúncio (nível AD) e detecção
+   * de fadiga por anúncio (CTR em queda na 2ª metade do período + frequência alta).
+   */
   async creativeRanking(orgId: string) {
     const ads = await this.prisma.ad.findMany({
       where: { adSet: { campaign: { account: { orgId } } } },
       include: { creative: true, adSet: { include: { campaign: { include: { account: true } } } } },
     });
-    // Fadiga avaliada no nível da campanha (métricas de anúncio agregadas no seed)
-    const campaignIds = [...new Set(ads.map((a) => a.adSet.campaign.id))];
+    const adIds = ads.map((a) => a.id);
     const metrics = await this.prisma.metricDaily.findMany({
-      where: { level: 'CAMPAIGN', refId: { in: campaignIds } },
+      where: { level: 'AD', refId: { in: adIds } },
       orderBy: { date: 'asc' },
     });
-    const byCampaign = new Map<string, typeof metrics>();
+    const byAd = new Map<string, typeof metrics>();
     for (const m of metrics) {
-      if (!byCampaign.has(m.refId)) byCampaign.set(m.refId, []);
-      byCampaign.get(m.refId)!.push(m);
+      if (!byAd.has(m.refId)) byAd.set(m.refId, []);
+      byAd.get(m.refId)!.push(m);
     }
-    const fatigue = new Map<string, { fatigued: boolean; ctrDrop: number; freq: number }>();
-    for (const [cid, series] of byCampaign) {
+
+    const ctrOf = (slice: typeof metrics) => {
+      const t = emptyTotals();
+      slice.forEach((r) => addInto(t, r));
+      return derive(t).ctr;
+    };
+
+    return ads.map((a) => {
+      const series = byAd.get(a.id) ?? [];
+      const t = emptyTotals();
+      series.forEach((r) => addInto(t, r));
+      const d = derive(t);
+      // Fadiga: compara CTR da 1ª metade × 2ª metade + frequência recente
       const half = Math.floor(series.length / 2);
-      const ctrOf = (slice: typeof series) => {
-        const t = emptyTotals();
-        slice.forEach((r) => addInto(t, r));
-        return derive(t).ctr;
-      };
       const early = ctrOf(series.slice(0, half));
       const late = ctrOf(series.slice(half));
       const lastFreq = Number(series[series.length - 1]?.frequency ?? 0);
       const ctrDrop = early > 0 ? round(((early - late) / early) * 100, 1) : 0;
-      fatigue.set(cid, { fatigued: ctrDrop > 25 && lastFreq > 2.5, ctrDrop, freq: lastFreq });
-    }
-    return ads.map((a) => {
-      const t = emptyTotals();
-      (byCampaign.get(a.adSet.campaign.id) ?? []).forEach((r) => addInto(t, r));
-      const d = derive(t);
-      const f = fatigue.get(a.adSet.campaign.id)!;
       return {
         id: a.id, name: a.name, status: a.status,
         campaign: a.adSet.campaign.name,
         platform: a.adSet.campaign.account.platform,
         creative: a.creative ? { headline: a.creative.headline, primaryText: a.creative.primaryText, imageUrl: a.creative.imageUrl } : null,
-        ctr: d.ctr, cpa: d.cpa, roas: d.roas, spend: round(d.spend / 4), // aproximação por anúncio
-        fatigue: f,
+        ctr: d.ctr, cpa: d.cpa, roas: d.roas, spend: round(d.spend),
+        fatigue: { fatigued: ctrDrop > 22 && lastFreq > 2.5, ctrDrop, freq: lastFreq },
       };
     }).sort((a, b) => b.roas - a.roas);
   }

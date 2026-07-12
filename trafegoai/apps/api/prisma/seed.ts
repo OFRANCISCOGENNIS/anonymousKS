@@ -149,7 +149,15 @@ async function main() {
         },
       });
 
-      // 2 conjuntos + 2 anúncios por conjunto para as tabelas hierárquicas
+      // 2 conjuntos + 2 anúncios por conjunto para as tabelas hierárquicas.
+      // Cada anúncio recebe um PERFIL distinto (fatia de verba, fator de ROAS/CTR
+      // e flag de fadiga) para que as métricas de anúncio difiram de verdade —
+      // é o que faz o comparativo de criativos lado a lado ter sentido.
+      const adProfiles: Array<{ id: string; spendShare: number; roasVar: number; ctrVar: number; fatigue: boolean }> = [];
+      const SPEND_SHARE = [0.34, 0.18, 0.28, 0.20]; // soma ≈ 1 entre os 4 anúncios
+      const ROAS_VAR = [1.28, 0.82, 1.06, 0.72];
+      const CTR_VAR = [1.18, 0.78, 1.02, 0.74];
+      let adSeq = 0;
       for (let s = 1; s <= 2; s++) {
         const adSet = await prisma.adSet.create({
           data: {
@@ -170,7 +178,7 @@ async function main() {
               cta: 'COMPRAR_AGORA',
             },
           });
-          await prisma.ad.create({
+          const ad = await prisma.ad.create({
             data: {
               adSetId: adSet.id,
               externalId: `${adSet.externalId}-a${a}`,
@@ -179,6 +187,15 @@ async function main() {
               creativeId: creative.id,
             },
           });
+          adProfiles.push({
+            id: ad.id,
+            spendShare: SPEND_SHARE[adSeq] ?? 0.25,
+            roasVar: ROAS_VAR[adSeq] ?? 1,
+            ctrVar: CTR_VAR[adSeq] ?? 1,
+            // vídeos (a===2) em campanha com tendência negativa fadigam
+            fatigue: a === 2 && spec.trend < 0,
+          });
+          adSeq++;
         }
       }
 
@@ -204,6 +221,27 @@ async function main() {
           impressions, clicks, conversions,
           frequency: Math.round((1.4 + (spec.trend < 0 ? (DAYS - d) * 0.025 : 0) + rand() * 0.4) * 100) / 100,
         });
+
+        // Métricas em nível de ANÚNCIO — cada anúncio com seu perfil próprio.
+        for (const ap of adProfiles) {
+          const aSpend = spend * ap.spendShare * (0.9 + rand() * 0.2);
+          // fadiga do anúncio: CTR cai e frequência sobe ao longo do tempo
+          const fatigueCtr = ap.fatigue ? 1 - 0.006 * (DAYS - d) : 1;
+          const aCtr = Math.max(ctrNow * ap.ctrVar * fatigueCtr, 0.001);
+          const aCpc = 0.6 + rand() * 1.8;
+          const aClicks = Math.max(1, Math.round(aSpend / aCpc));
+          const aImpr = Math.round(aClicks / aCtr);
+          const aConv = Math.round(aClicks * spec.cvr * ap.roasVar * (0.85 + rand() * 0.3));
+          const aRev = aSpend * spec.roas * ap.roasVar * (0.85 + rand() * 0.3) * drift;
+          dailyRows.push({
+            date, level: MetricLevel.AD, refId: ap.id, accountId: account.id,
+            platform: acc.platform,
+            spend: Math.round(aSpend * 100) / 100,
+            revenue: Math.round(aRev * 100) / 100,
+            impressions: aImpr, clicks: aClicks, conversions: aConv,
+            frequency: Math.round((1.4 + (ap.fatigue ? (DAYS - d) * 0.03 : 0) + rand() * 0.4) * 100) / 100,
+          });
+        }
       }
     }
     await prisma.metricDaily.createMany({ data: dailyRows });
