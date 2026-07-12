@@ -31,7 +31,6 @@ import {
   Sticker,
   Type,
   Undo2,
-  Wand2,
 } from "lucide-react";
 import * as api from "@/lib/api";
 import { cn, formatDate, formatTimecode } from "@/lib/utils";
@@ -50,12 +49,11 @@ import { EffectsPanel } from "./effects-panel";
 import { OverlaysPanel } from "./overlays-panel";
 import { AudioPanel } from "./audio-panel";
 import { TextoPanel } from "./texto-panel";
-import { AutoPanel } from "./auto-panel";
 import { FormatPanel } from "./format-panel";
 import { ExportModal } from "./export-modal";
 import { ShortcutsModal } from "./shortcuts-modal";
 
-type PanelTab = "captions" | "effects" | "overlays" | "layers" | "audio" | "texto" | "auto" | "formato";
+type PanelTab = "captions" | "effects" | "overlays" | "layers" | "audio" | "texto" | "formato";
 
 const PANEL_TITLES: Record<PanelTab, string> = {
   formato: "Formato",
@@ -65,7 +63,6 @@ const PANEL_TITLES: Record<PanelTab, string> = {
   layers: "Camadas",
   audio: "Áudio",
   texto: "Texto",
-  auto: "Auto",
 };
 
 // Barra inferior de ferramentas (mobile, estilo CapCut): ícone + label.
@@ -77,7 +74,6 @@ const MOBILE_TOOLS: { id: PanelTab; label: string; icon: typeof Ratio }[] = [
   { id: "audio", label: "Áudio", icon: Music2 },
   { id: "overlays", label: "Overlays", icon: Sticker },
   { id: "layers", label: "Camadas", icon: Layers },
-  { id: "auto", label: "Auto", icon: Wand2 },
 ];
 
 /** Conteúdo do histórico de versões — usado no dropdown desktop e no menu "⋯" mobile. */
@@ -246,8 +242,8 @@ export default function Editor({ cutId }: { cutId: string }) {
       <div className="p-8">
         <EmptyState
           variant="clapper"
-          title="Corte não encontrado"
-          description="Ele pode ter sido excluído ou regenerado."
+          title="Clipe não encontrado"
+          description="Ele pode ter sido excluído."
           action={
             <div className="flex gap-2">
               <Button onClick={load}>Tentar novamente</Button>
@@ -263,7 +259,7 @@ export default function Editor({ cutId }: { cutId: string }) {
 
   if (!cut) {
     return (
-      <div className="flex h-[100dvh] flex-col gap-3 overflow-hidden p-3" role="status" aria-label="Carregando corte">
+      <div className="flex h-[100dvh] flex-col gap-3 overflow-hidden p-3" role="status" aria-label="Carregando clipe">
         <Skeleton className="h-12 w-full shrink-0" />
         <div className="flex min-h-0 flex-1 gap-3">
           <Skeleton className="h-full min-w-0 flex-1" />
@@ -320,7 +316,7 @@ export default function Editor({ cutId }: { cutId: string }) {
             <ChevronDown className="h-3 w-3" aria-hidden />
           </Button>
           {versionsOpen && (
-            <div className="absolute right-0 top-10 z-30 w-72 rounded-xl border border-line bg-surface-2 p-2 shadow-2xl animate-fade-up">
+            <div className="absolute right-0 top-10 z-50 w-72 rounded-xl border border-line bg-surface-2 p-2 shadow-2xl animate-fade-up">
               <VersionsList onRestored={() => setVersionsOpen(false)} />
             </div>
           )}
@@ -357,7 +353,7 @@ export default function Editor({ cutId }: { cutId: string }) {
             <MoreHorizontal className="h-4 w-4" />
           </Button>
           {moreOpen && (
-            <div className="absolute right-0 top-10 z-30 w-64 max-w-[calc(100vw-1rem)] rounded-xl border border-line bg-surface-2 p-2 shadow-2xl animate-fade-up">
+            <div className="absolute right-0 top-10 z-50 w-64 max-w-[calc(100vw-1rem)] rounded-xl border border-line bg-surface-2 p-2 shadow-2xl animate-fade-up">
               <Link
                 href={`/app/capa/editor?cut=${cut.id}`}
                 className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-xs text-zinc-200 hover:bg-white/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-400"
@@ -451,7 +447,6 @@ export default function Editor({ cutId }: { cutId: string }) {
                   { id: "layers", label: "Camadas" },
                   { id: "audio", label: "Áudio" },
                   { id: "texto", label: "Texto" },
-                  { id: "auto", label: "Auto" },
                 ]}
                 value={panel}
                 onChange={setPanel}
@@ -466,7 +461,6 @@ export default function Editor({ cutId }: { cutId: string }) {
               {panel === "layers" && <LayersPanel />}
               {panel === "audio" && <AudioPanel />}
               {panel === "texto" && <TextoPanel />}
-              {panel === "auto" && <AutoPanel />}
             </div>
           </div>
         </aside>
@@ -552,7 +546,7 @@ export default function Editor({ cutId }: { cutId: string }) {
       {/* click-away for the versions/more dropdowns */}
       {(versionsOpen || moreOpen) && (
         <button
-          className="fixed inset-0 z-20 cursor-default"
+          className="fixed inset-0 z-40 cursor-default"
           aria-hidden
           tabIndex={-1}
           onClick={() => {

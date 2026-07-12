@@ -121,6 +121,16 @@ export function EditorPreview() {
     }
   }, [playing, hasVideo]);
 
+  // Velocidade REAL: o <video> acelera/desacelera conforme a curva de speed
+  // (antes só o indicador mudava — o vídeo ficava em 1x).
+  const currentRateForVideo = speedAt(doc.speed, currentTime);
+  useEffect(() => {
+    const v = videoRef.current;
+    if (!v || !hasVideo) return;
+    const rate = Math.min(4, Math.max(0.25, currentRateForVideo));
+    if (Math.abs(v.playbackRate - rate) > 0.001) v.playbackRate = rate;
+  }, [currentRateForVideo, hasVideo]);
+
   // Follow external seeks (timeline scrub, arrow keys) — but ignore the tiny
   // drift the element itself reports via timeupdate to avoid a feedback loop.
   useEffect(() => {
