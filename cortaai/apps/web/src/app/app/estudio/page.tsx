@@ -104,6 +104,18 @@ export default function EstudioPage() {
     };
   }, []);
 
+  // ------- abrir gavetas a partir da timeline (botões "+" estilo CapCut) --------
+  useEffect(() => {
+    function onOpenSheet(e: Event) {
+      const detail = (e as CustomEvent<string>).detail;
+      if (detail === "bin" || detail === "music" || detail === "record" || detail === "captions" || detail === "inspector") {
+        setSheet(detail);
+      }
+    }
+    window.addEventListener("studio-open-sheet", onOpenSheet);
+    return () => window.removeEventListener("studio-open-sheet", onOpenSheet);
+  }, []);
+
   // ------- atalhos de teclado ---------------------------------------------------
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
@@ -170,7 +182,7 @@ export default function EstudioPage() {
             disabled={!canUndo}
             aria-label="Desfazer (Ctrl+Z)"
             title="Desfazer (Ctrl+Z)"
-            className="rounded-lg p-2 text-zinc-400 transition-all hover:bg-white/5 hover:text-white active:scale-90 disabled:opacity-40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-400"
+            className="hidden rounded-lg p-2 text-zinc-400 transition-all hover:bg-white/5 hover:text-white active:scale-90 disabled:opacity-40 lg:block focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-400"
           >
             <Undo2 className="h-4 w-4" />
           </button>
@@ -179,7 +191,7 @@ export default function EstudioPage() {
             disabled={!canRedo}
             aria-label="Refazer (Ctrl+Shift+Z)"
             title="Refazer (Ctrl+Shift+Z)"
-            className="rounded-lg p-2 text-zinc-400 transition-all hover:bg-white/5 hover:text-white active:scale-90 disabled:opacity-40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-400"
+            className="hidden rounded-lg p-2 text-zinc-400 transition-all hover:bg-white/5 hover:text-white active:scale-90 disabled:opacity-40 lg:block focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-400"
           >
             <Redo2 className="h-4 w-4" />
           </button>
@@ -242,12 +254,12 @@ export default function EstudioPage() {
 
       {/* Barra inferior (mobile) */}
       <nav aria-label="Ferramentas" className="flex shrink-0 items-stretch gap-1 overflow-x-auto border-t border-white/[0.06] bg-surface-1/80 px-2 pt-1 pb-[calc(0.35rem+env(safe-area-inset-bottom))] backdrop-blur-xl lg:hidden">
+        <MobileTool icon={SlidersHorizontal} label="Editar" onClick={() => setSheet("inspector")} highlight={selectedClipId != null} />
         <MobileTool icon={FolderOpen} label={`Mídia${sourceCount > 0 ? ` (${sourceCount})` : ""}`} onClick={() => setSheet("bin")} />
-        <MobileTool icon={Music2} label="Música" onClick={() => setSheet("music")} />
-        <MobileTool icon={Circle} label="Gravar" onClick={() => setSheet("record")} />
+        <MobileTool icon={Music2} label="Áudio" onClick={() => setSheet("music")} />
         <MobileTool icon={TypeIcon} label="Texto" onClick={() => addTextClip("Seu texto")} />
         <MobileTool icon={Captions} label="Legendas" onClick={() => setSheet("captions")} />
-        <MobileTool icon={SlidersHorizontal} label="Ajustes" onClick={() => setSheet("inspector")} highlight={selectedClipId != null} />
+        <MobileTool icon={Circle} label="Gravar" onClick={() => setSheet("record")} />
       </nav>
 
       {/* Gavetas (mobile) */}

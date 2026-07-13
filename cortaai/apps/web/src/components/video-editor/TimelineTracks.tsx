@@ -9,6 +9,7 @@
 import { useMemo, useRef, useState } from "react";
 import {
   Copy,
+  Plus,
   Film,
   Lock,
   LockOpen,
@@ -83,9 +84,12 @@ export function TimelineTracks() {
   const deleteClip = useVideoEditor((s) => s.deleteClip);
   const rippleDelete = useVideoEditor((s) => s.rippleDelete);
   const duplicateClip = useVideoEditor((s) => s.duplicateClip);
+  const addTextClip = useVideoEditor((s) => s.addTextClip);
 
   const [drag, setDrag] = useState<DragState | null>(null);
   const dragRef = useRef<DragState | null>(null);
+
+  const hasTextTrack = project.tracks.some((t) => t.type === "text");
 
   const durationMs = useMemo(() => Math.max(4000, projectDurationMs(project.tracks) + 2000), [project.tracks]);
   const width = timeToPx(durationMs, pxPerSecond);
@@ -241,13 +245,14 @@ export function TimelineTracks() {
               onPointerMove={onDragMove}
               onPointerUp={endDrag}
               onPointerCancel={endDrag}
-              style={{ height: project.tracks.length * TRACK_H }}
+              style={{ height: (project.tracks.length + (hasTextTrack ? 0 : 1)) * TRACK_H }}
             >
               {project.tracks.map((track, ti) => (
                 <div key={track.id} className="absolute inset-x-0 border-b border-line/40" style={{ top: ti * TRACK_H, height: TRACK_H }}>
                   {track.clips.map((clip) => {
                     const rect = clipRect(clip);
                     const isSel = selectedClipId === clip.id;
+                    const poster = sources[clip.sourceId]?.posterDataUrl ?? null;
                     return (
                       <div
                         key={clip.id}
@@ -274,10 +279,17 @@ export function TimelineTracks() {
                           track.hidden && "opacity-40",
                           track.locked ? "cursor-not-allowed" : "cursor-grab active:cursor-grabbing",
                         )}
-                        style={{ left: rect.left, width: rect.w }}
+                        style={{
+                          left: rect.left,
+                          width: rect.w,
+                          // filmstrip estilo CapCut: o poster do vídeo repetido no clipe
+                          ...(poster
+                            ? { backgroundImage: `url(${poster})`, backgroundSize: "auto 100%", backgroundRepeat: "repeat-x" }
+                            : {}),
+                        }}
                         title={`${fmt(clip.startInTimeline)} → ${fmt(clipEndMs(clip))}`}
                       >
-                        <span className="pointer-events-none flex h-full items-center gap-1 truncate">
+                        <span className={cn("pointer-events-none flex h-full items-center gap-1 truncate", poster && "drop-shadow-[0_1px_2px_rgba(0,0,0,0.9)]")}>
                           {clip.text?.content ?? sources[clip.sourceId]?.name ?? clip.sourceId}
                           {clip.speed !== 1 && <span className="rounded bg-black/40 px-1 text-[8px]">{clip.speed}x</span>}
                           {clip.filterId && clip.filterId !== "none" && <span className="rounded bg-black/40 px-1 text-[8px]">fx</span>}
@@ -300,8 +312,54 @@ export function TimelineTracks() {
                       </div>
                     );
                   })}
+
+                  {/* "+" no fim da trilha de vídeo (estilo CapCut) → abre a Mídia */}
+                  {track.type === "video" && (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        window.dispatchEvent(new CustomEvent("studio-open-sheet", { detail: "bin" }));
+                      }}
+                      aria-label="Adicionar mídia"
+                      title="Adicionar mídia"
+                      className="absolute top-1/2 z-10 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-lg bg-white text-black shadow-lg transition-transform active:scale-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-400"
+                      style={{ left: timeToPx(track.clips.reduce((m, c) => Math.max(m, clipEndMs(c)), 0), pxPerSecond) + 8 }}
+                    >
+                      <Plus className="h-4 w-4" />
+                    </button>
+                  )}
+
+                  {/* trilha de áudio vazia → "+ Adicionar áudio" */}
+                  {track.type === "audio" && track.clips.length === 0 && (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        window.dispatchEvent(new CustomEvent("studio-open-sheet", { detail: "music" }));
+                      }}
+                      className="absolute inset-y-1.5 left-1 flex items-center gap-1.5 rounded-lg bg-white/[0.05] px-3 text-[11px] font-medium text-zinc-400 transition-colors hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-400"
+                      style={{ width: 220 }}
+                    >
+                      <Plus className="h-3.5 w-3.5" aria-hidden /> Adicionar áudio
+                    </button>
+                  )}
                 </div>
               ))}
+
+              {/* linha "+ Adicionar texto" quando ainda não há trilha de texto */}
+              {!hasTextTrack && (
+                <div className="absolute inset-x-0 border-b border-line/40" style={{ top: project.tracks.length * TRACK_H, height: TRACK_H }}>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      addTextClip("Seu texto");
+                    }}
+                    className="absolute inset-y-1.5 left-1 flex items-center gap-1.5 rounded-lg bg-white/[0.05] px-3 text-[11px] font-medium text-zinc-400 transition-colors hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-400"
+                    style={{ width: 220 }}
+                  >
+                    <Plus className="h-3.5 w-3.5" aria-hidden /> Adicionar texto
+                  </button>
+                </div>
+              )}
 
               {/* playhead */}
               <div

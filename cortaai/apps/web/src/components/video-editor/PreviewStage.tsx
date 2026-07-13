@@ -7,7 +7,7 @@
 // compostas por cima no mesmo instante.
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Pause, Play } from "lucide-react";
+import { Pause, Play, Redo2, Undo2 } from "lucide-react";
 import { drawComposite, type Drawable } from "@/lib/video-editor/engine";
 import type { Clip } from "@/lib/video-editor/model";
 import { sourceObjectUrl, type MediaSource } from "@/lib/video-editor/media-registry";
@@ -26,6 +26,10 @@ export function PreviewStage() {
   const sources = useVideoEditor((s) => s.sources);
   const playheadMs = useVideoEditor((s) => s.playheadMs);
   const setPlayhead = useVideoEditor((s) => s.setPlayhead);
+  const undo = useVideoEditor((s) => s.undo);
+  const redo = useVideoEditor((s) => s.redo);
+  const canUndo = useVideoEditor((s) => s.past.length > 0);
+  const canRedo = useVideoEditor((s) => s.future.length > 0);
 
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const stageRef = useRef<HTMLDivElement | null>(null);
@@ -338,17 +342,36 @@ export function PreviewStage() {
         )}
       </div>
 
-      <div className="flex shrink-0 items-center gap-3 rounded-2xl border border-white/[0.08] bg-surface-1/60 px-3 py-2 backdrop-blur-xl">
+      {/* transporte estilo CapCut: tempo à esquerda, play central, desfazer/refazer à direita */}
+      <div className="relative flex shrink-0 items-center rounded-2xl border border-white/[0.08] bg-surface-1/60 px-3 py-2 backdrop-blur-xl">
+        <span className="font-mono text-xs tabular-nums text-zinc-300">
+          {fmt(playheadMs)} <span className="text-zinc-600">/ {fmt(durationMs)}</span>
+        </span>
         <button
           onClick={toggle}
           aria-label={playing ? "Pausar" : "Reproduzir"}
           disabled={!hasMedia}
-          className="flex h-9 w-9 items-center justify-center rounded-full bg-gradient-to-r from-violet-600 to-fuchsia-600 text-white shadow-glow transition-all hover:shadow-[0_0_32px_-4px_rgba(217,70,239,0.7)] active:scale-90 disabled:opacity-40 disabled:shadow-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-400"
+          className="absolute left-1/2 top-1/2 flex h-10 w-10 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full bg-gradient-to-r from-violet-600 to-fuchsia-600 text-white shadow-glow transition-all hover:shadow-[0_0_32px_-4px_rgba(217,70,239,0.7)] active:scale-90 disabled:opacity-40 disabled:shadow-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-400"
         >
           {playing ? <Pause className="h-4 w-4" /> : <Play className="ml-0.5 h-4 w-4" />}
         </button>
-        <span className="font-mono text-xs tabular-nums text-zinc-300">
-          {fmt(playheadMs)} <span className="text-zinc-600">/ {fmt(durationMs)}</span>
+        <span className="ml-auto flex items-center gap-0.5">
+          <button
+            onClick={undo}
+            disabled={!canUndo}
+            aria-label="Desfazer"
+            className="rounded-lg p-2 text-zinc-400 transition-all hover:bg-white/5 hover:text-white active:scale-90 disabled:opacity-40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-400"
+          >
+            <Undo2 className="h-4 w-4" />
+          </button>
+          <button
+            onClick={redo}
+            disabled={!canRedo}
+            aria-label="Refazer"
+            className="rounded-lg p-2 text-zinc-400 transition-all hover:bg-white/5 hover:text-white active:scale-90 disabled:opacity-40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-400"
+          >
+            <Redo2 className="h-4 w-4" />
+          </button>
         </span>
       </div>
     </div>
