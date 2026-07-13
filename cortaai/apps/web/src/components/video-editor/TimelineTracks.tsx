@@ -178,9 +178,9 @@ export function TimelineTracks() {
   const hasSelection = selectedClipId != null;
 
   return (
-    <div className="flex flex-col overflow-hidden rounded-xl border border-line bg-surface-1/70">
+    <div className="flex flex-col overflow-hidden rounded-2xl border border-white/[0.08] bg-surface-1/60 shadow-[0_-8px_40px_-16px_rgba(0,0,0,0.6)] backdrop-blur-xl">
       {/* barra de ferramentas + zoom */}
-      <div className="flex items-center gap-1 border-b border-line px-2 py-1.5">
+      <div className="flex items-center gap-1 border-b border-white/[0.06] px-2 py-1.5">
         <span className="mr-1 hidden font-mono text-xs text-zinc-400 sm:inline">
           {fmt(playheadMs)} <span className="text-zinc-600">/ {fmt(projectDurationMs(project.tracks))}</span>
         </span>
@@ -214,7 +214,7 @@ export function TimelineTracks() {
 
       <div className="flex">
         {/* rótulos das trilhas */}
-        <div className="shrink-0 border-r border-line" style={{ width: LABEL_W }}>
+        <div className="shrink-0 border-r border-white/[0.06] bg-white/[0.02]" style={{ width: LABEL_W }}>
           <div className="h-6 border-b border-line/60" aria-hidden />
           {project.tracks.map((t) => (
             <TrackLabel key={t.id} track={t} />
@@ -267,9 +267,10 @@ export function TimelineTracks() {
                           }
                         }}
                         className={cn(
-                          "absolute inset-y-1.5 touch-none select-none overflow-hidden rounded-md bg-gradient-to-r px-2 text-left text-[10px] font-medium text-white/90 ring-1 ring-inset transition-shadow",
+                          "absolute inset-y-1.5 touch-none select-none overflow-hidden rounded-lg bg-gradient-to-r px-2 text-left text-[10px] font-medium text-white/90 ring-1 ring-inset transition-[box-shadow,filter]",
+                          "shadow-[inset_0_1px_0_rgba(255,255,255,0.18),0_2px_8px_-2px_rgba(0,0,0,0.5)] hover:brightness-110",
                           TRACK_COLOR[track.type],
-                          isSel ? "ring-2 ring-white shadow-glow" : "",
+                          isSel ? "ring-2 ring-white shadow-glow brightness-110" : "",
                           track.hidden && "opacity-40",
                           track.locked ? "cursor-not-allowed" : "cursor-grab active:cursor-grabbing",
                         )}
@@ -303,8 +304,11 @@ export function TimelineTracks() {
               ))}
 
               {/* playhead */}
-              <div className="pointer-events-none absolute bottom-0 top-0 z-20 w-px bg-white" style={{ left: timeToPx(playheadMs, pxPerSecond) }}>
-                <span className="absolute -left-[5px] -top-0 h-0 w-0 border-x-[5px] border-t-[7px] border-x-transparent border-t-white" />
+              <div
+                className="pointer-events-none absolute bottom-0 top-0 z-20 w-px bg-gradient-to-b from-fuchsia-400 to-violet-500 shadow-[0_0_8px_rgba(217,70,239,0.8)]"
+                style={{ left: timeToPx(playheadMs, pxPerSecond) }}
+              >
+                <span className="absolute -left-[5px] -top-0 h-0 w-0 border-x-[5px] border-t-[7px] border-x-transparent border-t-fuchsia-400 drop-shadow-[0_0_4px_rgba(217,70,239,0.9)]" />
               </div>
             </div>
           </div>
@@ -331,7 +335,7 @@ function ToolButton({
       disabled={disabled}
       aria-label={label}
       title={label}
-      className="rounded-lg p-1.5 text-zinc-400 hover:bg-white/5 hover:text-white disabled:opacity-40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-400"
+      className="rounded-lg p-1.5 text-zinc-400 transition-all hover:bg-white/10 hover:text-white active:scale-90 disabled:opacity-40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-400"
     >
       {children}
     </button>

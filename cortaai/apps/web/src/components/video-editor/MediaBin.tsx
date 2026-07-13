@@ -55,8 +55,10 @@ export function MediaBin() {
         onDragLeave={() => setDragOver(false)}
         onDrop={onDrop}
         className={cn(
-          "flex flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed p-5 text-center transition-colors",
-          dragOver ? "border-violet-400 bg-violet-500/10" : "border-line bg-surface-1/60",
+          "flex flex-col items-center justify-center gap-2 rounded-2xl border-2 border-dashed p-5 text-center transition-all",
+          dragOver
+            ? "scale-[1.02] border-violet-400 bg-violet-500/10 shadow-glow"
+            : "border-white/10 bg-white/[0.03] hover:border-violet-500/40 hover:bg-white/[0.05]",
         )}
       >
         {importing ? (
@@ -68,7 +70,7 @@ export function MediaBin() {
         <button
           onClick={() => inputRef.current?.click()}
           disabled={importing}
-          className="rounded-lg bg-gradient-to-r from-violet-600 to-fuchsia-600 px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-400"
+          className="rounded-xl bg-gradient-to-r from-violet-600 to-fuchsia-600 px-3.5 py-1.5 text-xs font-semibold text-white shadow-glow transition-all hover:from-violet-500 hover:to-fuchsia-500 active:scale-95 disabled:opacity-50 disabled:shadow-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-400"
         >
           Escolher arquivos
         </button>
@@ -103,7 +105,7 @@ function MediaThumb({ source, onAdd }: { source: MediaSource; onAdd: () => void 
     <button
       onClick={onAdd}
       title={`Adicionar "${source.name}" à timeline`}
-      className="group relative aspect-video overflow-hidden rounded-lg border border-line bg-black focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-400"
+      className="group relative aspect-video overflow-hidden rounded-xl border border-white/10 bg-black transition-all hover:scale-[1.04] hover:border-violet-400/60 hover:shadow-glow active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-400"
     >
       {source.posterDataUrl ? (
         // eslint-disable-next-line @next/next/no-img-element

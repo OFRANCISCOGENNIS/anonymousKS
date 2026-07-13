@@ -135,9 +135,9 @@ export default function EstudioPage() {
   }, []);
 
   return (
-    <div className="flex h-[100dvh] flex-col overflow-hidden bg-surface">
+    <div className="flex h-[100dvh] flex-col overflow-hidden bg-surface bg-[radial-gradient(ellipse_60%_40%_at_50%_-10%,rgba(139,92,246,0.10),transparent)]">
       {/* Topo */}
-      <header className="flex shrink-0 items-center gap-2 border-b border-line bg-surface-1/60 px-3 py-2">
+      <header className="flex shrink-0 items-center gap-2 border-b border-white/[0.06] bg-surface-1/50 px-3 py-2 backdrop-blur-xl">
         <Link
           href="/app"
           title="Sair do estúdio"
@@ -160,7 +160,7 @@ export default function EstudioPage() {
           onClick={() => setProjectsOpen(true)}
           aria-label="Projetos"
           title="Projetos"
-          className="rounded-lg p-2 text-zinc-400 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-400"
+          className="rounded-lg p-2 text-zinc-400 transition-all hover:bg-white/5 hover:text-white active:scale-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-400"
         >
           <FolderKanban className="h-4 w-4" />
         </button>
@@ -170,7 +170,7 @@ export default function EstudioPage() {
             disabled={!canUndo}
             aria-label="Desfazer (Ctrl+Z)"
             title="Desfazer (Ctrl+Z)"
-            className="rounded-lg p-2 text-zinc-400 hover:text-white disabled:opacity-40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-400"
+            className="rounded-lg p-2 text-zinc-400 transition-all hover:bg-white/5 hover:text-white active:scale-90 disabled:opacity-40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-400"
           >
             <Undo2 className="h-4 w-4" />
           </button>
@@ -179,13 +179,13 @@ export default function EstudioPage() {
             disabled={!canRedo}
             aria-label="Refazer (Ctrl+Shift+Z)"
             title="Refazer (Ctrl+Shift+Z)"
-            className="rounded-lg p-2 text-zinc-400 hover:text-white disabled:opacity-40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-400"
+            className="rounded-lg p-2 text-zinc-400 transition-all hover:bg-white/5 hover:text-white active:scale-90 disabled:opacity-40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-400"
           >
             <Redo2 className="h-4 w-4" />
           </button>
           <button
             onClick={() => setExportOpen(true)}
-            className="ml-1 inline-flex items-center gap-1.5 rounded-lg bg-gradient-to-r from-violet-600 to-fuchsia-600 px-3 py-1.5 text-xs font-semibold text-white shadow-glow hover:from-violet-500 hover:to-fuchsia-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-400"
+            className="ml-1 inline-flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-violet-600 to-fuchsia-600 px-3.5 py-1.5 text-xs font-semibold text-white shadow-glow transition-all hover:from-violet-500 hover:to-fuchsia-500 hover:shadow-[0_0_48px_-8px_rgba(217,70,239,0.6)] active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-400"
           >
             <Download className="h-3.5 w-3.5" aria-hidden />
             Exportar
@@ -195,7 +195,7 @@ export default function EstudioPage() {
 
       {/* Área principal */}
       <div className="flex min-h-0 flex-1 flex-col lg:flex-row">
-        <aside className="hidden shrink-0 space-y-5 overflow-y-auto border-r border-line p-3 lg:block lg:w-[280px]">
+        <aside className="editor-scroll hidden shrink-0 space-y-5 overflow-y-auto border-r border-white/[0.06] bg-surface-1/30 p-3 lg:block lg:w-[280px]">
           <MediaBin />
           <div>
             <p className="mb-2 flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-zinc-500">
@@ -219,7 +219,7 @@ export default function EstudioPage() {
         <div className="min-h-0 flex-1 p-2 sm:p-3">
           <PreviewStage />
         </div>
-        <aside className="hidden shrink-0 overflow-y-auto border-l border-line p-3 lg:block lg:w-[280px]">
+        <aside className="editor-scroll hidden shrink-0 overflow-y-auto border-l border-white/[0.06] bg-surface-1/30 p-3 lg:block lg:w-[280px]">
           <div className="mb-2 flex items-center justify-between">
             <p className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-zinc-500">
               <SlidersHorizontal className="h-3.5 w-3.5" aria-hidden /> Propriedades
@@ -241,7 +241,7 @@ export default function EstudioPage() {
       </div>
 
       {/* Barra inferior (mobile) */}
-      <nav aria-label="Ferramentas" className="flex shrink-0 items-stretch gap-1 overflow-x-auto border-t border-line bg-surface-1/95 px-2 pt-1 pb-[calc(0.35rem+env(safe-area-inset-bottom))] lg:hidden">
+      <nav aria-label="Ferramentas" className="flex shrink-0 items-stretch gap-1 overflow-x-auto border-t border-white/[0.06] bg-surface-1/80 px-2 pt-1 pb-[calc(0.35rem+env(safe-area-inset-bottom))] backdrop-blur-xl lg:hidden">
         <MobileTool icon={FolderOpen} label={`Mídia${sourceCount > 0 ? ` (${sourceCount})` : ""}`} onClick={() => setSheet("bin")} />
         <MobileTool icon={Music2} label="Música" onClick={() => setSheet("music")} />
         <MobileTool icon={Circle} label="Gravar" onClick={() => setSheet("record")} />
@@ -288,7 +288,7 @@ function MobileTool({
     <button
       onClick={onClick}
       className={cn(
-        "flex min-w-[62px] flex-col items-center justify-center gap-1 rounded-lg px-2.5 py-1.5 text-[10px] font-medium hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-400",
+        "flex min-w-[62px] flex-col items-center justify-center gap-1 rounded-xl px-2.5 py-1.5 text-[10px] font-medium transition-all hover:bg-white/5 hover:text-white active:scale-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-400",
         highlight ? "text-violet-300" : "text-zinc-300",
       )}
     >
@@ -303,18 +303,19 @@ function MobileSheet({ title, open, onClose, children }: { title: string; open: 
     <>
       <div
         className={cn(
-          "fixed inset-x-0 bottom-0 z-40 rounded-t-2xl border-t border-line bg-surface-2 shadow-2xl transition-transform duration-300 lg:hidden",
+          "fixed inset-x-0 bottom-0 z-40 rounded-t-3xl border-t border-white/[0.08] bg-surface-2/95 shadow-[0_-16px_48px_-12px_rgba(0,0,0,0.7)] backdrop-blur-xl transition-transform duration-300 ease-out lg:hidden",
           open ? "translate-y-0" : "translate-y-full",
         )}
         style={{ maxHeight: "70dvh" }}
       >
-        <div className="flex items-center justify-between border-b border-line px-4 py-2">
+        <div className="mx-auto mt-2 h-1 w-10 rounded-full bg-white/20" aria-hidden />
+        <div className="flex items-center justify-between px-4 pb-2 pt-1.5">
           <span className="text-sm font-semibold text-white">{title}</span>
-          <button onClick={onClose} aria-label="Fechar" className="rounded-lg p-1.5 text-zinc-500 hover:text-white">
+          <button onClick={onClose} aria-label="Fechar" className="rounded-lg p-1.5 text-zinc-500 transition-colors hover:bg-white/5 hover:text-white">
             <ChevronDown className="h-4 w-4" />
           </button>
         </div>
-        <div className="max-h-[calc(70dvh-3rem)] overflow-y-auto p-3">{children}</div>
+        <div className="max-h-[calc(70dvh-3.5rem)] overflow-y-auto border-t border-white/[0.06] p-3">{children}</div>
       </div>
       {open && <button aria-hidden tabIndex={-1} onClick={onClose} className="fixed inset-0 z-30 bg-black/50 lg:hidden" />}
     </>
