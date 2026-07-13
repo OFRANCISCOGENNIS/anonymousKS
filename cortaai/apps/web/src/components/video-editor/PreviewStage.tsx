@@ -320,13 +320,16 @@ export function PreviewStage() {
 
   return (
     <div className="flex h-full min-h-0 flex-col gap-2">
-      <div ref={stageRef} className="relative flex min-h-0 flex-1 items-center justify-center overflow-hidden rounded-xl bg-[#050508]">
+      <div
+        ref={stageRef}
+        className="relative flex min-h-0 flex-1 items-center justify-center overflow-hidden rounded-2xl border border-white/[0.06] bg-[#050508] bg-[radial-gradient(ellipse_50%_50%_at_50%_45%,rgba(139,92,246,0.07),transparent)]"
+      >
         <canvas
           ref={canvasRef}
           width={pw}
           height={ph}
           style={{ width: fit.w, height: fit.h }}
-          className="rounded-lg bg-black shadow-2xl"
+          className="rounded-lg bg-black shadow-[0_0_0_1px_rgba(255,255,255,0.06),0_24px_80px_-24px_rgba(0,0,0,0.9),0_0_64px_-16px_rgba(139,92,246,0.25)]"
         />
         {!hasMedia && (
           <p className="pointer-events-none absolute inset-0 flex items-center justify-center px-6 text-center text-sm text-zinc-500">
@@ -335,16 +338,16 @@ export function PreviewStage() {
         )}
       </div>
 
-      <div className="flex shrink-0 items-center gap-3 rounded-xl border border-line bg-surface-1/60 px-3 py-2">
+      <div className="flex shrink-0 items-center gap-3 rounded-2xl border border-white/[0.08] bg-surface-1/60 px-3 py-2 backdrop-blur-xl">
         <button
           onClick={toggle}
           aria-label={playing ? "Pausar" : "Reproduzir"}
           disabled={!hasMedia}
-          className="flex h-9 w-9 items-center justify-center rounded-full bg-gradient-to-r from-violet-600 to-fuchsia-600 text-white disabled:opacity-40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-400"
+          className="flex h-9 w-9 items-center justify-center rounded-full bg-gradient-to-r from-violet-600 to-fuchsia-600 text-white shadow-glow transition-all hover:shadow-[0_0_32px_-4px_rgba(217,70,239,0.7)] active:scale-90 disabled:opacity-40 disabled:shadow-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-400"
         >
           {playing ? <Pause className="h-4 w-4" /> : <Play className="ml-0.5 h-4 w-4" />}
         </button>
-        <span className="font-mono text-xs tabular-nums text-zinc-400">
+        <span className="font-mono text-xs tabular-nums text-zinc-300">
           {fmt(playheadMs)} <span className="text-zinc-600">/ {fmt(durationMs)}</span>
         </span>
       </div>
