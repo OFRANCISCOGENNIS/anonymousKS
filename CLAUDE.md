@@ -81,11 +81,11 @@ Private nLin As Long              ' qtd de linhas com PEP preenchido
 |------------|-------|-------|
 | `dCatMat` | COD_MATERIAL | `"FAMILIA\|CLS1\|CLS2\|CLS3"` |
 | `dCatSrv` | COD_SERVICO | `"CLS1\|CLS2\|CLS3\|TIPO_APLIC\|SEGMENTO"` |
-| `dCatCC` | CLASSE_CUSTO | `"CLS1\|CLS2\|CLS3\|TIPO_APLIC"` |
+| `dCatCC` | CLASSE_CUSTO | `"CLS1\|CLS2\|CLS3\|TIPO_APLIC"` (782 classes embutidas via `CarregarClassesCustoAuto` + 42 overrides curados) |
 | `dCabo` | COD_MATERIAL | fator KG→metros (Double) |
 | `dCombo` | COD_SERVICO | fator multiplicador (Double) |
 | `dTipoCls` | CLS2 normalizada | `"COM"` / `"UC"` / `"UAR"` |
-| `dDescSrv` | COD_SERVICO | descrição textual (catálogo embutido) |
+| `dDescSrv` | COD_SERVICO | descrição textual (embutido + `TEXTO BREVE` de `SERVICOS_ATUAIS` em runtime) |
 | `dCfg` | CHAVE | valor (da aba CONFIG) |
 | `dClsViagem` | CLASSE_CUSTO | 1 (flag: é classe de viagem) |
 
