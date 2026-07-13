@@ -81,6 +81,12 @@ export function ClipInspector() {
     updateClip(clip.id, { transform: { ...clip.transform, ...patch } });
   }
 
+  function patchAudioFx(patch: Partial<{ denoise?: boolean; voice?: boolean }>) {
+    const next = { ...(clip.audioFx ?? {}), ...patch };
+    const empty = !next.denoise && !next.voice;
+    updateClip(clip.id, { audioFx: empty ? undefined : next });
+  }
+
   function patchEq(patch: Partial<{ low: number; mid: number; high: number }>) {
     const base = clip.eq ?? { low: 0, mid: 0, high: 0 };
     const next = { ...base, ...patch };
@@ -224,6 +230,60 @@ export function ClipInspector() {
             onChange={(v) => updateClip(clip.id, { fadeOutMs: v > 0 ? v : undefined })}
             format={(v) => (v > 0 ? `${(v / 1000).toFixed(1)}s` : "—")}
           />
+          <div className="mt-1 space-y-1">
+            <label className="flex items-center gap-1.5 text-[11px] text-zinc-400">
+              <input
+                type="checkbox"
+                checked={clip.audioFx?.denoise === true}
+                onChange={(e) => patchAudioFx({ denoise: e.target.checked || undefined })}
+                className="accent-violet-500"
+              />
+              Reduzir ruído (corta ronco e chiado)
+            </label>
+            <label className="flex items-center gap-1.5 text-[11px] text-zinc-400">
+              <input
+                type="checkbox"
+                checked={clip.audioFx?.voice === true}
+                onChange={(e) => patchAudioFx({ voice: e.target.checked || undefined })}
+                className="accent-violet-500"
+              />
+              Aprimorar voz (presença + compressão)
+            </label>
+            {(clip.audioFx?.denoise || clip.audioFx?.voice) && (
+              <p className="text-[10px] text-zinc-600">Aplicado no arquivo exportado (o preview toca sem o tratamento).</p>
+            )}
+          </div>
+        </Section>
+      )}
+
+      {/* chroma key (fundo verde) */}
+      {isVideoClip && (
+        <Section title="Remover fundo (chroma key)">
+          <label className="flex items-center gap-1.5 text-[11px] text-zinc-400">
+            <input
+              type="checkbox"
+              checked={!!clip.chroma}
+              onChange={(e) => updateClip(clip.id, { chroma: e.target.checked ? { color: "#00b140", tolerance: 0.3, softness: 0.12 } : undefined })}
+              className="accent-violet-500"
+            />
+            Ativar (para vídeos com fundo verde/azul)
+          </label>
+          {clip.chroma && (
+            <div className="mt-2 space-y-1">
+              <label className="flex items-center gap-2 text-[11px] text-zinc-400">
+                Cor do fundo
+                <input
+                  type="color"
+                  value={clip.chroma.color}
+                  onChange={(e) => updateClip(clip.id, { chroma: { ...clip.chroma!, color: e.target.value } })}
+                  aria-label="Cor do chroma key"
+                  className="h-6 w-8 cursor-pointer rounded border border-line bg-transparent"
+                />
+              </label>
+              <Slider label="Tolerância" value={clip.chroma.tolerance} min={0.05} max={0.8} step={0.01} onChange={(v) => updateClip(clip.id, { chroma: { ...clip.chroma!, tolerance: v } })} format={(v) => `${Math.round(v * 100)}%`} />
+              <Slider label="Suavizar borda" value={clip.chroma.softness} min={0} max={0.5} step={0.01} onChange={(v) => updateClip(clip.id, { chroma: { ...clip.chroma!, softness: v } })} format={(v) => `${Math.round(v * 100)}%`} />
+            </div>
+          )}
         </Section>
       )}
 
