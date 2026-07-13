@@ -442,7 +442,7 @@ export function FotoStage() {
       role="application"
       aria-label="Área de edição da imagem — use a roda do mouse para zoom, espaço + arrastar para mover"
       className={cn(
-        "relative min-h-[320px] flex-1 touch-none select-none overflow-hidden rounded-2xl border border-line bg-black/40",
+        "relative min-h-[320px] flex-1 touch-none select-none overflow-hidden rounded-2xl border border-white/[0.08] bg-black/40 shadow-[inset_0_0_120px_-40px_rgba(139,92,246,0.15)]",
         tool === "mover" ? "cursor-grab active:cursor-grabbing" : showBrushCursor ? "cursor-none" : "",
       )}
       style={{
@@ -514,11 +514,11 @@ export function FotoStage() {
       )}
 
       {/* Zoom controls */}
-      <div className="absolute bottom-3 right-3 flex items-center gap-1 rounded-xl border border-line bg-surface-1/90 p-1 backdrop-blur" role="group" aria-label="Controles de zoom">
+      <div className="absolute bottom-3 right-3 flex items-center gap-1 rounded-xl border border-white/[0.1] bg-surface-1/70 p-1 shadow-lg backdrop-blur-xl" role="group" aria-label="Controles de zoom">
         <button
           onClick={() => zoomAround(0.8)}
           aria-label="Diminuir zoom"
-          className="rounded-lg p-1.5 text-zinc-300 hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-400"
+          className="rounded-lg p-1.5 text-zinc-300 transition-all hover:bg-white/10 hover:text-white active:scale-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-400"
         >
           <Minus className="h-4 w-4" />
         </button>
@@ -528,14 +528,14 @@ export function FotoStage() {
         <button
           onClick={() => zoomAround(1.25)}
           aria-label="Aumentar zoom"
-          className="rounded-lg p-1.5 text-zinc-300 hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-400"
+          className="rounded-lg p-1.5 text-zinc-300 transition-all hover:bg-white/10 hover:text-white active:scale-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-400"
         >
           <Plus className="h-4 w-4" />
         </button>
         <button
           onClick={fit}
           aria-label="Ajustar à tela"
-          className="rounded-lg p-1.5 text-zinc-300 hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-400"
+          className="rounded-lg p-1.5 text-zinc-300 transition-all hover:bg-white/10 hover:text-white active:scale-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-400"
         >
           <Maximize className="h-4 w-4" />
         </button>
