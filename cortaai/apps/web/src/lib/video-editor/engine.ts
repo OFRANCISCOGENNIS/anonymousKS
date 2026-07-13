@@ -7,6 +7,8 @@
 import type { Clip, Project } from "./model";
 import { applyEasing, clipAtTime, tracksForRender } from "./timeline-math";
 import type { AnimatableProperty } from "./model";
+import { animEnvelope } from "./animations";
+import { filterById } from "./filters";
 
 export interface Drawable {
   el: CanvasImageSource;
@@ -92,21 +94,29 @@ export function drawComposite(
     const d = resolve(clip);
     if (!d || !d.w || !d.h) continue;
 
-    const opacity = clamp01(valueAt(clip, "opacity", clipTime));
+    const env = animEnvelope(clip, clipTime);
+    const opacity = clamp01(valueAt(clip, "opacity", clipTime) * env.opacity);
     if (opacity <= 0) continue;
-    const scale = valueAt(clip, "scale", clipTime);
-    const rotation = valueAt(clip, "rotation", clipTime);
-    const tx = valueAt(clip, "x", clipTime) * canvasW;
-    const ty = valueAt(clip, "y", clipTime) * canvasH;
+    const scale = valueAt(clip, "scale", clipTime) * env.scale;
+    const rotation = valueAt(clip, "rotation", clipTime) + env.rotation;
+    const tx = (valueAt(clip, "x", clipTime) + env.dx) * canvasW;
+    const ty = (valueAt(clip, "y", clipTime) + env.dy) * canvasH;
 
     // cover: preenche o canvas mantendo proporção da fonte
     const cover = Math.max(canvasW / d.w, canvasH / d.h);
     const drawW = d.w * cover * scale;
     const drawH = d.h * cover * scale;
 
+    const filter = filterById(clip.filterId);
+    const blurPx = env.blurPx > 0 ? (env.blurPx / 100) * canvasH * 0.06 : 0;
+    const filterCss = [filter?.css !== "none" ? filter?.css : "", blurPx > 0 ? `blur(${blurPx.toFixed(1)}px)` : ""]
+      .filter(Boolean)
+      .join(" ");
+
     ctx.save();
     ctx.globalAlpha = opacity;
     ctx.globalCompositeOperation = BLEND_MAP[clip.blendMode] ?? "source-over";
+    if (filterCss) ctx.filter = filterCss;
     ctx.translate(canvasW / 2 + tx, canvasH / 2 + ty);
     if (rotation) ctx.rotate((rotation * Math.PI) / 180);
     try {
@@ -115,6 +125,16 @@ export function drawComposite(
       /* frame não pronto */
     }
     ctx.restore();
+
+    // tint do filtro (por cima da área do clipe — aproximação: palco inteiro)
+    if (filter?.overlay && opacity > 0) {
+      ctx.save();
+      ctx.globalAlpha = filter.overlay.opacity * opacity;
+      ctx.globalCompositeOperation = (filter.overlay.blend as GlobalCompositeOperation) || "source-over";
+      ctx.fillStyle = filter.overlay.color;
+      ctx.fillRect(0, 0, canvasW, canvasH);
+      ctx.restore();
+    }
   }
 
   ctx.restore();
@@ -122,11 +142,12 @@ export function drawComposite(
 
 function drawText(ctx: CanvasRenderingContext2D, canvasW: number, canvasH: number, clip: Clip, clipTime: number): void {
   if (!clip.text) return;
-  const opacity = clamp01(valueAt(clip, "opacity", clipTime));
+  const env = animEnvelope(clip, clipTime);
+  const opacity = clamp01(valueAt(clip, "opacity", clipTime) * env.opacity);
   if (opacity <= 0) return;
-  const scale = valueAt(clip, "scale", clipTime);
-  const tx = valueAt(clip, "x", clipTime) * canvasW;
-  const ty = valueAt(clip, "y", clipTime) * canvasH;
+  const scale = valueAt(clip, "scale", clipTime) * env.scale;
+  const tx = (valueAt(clip, "x", clipTime) + env.dx) * canvasW;
+  const ty = (valueAt(clip, "y", clipTime) + env.dy) * canvasH;
   const px = Math.max(16, canvasH * 0.05 * scale);
   ctx.save();
   ctx.globalAlpha = opacity;

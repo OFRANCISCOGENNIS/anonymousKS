@@ -227,7 +227,9 @@ export function PreviewStage() {
       el = await ensureVideo(source);
       if (!el) return;
       currentClipId = clip.id;
-      el.muted = false; // ao reproduzir, o som original do vídeo toca junto da música
+      // som original do vídeo toca junto da música — respeitando mudo/volume
+      el.muted = primaryTrack!.muted || clip.volume <= 0;
+      el.volume = Math.min(1, Math.max(0, clip.volume));
       el.playbackRate = Math.min(4, Math.max(0.25, clip.speed));
       const target = sourceTimeForClip(clip, useVideoEditor.getState().playheadMs) / 1000;
       if (Math.abs(el.currentTime - target) > 0.08) await seekVideo(el, target);
@@ -296,6 +298,16 @@ export function PreviewStage() {
     if (playing) setPlaying(false);
     else void play();
   }
+
+  // atalho de teclado (barra de espaço) disparado pela página do estúdio
+  useEffect(() => {
+    function onToggle() {
+      if (playing) setPlaying(false);
+      else void play();
+    }
+    window.addEventListener("studio-toggle-play", onToggle);
+    return () => window.removeEventListener("studio-toggle-play", onToggle);
+  }, [playing, play]);
 
   const hasMedia = Object.keys(sources).length > 0;
 
