@@ -79,7 +79,7 @@ function slugFile(s: string): string {
 
 // ------------------------------------------------------------- codec picking
 
-interface CodecPlan {
+export interface CodecPlan {
   container: "mp4" | "webm";
   videoCodec: string; // WebCodecs string
   audioCodec: string | null;
@@ -87,7 +87,7 @@ interface CodecPlan {
   ext: string;
 }
 
-async function pickCodecs(width: number, height: number, wantAudio: boolean): Promise<CodecPlan> {
+export async function pickCodecs(width: number, height: number, wantAudio: boolean): Promise<CodecPlan> {
   const tryVideo = async (codec: string) => {
     try {
       const res = await VideoEncoder.isConfigSupported({ codec, width, height, bitrate: 6_000_000 });

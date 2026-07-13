@@ -51,6 +51,12 @@ export interface ClipMask {
   inverted: boolean;
 }
 
+/** Animação de entrada/saída do clipe (catálogo em animations.ts). */
+export interface ClipAnim {
+  id: string;
+  durationMs: number;
+}
+
 export interface Clip {
   id: string;
   trackId: string;
@@ -67,6 +73,8 @@ export interface Clip {
   filterId?: string; // filtro estilizado (fade/retrô/…)
   blendMode: BlendMode;
   mask?: ClipMask;
+  animIn?: ClipAnim; // animação de entrada (fade/zoom/slide/…)
+  animOut?: ClipAnim; // animação de saída
   // Texto (só para clips em trilha 'text'): conteúdo e estilo básico.
   text?: {
     content: string;
@@ -247,8 +255,17 @@ function sanitizeClip(c: Clip, trackId: string): Clip {
     filterId: typeof c.filterId === "string" ? c.filterId : undefined,
     blendMode: c.blendMode ?? "normal",
     mask: c.mask,
+    animIn: sanitizeAnim(c.animIn),
+    animOut: sanitizeAnim(c.animOut),
     text: c.text,
   };
+}
+
+function sanitizeAnim(a: unknown): ClipAnim | undefined {
+  if (!a || typeof a !== "object") return undefined;
+  const anim = a as Partial<ClipAnim>;
+  if (typeof anim.id !== "string" || !anim.id) return undefined;
+  return { id: anim.id, durationMs: clampInt(anim.durationMs, 50, 10_000, 500) };
 }
 
 function isKeyframe(k: unknown): k is Keyframe {

@@ -59,8 +59,14 @@ interface VideoEditorState {
   trimStart: (clipId: string, newStartMs: number, sourceDurationMs: number) => void;
   trimEnd: (clipId: string, newEndMs: number, sourceDurationMs: number) => void;
   deleteClip: (clipId: string) => void;
+  /** Deleta e puxa os clipes seguintes DA MESMA trilha para trás (ripple). */
+  rippleDelete: (clipId: string) => void;
   duplicateClip: (clipId: string) => void;
   updateClip: (clipId: string, patch: Partial<Clip>) => void;
+  /** Muda a velocidade recalculando a duração na timeline (trim preservado). */
+  setClipSpeed: (clipId: string, speed: number) => void;
+  /** Adiciona um clipe de texto no playhead (cria a trilha de texto se preciso). */
+  addTextClip: (content: string) => string;
   setTrackFlag: (trackId: string, flag: "muted" | "locked" | "hidden", value: boolean) => void;
 
   undo: () => void;
@@ -213,6 +219,22 @@ export const useVideoEditor = create<VideoEditorState>()((set, get) => ({
     if (get().selectedClipId === clipId) set({ selectedClipId: null });
   },
 
+  rippleDelete: (clipId) => {
+    const found = findClip(get().project, clipId);
+    if (!found || found.track.locked) return;
+    const gone = found.clip;
+    const end = gone.startInTimeline + gone.duration;
+    set((s) =>
+      withHistory(s, mapTrack(s.project, found.track.id, (t) => ({
+        ...t,
+        clips: t.clips
+          .filter((c) => c.id !== clipId)
+          .map((c) => (c.startInTimeline >= end ? { ...c, startInTimeline: c.startInTimeline - gone.duration } : c)),
+      }))),
+    );
+    if (get().selectedClipId === clipId) set({ selectedClipId: null });
+  },
+
   duplicateClip: (clipId) => {
     const found = findClip(get().project, clipId);
     if (!found || found.track.locked) return;
@@ -244,6 +266,35 @@ export const useVideoEditor = create<VideoEditorState>()((set, get) => ({
         clips: t.clips.map((c) => (c.id === clipId ? { ...c, ...patch } : c)),
       }))),
     );
+  },
+
+  setClipSpeed: (clipId, speed) => {
+    const found = findClip(get().project, clipId);
+    if (!found || found.track.locked) return;
+    const sp = Math.min(4, Math.max(0.25, speed));
+    const srcSpan = found.clip.trimOut - found.clip.trimIn;
+    const duration = Math.max(1, Math.round(srcSpan / sp));
+    set((s) =>
+      withHistory(s, mapTrack(s.project, found.track.id, (t) => ({
+        ...t,
+        clips: t.clips.map((c) => (c.id === clipId ? { ...c, speed: sp, duration } : c)),
+      }))),
+    );
+  },
+
+  addTextClip: (content) => {
+    const { project, playheadMs } = get();
+    let track = project.tracks.find((t) => t.type === "text" && !t.locked);
+    let trackId: string;
+    if (track) trackId = track.id;
+    else trackId = get().addTrack("text");
+    const clip = makeClip({ trackId, sourceId: "", startInTimeline: playheadMs, duration: 3000 });
+    clip.text = { content, fontFamily: "Inter", color: "#ffffff", fontWeight: 800, background: null };
+    set((s) =>
+      withHistory(s, mapTrack(s.project, trackId, (t) => ({ ...t, clips: placeClip([...t.clips, clip], clip.id, clip.startInTimeline) }))),
+    );
+    set({ selectedClipId: clip.id });
+    return clip.id;
   },
 
   setTrackFlag: (trackId, flag, value) => {
