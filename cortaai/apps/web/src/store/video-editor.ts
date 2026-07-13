@@ -18,6 +18,8 @@ import {
   makeTrack,
 } from "@/lib/video-editor/model";
 import { placeClip, projectDurationMs, splitClipAt, trimClipStart, trimClipEnd } from "@/lib/video-editor/timeline-math";
+import type { MediaSource } from "@/lib/video-editor/media-registry";
+import { IMAGE_DEFAULT_MS } from "@/lib/video-editor/media-registry";
 
 const HISTORY_LIMIT = 60;
 
@@ -25,6 +27,8 @@ interface VideoEditorState {
   project: Project;
   past: Project[];
   future: Project[];
+  // fontes de mídia importadas (metadados; blobs no IndexedDB)
+  sources: Record<string, MediaSource>;
   // view state (transiente)
   playheadMs: number;
   pxPerSecond: number;
@@ -40,6 +44,12 @@ interface VideoEditorState {
   loadFromJson: (json: unknown) => boolean;
   toJson: () => string;
   durationMs: () => number;
+
+  // mídias
+  addSource: (source: MediaSource) => void;
+  getSource: (sourceId: string) => MediaSource | undefined;
+  /** Adiciona a fonte ao fim da trilha compatível, criando um clipe. */
+  addClipFromSource: (source: MediaSource) => string;
 
   // trilhas / clipes (todas produzem histórico)
   addTrack: (type: TrackType, name?: string) => string;
@@ -84,6 +94,7 @@ export const useVideoEditor = create<VideoEditorState>()((set, get) => ({
   project: makeProject(),
   past: [],
   future: [],
+  sources: {},
   playheadMs: 0,
   pxPerSecond: 100,
   selectedClipId: null,
@@ -101,6 +112,31 @@ export const useVideoEditor = create<VideoEditorState>()((set, get) => ({
   },
   toJson: () => JSON.stringify(get().project),
   durationMs: () => projectDurationMs(get().project.tracks),
+
+  addSource: (source) => set((s) => ({ sources: { ...s.sources, [source.id]: source } })),
+  getSource: (sourceId) => get().sources[sourceId],
+
+  addClipFromSource: (source) => {
+    // trilha compatível: áudio → trilha de áudio; imagem/vídeo → trilha de vídeo
+    const wantType = source.kind === "audio" ? "audio" : "video";
+    const project = get().project;
+    let track = project.tracks.find((t) => t.type === wantType && !t.locked);
+    let trackId: string;
+    if (track) {
+      trackId = track.id;
+    } else {
+      trackId = get().addTrack(wantType);
+      track = get().project.tracks.find((t) => t.id === trackId);
+    }
+    // adiciona o source e emenda o clipe no fim da trilha
+    get().addSource(source);
+    const end = (get().project.tracks.find((t) => t.id === trackId)?.clips ?? []).reduce(
+      (max, c) => Math.max(max, c.startInTimeline + c.duration),
+      0,
+    );
+    const duration = source.durationMs > 0 ? source.durationMs : IMAGE_DEFAULT_MS;
+    return get().addClip({ trackId, sourceId: source.id, startInTimeline: end, duration });
+  },
 
   addTrack: (type, name) => {
     const track = makeTrack(type, name);
