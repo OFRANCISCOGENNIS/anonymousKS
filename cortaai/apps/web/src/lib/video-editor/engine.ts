@@ -9,6 +9,7 @@ import { applyEasing, clipAtTime, tracksForRender } from "./timeline-math";
 import type { AnimatableProperty } from "./model";
 import { animEnvelope } from "./animations";
 import { filterById } from "./filters";
+import { transitionAt, type ActiveTransition } from "./transitions";
 
 export interface Drawable {
   el: CanvasImageSource;
@@ -91,58 +92,127 @@ export function drawComposite(
       continue;
     }
 
-    const d = resolve(clip);
-    if (!d || !d.w || !d.h) continue;
-
-    const env = animEnvelope(clip, clipTime);
-    const opacity = clamp01(valueAt(clip, "opacity", clipTime) * env.opacity);
-    if (opacity <= 0) continue;
-    const scale = valueAt(clip, "scale", clipTime) * env.scale;
-    const rotation = valueAt(clip, "rotation", clipTime) + env.rotation;
-    const tx = (valueAt(clip, "x", clipTime) + env.dx) * canvasW;
-    const ty = (valueAt(clip, "y", clipTime) + env.dy) * canvasH;
-
-    // cover: preenche o canvas mantendo proporção da fonte
-    const cover = Math.max(canvasW / d.w, canvasH / d.h);
-    const drawW = d.w * cover * scale;
-    const drawH = d.h * cover * scale;
-
-    const filter = filterById(clip.filterId);
-    const blurPx = env.blurPx > 0 ? (env.blurPx / 100) * canvasH * 0.06 : 0;
-    const filterCss = [filter?.css !== "none" ? filter?.css : "", blurPx > 0 ? `blur(${blurPx.toFixed(1)}px)` : ""]
-      .filter(Boolean)
-      .join(" ");
-
-    ctx.save();
-    ctx.globalAlpha = opacity;
-    ctx.globalCompositeOperation = BLEND_MAP[clip.blendMode] ?? "source-over";
-    if (filterCss) ctx.filter = filterCss;
-    ctx.translate(canvasW / 2 + tx, canvasH / 2 + ty);
-    if (rotation) ctx.rotate((rotation * Math.PI) / 180);
-    try {
-      ctx.drawImage(d.el, -drawW / 2, -drawH / 2, drawW, drawH);
-    } catch {
-      /* frame não pronto */
-    }
-    ctx.restore();
-
-    // tint do filtro (por cima da área do clipe — aproximação: palco inteiro)
-    if (filter?.overlay && opacity > 0) {
-      ctx.save();
-      ctx.globalAlpha = filter.overlay.opacity * opacity;
-      ctx.globalCompositeOperation = (filter.overlay.blend as GlobalCompositeOperation) || "source-over";
-      ctx.fillStyle = filter.overlay.color;
-      ctx.fillRect(0, 0, canvasW, canvasH);
-      ctx.restore();
-    }
-
-    // efeitos de sobreposição (vinheta / grão / VHS)
-    if (clip.effects.length > 0 && opacity > 0) {
-      applyOverlayEffects(ctx, canvasW, canvasH, clip, playheadMs);
-    }
+    const trans = transitionAt(track, clip, clipTime);
+    if (trans) drawWithTransition(ctx, canvasW, canvasH, clip, clipTime, trans, resolve, playheadMs);
+    else drawVisualClip(ctx, canvasW, canvasH, clip, clipTime, resolve, playheadMs);
   }
 
   ctx.restore();
+}
+
+interface DrawMods {
+  alphaMul?: number;
+  scaleMul?: number;
+}
+
+/** Desenha um clipe visual (vídeo/imagem) com transformações, filtro, animações e efeitos. */
+function drawVisualClip(
+  ctx: CanvasRenderingContext2D,
+  canvasW: number,
+  canvasH: number,
+  clip: Clip,
+  clipTime: number,
+  resolve: (clip: Clip) => Drawable | null,
+  playheadMs: number,
+  mods?: DrawMods,
+): void {
+  const d = resolve(clip);
+  if (!d || !d.w || !d.h) return;
+
+  const env = animEnvelope(clip, clipTime);
+  const opacity = clamp01(valueAt(clip, "opacity", clipTime) * env.opacity * (mods?.alphaMul ?? 1));
+  if (opacity <= 0) return;
+  const scale = valueAt(clip, "scale", clipTime) * env.scale * (mods?.scaleMul ?? 1);
+  const rotation = valueAt(clip, "rotation", clipTime) + env.rotation;
+  const tx = (valueAt(clip, "x", clipTime) + env.dx) * canvasW;
+  const ty = (valueAt(clip, "y", clipTime) + env.dy) * canvasH;
+
+  // cover: preenche o canvas mantendo proporção da fonte
+  const cover = Math.max(canvasW / d.w, canvasH / d.h);
+  const drawW = d.w * cover * scale;
+  const drawH = d.h * cover * scale;
+
+  const filter = filterById(clip.filterId);
+  const blurPx = env.blurPx > 0 ? (env.blurPx / 100) * canvasH * 0.06 : 0;
+  const filterCss = [filter?.css !== "none" ? filter?.css : "", blurPx > 0 ? `blur(${blurPx.toFixed(1)}px)` : ""]
+    .filter(Boolean)
+    .join(" ");
+
+  ctx.save();
+  ctx.globalAlpha = opacity;
+  ctx.globalCompositeOperation = BLEND_MAP[clip.blendMode] ?? "source-over";
+  if (filterCss) ctx.filter = filterCss;
+  ctx.translate(canvasW / 2 + tx, canvasH / 2 + ty);
+  if (rotation) ctx.rotate((rotation * Math.PI) / 180);
+  try {
+    ctx.drawImage(d.el, -drawW / 2, -drawH / 2, drawW, drawH);
+  } catch {
+    /* frame não pronto */
+  }
+  ctx.restore();
+
+  // tint do filtro (por cima da área do clipe — aproximação: palco inteiro)
+  if (filter?.overlay && opacity > 0) {
+    ctx.save();
+    ctx.globalAlpha = filter.overlay.opacity * opacity;
+    ctx.globalCompositeOperation = (filter.overlay.blend as GlobalCompositeOperation) || "source-over";
+    ctx.fillStyle = filter.overlay.color;
+    ctx.fillRect(0, 0, canvasW, canvasH);
+    ctx.restore();
+  }
+
+  // efeitos de sobreposição (vinheta / grão / VHS)
+  if (clip.effects.length > 0 && opacity > 0) {
+    applyOverlayEffects(ctx, canvasW, canvasH, clip, playheadMs);
+  }
+}
+
+/** Desenha o clipe anterior (congelado no fim) + o atual entrando, conforme a transição. */
+function drawWithTransition(
+  ctx: CanvasRenderingContext2D,
+  canvasW: number,
+  canvasH: number,
+  clip: Clip,
+  clipTime: number,
+  trans: ActiveTransition,
+  resolve: (clip: Clip) => Drawable | null,
+  playheadMs: number,
+): void {
+  const p = trans.progress;
+  const prevTime = Math.max(0, trans.prev.duration - 1);
+  const drawPrev = (mods?: DrawMods) => drawVisualClip(ctx, canvasW, canvasH, trans.prev, prevTime, resolve, playheadMs, mods);
+  const drawCur = (mods?: DrawMods) => drawVisualClip(ctx, canvasW, canvasH, clip, clipTime, resolve, playheadMs, mods);
+
+  switch (trans.id) {
+    case "escurecer":
+      if (p < 0.5) drawPrev({ alphaMul: 1 - 2 * p });
+      else drawCur({ alphaMul: 2 * p - 1 });
+      break;
+    case "deslizar":
+      drawPrev();
+      ctx.save();
+      ctx.translate((1 - p) * canvasW, 0);
+      drawCur();
+      ctx.restore();
+      break;
+    case "circulo":
+      drawPrev();
+      ctx.save();
+      ctx.beginPath();
+      ctx.arc(canvasW / 2, canvasH / 2, Math.max(1, (p * Math.hypot(canvasW, canvasH)) / 2), 0, Math.PI * 2);
+      ctx.clip();
+      drawCur();
+      ctx.restore();
+      break;
+    case "zoom":
+      drawPrev({ alphaMul: 1 - p, scaleMul: 1 + 0.2 * p });
+      drawCur({ alphaMul: p });
+      break;
+    case "fundido":
+    default:
+      drawPrev({ alphaMul: 1 - p });
+      drawCur({ alphaMul: p });
+  }
 }
 
 function drawText(ctx: CanvasRenderingContext2D, canvasW: number, canvasH: number, clip: Clip, clipTime: number): void {

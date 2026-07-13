@@ -10,6 +10,7 @@ import { cn } from "@/lib/utils";
 import { ANIM_PRESETS } from "@/lib/video-editor/animations";
 import { valueAt } from "@/lib/video-editor/engine";
 import { CLIP_FILTERS, OVERLAY_EFFECTS } from "@/lib/video-editor/filters";
+import { TRANSITIONS } from "@/lib/video-editor/transitions";
 import type { AnimatableProperty, BlendMode, Clip, Keyframe } from "@/lib/video-editor/model";
 import { useVideoEditor } from "@/store/video-editor";
 
@@ -52,6 +53,13 @@ export function ClipInspector() {
 
   function patchTransform(patch: Partial<Clip["transform"]>) {
     updateClip(clip.id, { transform: { ...clip.transform, ...patch } });
+  }
+
+  function patchEq(patch: Partial<{ low: number; mid: number; high: number }>) {
+    const base = clip.eq ?? { low: 0, mid: 0, high: 0 };
+    const next = { ...base, ...patch };
+    const isFlat = next.low === 0 && next.mid === 0 && next.high === 0;
+    updateClip(clip.id, { eq: isFlat ? undefined : next });
   }
 
   function toggleEffect(fxId: string) {
@@ -283,6 +291,50 @@ export function ClipInspector() {
         </Section>
       )}
 
+      {/* transição com o clipe anterior */}
+      {isVisual && !clip.text && (
+        <Section title="Transição (com o clipe anterior)">
+          <select
+            value={clip.transitionIn?.id ?? ""}
+            onChange={(e) =>
+              updateClip(clip.id, { transitionIn: e.target.value ? { id: e.target.value, durationMs: clip.transitionIn?.durationMs ?? 600 } : undefined })
+            }
+            aria-label="Transição de entrada"
+            className="w-full rounded-lg border border-line bg-surface-1 px-2 py-1.5 text-xs text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-400"
+          >
+            <option value="">Nenhuma</option>
+            {TRANSITIONS.map((t) => (
+              <option key={t.id} value={t.id}>
+                {t.name}
+              </option>
+            ))}
+          </select>
+          {clip.transitionIn && (
+            <div className="mt-2">
+              <Slider
+                label="Duração"
+                value={clip.transitionIn.durationMs}
+                min={200}
+                max={2000}
+                step={50}
+                onChange={(v) => updateClip(clip.id, { transitionIn: { id: clip.transitionIn!.id, durationMs: v } })}
+                format={(v) => `${(v / 1000).toFixed(1)}s`}
+              />
+            </div>
+          )}
+          <p className="mt-1 text-[10px] leading-relaxed text-zinc-600">Precisa de outro clipe colado antes deste na mesma trilha.</p>
+        </Section>
+      )}
+
+      {/* equalizador */}
+      {isMedia && (
+        <Section title="Equalizador">
+          <EqSlider label="Graves" value={clip.eq?.low ?? 0} onChange={(v) => patchEq({ low: v })} />
+          <EqSlider label="Médios" value={clip.eq?.mid ?? 0} onChange={(v) => patchEq({ mid: v })} />
+          <EqSlider label="Agudos" value={clip.eq?.high ?? 0} onChange={(v) => patchEq({ high: v })} />
+        </Section>
+      )}
+
       {/* mesclagem */}
       {isVisual && !clip.text && (
         <Section title="Mesclagem">
@@ -341,6 +393,27 @@ function Slider({
         min={min}
         max={max}
         step={step}
+        value={value}
+        onChange={(e) => onChange(Number(e.target.value))}
+        aria-label={label}
+        className="mt-0.5 w-full accent-violet-500"
+      />
+    </label>
+  );
+}
+
+function EqSlider({ label, value, onChange }: { label: string; value: number; onChange: (v: number) => void }) {
+  return (
+    <label className="mb-1.5 block">
+      <span className="flex items-center justify-between text-[11px] text-zinc-400">
+        {label}
+        <span className="font-mono tabular-nums text-zinc-500">{value > 0 ? `+${value}` : value} dB</span>
+      </span>
+      <input
+        type="range"
+        min={-12}
+        max={12}
+        step={1}
         value={value}
         onChange={(e) => onChange(Number(e.target.value))}
         aria-label={label}
