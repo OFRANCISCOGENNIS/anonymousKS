@@ -60,9 +60,11 @@ function renderRegistro() {
             `<span class="reg-par">${r.par}${r.live ? ' <span class="reg-tag" title="IA ao vivo">IA</span>' : ''}</span>` +
             (r.grade ? `<span class="reg-grade grade-${r.grade}">${r.grade}</span>` : '') +
             (r.funil != null ? `<span class="reg-funil" title="funil de qualidade no momento da entrada">${r.funil}/6</span>` : '') +
+            (r.paper ? `<span class="reg-paper" title="operação da conta demo (paper trading) · stake ${_pMoney(r.stake || 0)}">🎮</span>` : '') +
             `<span class="${r.dir === 1 ? 'chip-dir-up' : 'chip-dir-down'}">${r.dir === 1 ? '▲ CALL' : '▼ PUT'} ${r.score}/${r.enabled}</span>${res}</div>`;
     }).join('') : '<div class="metric-empty" style="padding:10px 4px;">Sem entradas A/B ainda · desmarque o filtro p/ ver todas.</div>';
     atualizarCalibracaoIA();
+    if (typeof renderPiloto === 'function') renderPiloto();   // conta demo acompanha o registro
 }
 
 // ---- Verificador automático de WIN/LOSS ----

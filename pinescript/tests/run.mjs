@@ -474,6 +474,34 @@ const err = await p.evaluate(() => new Promise(res => {
 }));
 check('window.onerror captura erro e mantém o app vivo', err.capturado && err.vivo);
 
+// 7.999) Piloto Automático (paper trading): gatilho, contabilidade e zerar
+const piloto = await p.evaluate(() => {
+  pilotoCfg = { ativo: true, gatilho: 'af5', saldoIni: 1000, stake: 100, stakeTipo: 'fixo', epoch: 0 };
+  document.getElementById('payout').value = '90';
+  // gatilho A+funil≥5: A com funil 6 passa; A com funil 4 não; C com funil 6 não
+  const q1 = pilotoQualifica('A', 6), q2 = pilotoQualifica('A', 4), q3 = pilotoQualifica('C', 6);
+  // conta demo: 2 WIN + 1 LOSS, stake 100, payout 0.90 → +90+90−100 = +80
+  registro = [
+    { t: 10, par: 'X', dir: 1, score: 6, enabled: 6, paper: 1, stake: 100, payout: 0.9, resultado: 'WIN' },
+    { t: 20, par: 'X', dir: 1, score: 6, enabled: 6, paper: 1, stake: 100, payout: 0.9, resultado: 'WIN' },
+    { t: 30, par: 'X', dir: -1, score: 6, enabled: 6, paper: 1, stake: 100, payout: 0.9, resultado: 'LOSS' },
+    { t: 40, par: 'X', dir: 1, score: 6, enabled: 6, paper: 1, stake: 100, payout: 0.9 }   // aberta (pendente)
+  ];
+  const c = calcularContaDemo();
+  // stake % do saldo: 10% de 1080 = 108
+  pilotoCfg.stakeTipo = 'pct'; pilotoCfg.stake = 10;
+  const stakePct = pilotoStakeAtual();
+  // zerar: epoch > tudo → saldo volta ao inicial
+  pilotoCfg.epoch = 50;
+  const cZerado = calcularContaDemo();
+  return { q1, q2, q3, saldo: c.saldo, ops: c.ops, pend: c.pend, wr: c.wr, stakePct, saldoZerado: cZerado.saldo, opsZerado: cZerado.ops };
+});
+check('piloto: gatilho A+funil≥5 qualifica só A com funil ≥5', piloto.q1 && !piloto.q2 && !piloto.q3, JSON.stringify(piloto));
+check('piloto: conta demo soma P&L (2W+1L @90% = +80 → 1080)', Math.abs(piloto.saldo - 1080) < 0.01, 'saldo=' + piloto.saldo);
+check('piloto: pendente não entra no saldo (3 resolvidas, 1 aberta)', piloto.ops === 3 && piloto.pend === 1);
+check('piloto: stake % usa saldo atual (10% de 1080 = 108)', Math.abs(piloto.stakePct - 108) < 0.01, 's=' + piloto.stakePct);
+check('piloto: zerar reseta o saldo ao inicial', Math.abs(piloto.saldoZerado - 1000) < 0.01 && piloto.opsZerado === 0);
+
 // 8) PWA manifest
 check('PWA manifest presente', await p.$eval('link[rel=manifest]', e => e.href.startsWith('data:application/manifest')));
 

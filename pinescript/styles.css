@@ -1648,3 +1648,10 @@ button:focus-visible, .scan-item:focus-visible, .ia-row:focus-visible {
     border-color: var(--warning) !important;
     box-shadow: 0 0 0 2px rgba(245, 158, 11, 0.25) !important;
 }
+
+/* Piloto Automático (paper trading): grade de config + marcador de operação */
+.piloto-cfg { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 8px 12px; align-items: end; margin-bottom: 10px; }
+.piloto-cfg label { display: flex; flex-direction: column; gap: 3px; font-size: 11.5px; color: var(--ink-muted); }
+.piloto-cfg input, .piloto-cfg select { width: 100%; }
+.piloto-cfg .btn-mini { align-self: end; height: fit-content; }
+.reg-paper { font-size: 11px; }

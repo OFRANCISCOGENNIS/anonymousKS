@@ -1042,7 +1042,13 @@ function atualizarDecisao() {
         // timeline do Registro de Entradas com o selo A/B/C e o funil do momento
         if (ehEntrada && dados.length) {
             const lbl = PARES_YAHOO[symbolAtual()] ? PARES_YAHOO[symbolAtual()].label : symbolAtual();
-            registrarEntrada(lbl, dirN, Math.max(long, short), enabled, { grade: gGrade, funil: fn ? fn.okCount : null, live: 1, exp: parseInt(document.getElementById('expiracao').value) || 5, sym: symbolAtual(), fonte: fonte() });
+            const funilN = fn ? fn.okCount : null;
+            const extra = { grade: gGrade, funil: funilN, live: 1, exp: parseInt(document.getElementById('expiracao').value) || 5, sym: symbolAtual(), fonte: fonte() };
+            // Piloto Automático: se a virada passa no gatilho, vira operação paper (conta demo)
+            if (typeof pilotoQualifica === 'function' && pilotoQualifica(gGrade, funilN)) {
+                extra.paper = 1; extra.stake = pilotoStakeAtual(); extra.payout = pilotoPayout();
+            }
+            registrarEntrada(lbl, dirN, Math.max(long, short), enabled, extra);
             renderRegistro();
         }
         if (document.getElementById('somAtivo').checked && !treino) {

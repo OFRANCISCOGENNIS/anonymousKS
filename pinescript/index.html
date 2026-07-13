@@ -358,6 +358,28 @@
                     <div id="agentesLog" class="reg-list"></div>
                 </div>
 
+                <!-- Piloto Automático: conta DEMO simulada sobre dados reais -->
+                <div class="chart-container" id="pilotoPanel">
+                    <h2>🎮 Piloto Automático <span id="pilotoSaldo" class="tv-sync-tag">○ desligado</span></h2>
+                    <label class="reg-filtro"><input type="checkbox" id="pilotoAtivo"> <span>Operar sozinho em <strong>conta DEMO simulada</strong> (dados reais) — <strong>zero risco</strong>, não toca na Binomo</span></label>
+                    <div class="piloto-cfg">
+                        <label>Gatilho <select id="pilotoGatilho">
+                            <option value="a">Nível A</option>
+                            <option value="f5">Funil ≥5</option>
+                            <option value="af5" selected>A + Funil ≥5</option>
+                        </select></label>
+                        <label>Saldo inicial (R$) <input type="number" id="pilotoSaldoIni" value="10000" min="1" step="100"></label>
+                        <label>Stake <input type="number" id="pilotoStake" value="100" min="1" step="1"></label>
+                        <label>Tipo <select id="pilotoStakeTipo">
+                            <option value="fixo" selected>R$ fixo</option>
+                            <option value="pct">% do saldo</option>
+                        </select></label>
+                        <button id="pilotoZerar" class="btn-mini" type="button">Zerar conta demo</button>
+                    </div>
+                    <div id="pilotoStats" class="qo-kv"></div>
+                    <p class="group-note">Registra sozinho as entradas que passam no gatilho como operações simuladas e acompanha saldo/WR/drawdown. Payout usa o campo <strong>Payout (%)</strong>. Não executa nada na corretora — a operação real, se quiser, é manual.</p>
+                </div>
+
                 <div class="chart-container" id="estudoPanel" style="display:none;">
                     <h2>📚 Estudos de Mercado <span id="estudoMeta" class="tv-sync-tag"></span></h2>
                     <div id="estudoRegime" class="decision-chips"></div>
@@ -574,6 +596,7 @@
                             <li>O <strong>Registro</strong> marca ✓/✗ automaticamente após a expiração e compara o acerto real com o previsto.</li>
                             <li>O backtest roda num <strong>Web Worker</strong> (segundo plano), então a tela não trava durante a otimização.</li>
                             <li><strong>🕵️ Agentes de Estudo</strong> (opcional): com o estudo contínuo ativado, 4 agentes trabalham sozinhos — 🧪 reotimiza as moedas em rodízio, 🔭 aplica os parâmetros certos quando o regime vira, ⚖️ audita a calibração e 🧠 mede os fatores. O painel mostra o que cada um encontrou.</li>
+                            <li><strong>🎮 Piloto Automático</strong> (paper trading): opera sozinho numa <strong>conta DEMO simulada</strong> sobre dados reais — registra as entradas que passam no gatilho (nível A / funil ≥5) como operações com stake e acompanha saldo, win rate e drawdown. <strong>Não toca em corretora</strong> (a Binomo bloqueia iframe e proíbe bots); a operação real, se você quiser, é manual.</li>
                         </ul>
                     </section>
                     <section>
@@ -618,6 +641,7 @@
     <script src="src/06-eventos-init.js"></script>
     <script src="src/07-backtest.js"></script>
     <script src="src/08-agentes.js"></script>
+    <script src="src/09-piloto.js"></script>
     <!-- APP:END -->
 </body>
 </html>
