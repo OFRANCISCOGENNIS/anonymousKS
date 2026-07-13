@@ -16,9 +16,12 @@ import type { MediaSource } from "./media-registry";
 export type { ExportProgress, ExportResult };
 export { isExportSupported };
 
+export type ExportFormat = "video" | "gif" | "png-seq";
+
 export interface ProjectExportOptions {
   shortSide: number; // 720 | 1080
   fps: number; // 24 | 30 | 60
+  format?: ExportFormat; // padrão: video
   onProgress?: (p: ExportProgress) => void;
   signal?: AbortSignal;
 }
@@ -199,7 +202,28 @@ async function mixProjectAudio(
       gain.gain.setValueAtTime(vol, Math.max(startSec, endSec - fadeOutSec));
       gain.gain.linearRampToValueAtTime(0.0001, endSec);
     }
-    src.connect(gain).connect(master);
+    // equalizador de 3 bandas (opcional) entre a fonte e o ganho
+    let head: AudioNode = src;
+    if (clip.eq) {
+      const low = offline.createBiquadFilter();
+      low.type = "lowshelf";
+      low.frequency.value = 250;
+      low.gain.value = clip.eq.low;
+      const mid = offline.createBiquadFilter();
+      mid.type = "peaking";
+      mid.frequency.value = 1200;
+      mid.Q.value = 0.9;
+      mid.gain.value = clip.eq.mid;
+      const high = offline.createBiquadFilter();
+      high.type = "highshelf";
+      high.frequency.value = 4000;
+      high.gain.value = clip.eq.high;
+      src.connect(low);
+      low.connect(mid);
+      mid.connect(high);
+      head = high;
+    }
+    head.connect(gain).connect(master);
     const when = clip.startInTimeline / 1000;
     const offset = clip.trimIn / 1000;
     const srcSpanSec = clipSourceSpan(clip) / 1000;
@@ -270,6 +294,67 @@ export async function renderProjectToBlob(
     }
     return null;
   };
+
+  // canvas de composição (compartilhado por todos os formatos)
+  const canvas = document.createElement("canvas");
+  canvas.width = width;
+  canvas.height = height;
+  const ctx = canvas.getContext("2d", { willReadFrequently: opts.format === "gif" });
+  if (!ctx) throw new Error("Canvas 2D indisponível");
+
+  // posiciona os vídeos ativos no frame-fonte certo e compõe o quadro `i`
+  const drawFrameAt = async (i: number): Promise<void> => {
+    const tMs = (i / fps) * 1000;
+    for (const track of renderTracks) {
+      if (track.type !== "video") continue;
+      const clip = clipAtTime(track, tMs);
+      if (!clip) continue;
+      const source = sources[clip.sourceId];
+      if (!source || source.kind !== "video") continue;
+      const el = videoEls.get(source.id);
+      if (!el) continue;
+      const target = sourceTimeForClip(clip, tMs) / 1000;
+      if (Math.abs(el.currentTime - target) > 1 / (fps * 2)) await seekTo(el, target);
+    }
+    drawComposite(ctx, width, height, project, tMs, resolve);
+  };
+
+  const cleanup = () => {
+    for (const url of ownedUrls) {
+      try {
+        URL.revokeObjectURL(url);
+      } catch {
+        /* ignore */
+      }
+    }
+    videoEls.forEach((v) => {
+      v.removeAttribute("src");
+      try {
+        v.load();
+      } catch {
+        /* ignore */
+      }
+    });
+  };
+
+  // --- formatos SEM áudio: GIF e sequência PNG (.zip) -------------------------
+  if (opts.format === "gif" || opts.format === "png-seq") {
+    const result = await exportFramesOnly(opts.format, {
+      totalFrames,
+      fps,
+      width,
+      height,
+      canvas,
+      ctx,
+      drawFrameAt,
+      projectName: project.name,
+      report,
+      signal: opts.signal,
+    });
+    cleanup();
+    report(100, "Exportação concluída");
+    return result;
+  }
 
   // --- áudio ------------------------------------------------------------------
   report(4, "Mixando o áudio (vídeos + música)…");
@@ -342,33 +427,10 @@ export async function renderProjectToBlob(
   }
 
   // --- loop de vídeo --------------------------------------------------------------
-  const canvas = document.createElement("canvas");
-  canvas.width = width;
-  canvas.height = height;
-  const ctx = canvas.getContext("2d");
-  if (!ctx) throw new Error("Canvas 2D indisponível");
-
   for (let i = 0; i < totalFrames; i++) {
     throwIfAborted(opts.signal);
     if (encodeError) throw encodeError;
-    const tMs = (i / fps) * 1000;
-
-    // posiciona cada vídeo ativo no frame-fonte correto
-    for (const track of renderTracks) {
-      if (track.type !== "video") continue;
-      const clip = clipAtTime(track, tMs);
-      if (!clip) continue;
-      const source = sources[clip.sourceId];
-      if (!source || source.kind !== "video") continue;
-      const el = videoEls.get(source.id);
-      if (!el) continue;
-      const target = sourceTimeForClip(clip, tMs) / 1000;
-      if (Math.abs(el.currentTime - target) > 1 / (fps * 2)) {
-        await seekTo(el, target);
-      }
-    }
-
-    drawComposite(ctx, width, height, project, tMs, resolve);
+    await drawFrameAt(i);
     const frame = new VideoFrame(canvas, {
       timestamp: Math.round((i * 1e6) / fps),
       duration: Math.round(1e6 / fps),
@@ -425,27 +487,73 @@ export async function renderProjectToBlob(
   if (encodeError) throw encodeError;
   const buffer = finalizeAndGetBuffer();
 
-  // limpeza
-  for (const url of ownedUrls) {
-    try {
-      URL.revokeObjectURL(url);
-    } catch {
-      /* ignore */
-    }
-  }
-  videoEls.forEach((v) => {
-    v.removeAttribute("src");
-    try {
-      v.load();
-    } catch {
-      /* ignore */
-    }
-  });
-
+  cleanup();
   report(100, "Exportação concluída");
   return {
     blob: new Blob([buffer], { type: plan.mimeType }),
     mimeType: plan.mimeType,
     fileName: `${slugFile(project.name)}.${plan.ext}`,
   };
+}
+
+// ------------------------------------------------- GIF / sequência PNG (.zip)
+
+interface FramesOnlyCtx {
+  totalFrames: number;
+  fps: number;
+  width: number;
+  height: number;
+  canvas: HTMLCanvasElement;
+  ctx: CanvasRenderingContext2D;
+  drawFrameAt: (i: number) => Promise<void>;
+  projectName: string;
+  report: (pct: number, message: string) => void;
+  signal?: AbortSignal;
+}
+
+async function exportFramesOnly(format: "gif" | "png-seq", c: FramesOnlyCtx): Promise<ExportResult> {
+  const { totalFrames, fps, width, height, canvas, ctx, drawFrameAt, projectName, report, signal } = c;
+  const base = slugFile(projectName);
+
+  if (format === "gif") {
+    // GIF pesa muito em alta resolução → limita o lado maior a 480px e ~15fps.
+    const gifScale = Math.min(1, 480 / Math.max(width, height));
+    const gw = Math.max(2, Math.round(width * gifScale));
+    const gh = Math.max(2, Math.round(height * gifScale));
+    const step = Math.max(1, Math.round(fps / 15)); // amostra ~15fps
+    const gifCanvas = document.createElement("canvas");
+    gifCanvas.width = gw;
+    gifCanvas.height = gh;
+    const gctx = gifCanvas.getContext("2d", { willReadFrequently: true });
+    if (!gctx) throw new Error("Canvas 2D indisponível");
+
+    const { encodeGif } = await import("./gif");
+    const frames: { data: Uint8ClampedArray; width: number; height: number }[] = [];
+    for (let i = 0; i < totalFrames; i += step) {
+      throwIfAborted(signal);
+      await drawFrameAt(i);
+      gctx.drawImage(canvas, 0, 0, gw, gh);
+      const img = gctx.getImageData(0, 0, gw, gh);
+      frames.push({ data: img.data, width: gw, height: gh });
+      report(6 + (i / totalFrames) * 80, `Capturando quadro ${i + 1} de ${totalFrames}…`);
+    }
+    report(88, "Montando o GIF…");
+    const blob = encodeGif(frames, (step / fps) * 1000, true);
+    return { blob, mimeType: "image/gif", fileName: `${base}.gif` };
+  }
+
+  // sequência PNG dentro de um .zip
+  const { makeZip, dataUrlToBytes } = await import("./zip");
+  const files: { name: string; data: Uint8Array }[] = [];
+  for (let i = 0; i < totalFrames; i++) {
+    throwIfAborted(signal);
+    await drawFrameAt(i);
+    const dataUrl = canvas.toDataURL("image/png");
+    files.push({ name: `${base}_${String(i + 1).padStart(5, "0")}.png`, data: dataUrlToBytes(dataUrl) });
+    report(6 + (i / totalFrames) * 84, `Renderizando PNG ${i + 1} de ${totalFrames}…`);
+  }
+  report(92, "Compactando o .zip…");
+  const blob = makeZip(files);
+  void ctx;
+  return { blob, mimeType: "application/zip", fileName: `${base}_png.zip` };
 }

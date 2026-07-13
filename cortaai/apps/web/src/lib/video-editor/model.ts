@@ -77,6 +77,8 @@ export interface Clip {
   animOut?: ClipAnim; // animação de saída
   fadeInMs?: number; // fade de ÁUDIO na entrada
   fadeOutMs?: number; // fade de ÁUDIO na saída
+  transitionIn?: ClipAnim; // transição COM O CLIPE ANTERIOR adjacente (catálogo em transitions.ts)
+  eq?: { low: number; mid: number; high: number }; // equalizador em dB (-12..+12)
   // Texto (só para clips em trilha 'text'): conteúdo e estilo básico.
   text?: {
     content: string;
@@ -261,8 +263,21 @@ function sanitizeClip(c: Clip, trackId: string): Clip {
     animOut: sanitizeAnim(c.animOut),
     fadeInMs: typeof c.fadeInMs === "number" && c.fadeInMs > 0 ? Math.min(10_000, Math.round(c.fadeInMs)) : undefined,
     fadeOutMs: typeof c.fadeOutMs === "number" && c.fadeOutMs > 0 ? Math.min(10_000, Math.round(c.fadeOutMs)) : undefined,
+    transitionIn: sanitizeAnim(c.transitionIn),
+    eq: sanitizeEq(c.eq),
     text: c.text,
   };
+}
+
+function sanitizeEq(e: unknown): { low: number; mid: number; high: number } | undefined {
+  if (!e || typeof e !== "object") return undefined;
+  const eq = e as { low?: unknown; mid?: unknown; high?: unknown };
+  const band = (v: unknown) => Math.min(12, Math.max(-12, typeof v === "number" && Number.isFinite(v) ? v : 0));
+  const low = band(eq.low);
+  const mid = band(eq.mid);
+  const high = band(eq.high);
+  if (low === 0 && mid === 0 && high === 0) return undefined;
+  return { low, mid, high };
 }
 
 function sanitizeAnim(a: unknown): ClipAnim | undefined {
