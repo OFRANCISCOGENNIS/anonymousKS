@@ -12,6 +12,8 @@ export const TRANSITIONS: { id: string; name: string }[] = [
   { id: "deslizar", name: "Deslizar" },
   { id: "circulo", name: "Círculo" },
   { id: "zoom", name: "Zoom" },
+  { id: "cortina", name: "Cortina" },
+  { id: "persiana", name: "Persiana" },
 ];
 
 /** Tolerância para considerar dois clipes adjacentes (ms). */

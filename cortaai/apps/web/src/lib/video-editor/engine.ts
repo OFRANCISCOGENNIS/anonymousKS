@@ -208,6 +208,31 @@ function drawWithTransition(
       drawPrev({ alphaMul: 1 - p, scaleMul: 1 + 0.2 * p });
       drawCur({ alphaMul: p });
       break;
+    case "cortina":
+      // wipe: o novo clipe entra da esquerda como uma cortina
+      drawPrev();
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(0, 0, Math.max(1, p * canvasW), canvasH);
+      ctx.clip();
+      drawCur();
+      ctx.restore();
+      break;
+    case "persiana": {
+      // blinds: 8 faixas horizontais abrem simultaneamente
+      drawPrev();
+      const bands = 8;
+      const bandH = canvasH / bands;
+      ctx.save();
+      ctx.beginPath();
+      for (let i = 0; i < bands; i++) {
+        ctx.rect(0, i * bandH, canvasW, Math.max(1, p * bandH));
+      }
+      ctx.clip();
+      drawCur();
+      ctx.restore();
+      break;
+    }
     case "fundido":
     default:
       drawPrev({ alphaMul: 1 - p });
@@ -328,6 +353,81 @@ function applyOverlayEffects(
       ctx.fillStyle = "#fff";
       ctx.fillRect(0, bandY, canvasW, 26);
       ctx.restore();
+    } else if (fx.id === "glitch") {
+      // fatias horizontais deslocadas (o canvas se auto-copia) + linha colorida
+      const t = Math.floor(playheadMs / 90); // salta ~11x/s
+      ctx.save();
+      for (let i = 0; i < 6; i++) {
+        if (hash01(i * 2.17 + t * 1.31) > 0.35 + 0.5 * (1 - k)) continue; // nem toda fatia, sempre
+        const y = Math.floor(hash01(i * 3.7 + t) * canvasH);
+        const bh = Math.max(2, Math.floor((0.01 + hash01(i * 5.3 + t) * 0.05) * canvasH));
+        const dx = Math.round((hash01(i * 9.1 + t) - 0.5) * canvasW * 0.14 * k);
+        try {
+          ctx.drawImage(ctx.canvas, 0, y, canvasW, bh, dx, y, canvasW, bh);
+        } catch {
+          /* ignore */
+        }
+      }
+      // risco ciano/vermelho fino
+      ctx.globalAlpha = 0.25 * k;
+      ctx.fillStyle = hash01(t) > 0.5 ? "#22d3ee" : "#f43f5e";
+      ctx.fillRect(0, Math.floor(hash01(t * 7.7) * canvasH), canvasW, Math.max(1, canvasH / 360));
+      ctx.restore();
+    } else if (fx.id === "light-leak") {
+      // dois brilhos quentes que passeiam devagar pela tela (blend screen)
+      ctx.save();
+      ctx.globalCompositeOperation = "screen";
+      const spots: [number, number, string][] = [
+        [(Math.sin(playheadMs * 0.00037) * 0.5 + 0.5) * canvasW, canvasH * 0.25, "255,140,60"],
+        [(Math.cos(playheadMs * 0.00023) * 0.5 + 0.5) * canvasW, canvasH * 0.75, "255,80,120"],
+      ];
+      for (const [cx, cy, rgb] of spots) {
+        const r = Math.max(canvasW, canvasH) * 0.55;
+        const grad = ctx.createRadialGradient(cx, cy, 0, cx, cy, r);
+        grad.addColorStop(0, `rgba(${rgb},${(0.4 * k).toFixed(3)})`);
+        grad.addColorStop(1, `rgba(${rgb},0)`);
+        ctx.fillStyle = grad;
+        ctx.fillRect(0, 0, canvasW, canvasH);
+      }
+      ctx.restore();
+    } else if (fx.id === "snow") {
+      ctx.save();
+      ctx.fillStyle = "#fff";
+      const n = 90;
+      for (let i = 0; i < n; i++) {
+        const speed = 0.05 + hash01(i * 2.3) * 0.08; // fração da altura por segundo
+        const y01 = (hash01(i * 5.7) + (playheadMs / 1000) * speed) % 1;
+        const x = hash01(i * 1.111) * canvasW + Math.sin(playheadMs * 0.001 + i) * canvasW * 0.012;
+        const r = (1 + hash01(i * 8.8) * 2.2) * (canvasH / 540);
+        ctx.globalAlpha = (0.35 + hash01(i * 4.1) * 0.45) * k;
+        ctx.beginPath();
+        ctx.arc(x, y01 * canvasH, r, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.restore();
+    } else if (fx.id === "rain") {
+      ctx.save();
+      ctx.strokeStyle = `rgba(190,215,255,${(0.35 * k).toFixed(3)})`;
+      ctx.lineWidth = Math.max(1, canvasH / 720);
+      const n = 70;
+      const len = canvasH * 0.045;
+      for (let i = 0; i < n; i++) {
+        const speed = 0.7 + hash01(i * 3.1) * 0.6;
+        const y01 = (hash01(i * 4.4) + (playheadMs / 1000) * speed) % 1;
+        const x = ((hash01(i * 1.7) + y01 * 0.05) % 1) * canvasW;
+        const y = y01 * canvasH;
+        ctx.beginPath();
+        ctx.moveTo(x, y);
+        ctx.lineTo(x - len * 0.18, y + len);
+        ctx.stroke();
+      }
+      ctx.restore();
     }
   }
+}
+
+/** Pseudo-aleatório determinístico 0..1 (mesmo resultado no preview e no export). */
+function hash01(n: number): number {
+  const s = Math.sin(n * 12.9898) * 43758.5453;
+  return s - Math.floor(s);
 }

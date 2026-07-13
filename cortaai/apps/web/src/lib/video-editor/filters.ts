@@ -54,9 +54,13 @@ export function filterById(id: string | undefined): ClipFilter | null {
 
 // ------------------------------------------------- efeitos de sobreposição
 
-/** Efeitos desenhados POR CIMA do clipe (vinheta, grão, VHS) — ids usados em Clip.effects. */
+/** Efeitos desenhados POR CIMA do clipe — ids usados em Clip.effects. */
 export const OVERLAY_EFFECTS: { id: string; name: string }[] = [
   { id: "vignette", name: "Vinheta" },
   { id: "grain", name: "Grão de filme" },
   { id: "vhs", name: "VHS" },
+  { id: "glitch", name: "Glitch" },
+  { id: "light-leak", name: "Vazamento de luz" },
+  { id: "snow", name: "Neve" },
+  { id: "rain", name: "Chuva" },
 ];
