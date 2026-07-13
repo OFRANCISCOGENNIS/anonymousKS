@@ -256,7 +256,7 @@ export function FotoEditor() {
           }}
           className={cn(
             "flex min-h-[300px] cursor-pointer flex-col items-center justify-center gap-3 rounded-3xl border-2 border-dashed px-6 py-12 text-center transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-400",
-            dragging ? "border-violet-400 bg-violet-500/10" : "border-line bg-surface-1/60 hover:border-violet-500/50",
+            dragging ? "scale-[1.01] border-violet-400 bg-violet-500/10 shadow-glow" : "border-white/10 bg-white/[0.03] hover:border-violet-500/50 hover:bg-white/[0.05]",
           )}
         >
           {loading ? (
@@ -317,13 +317,13 @@ export function FotoEditor() {
           </h1>
           <p className="text-xs text-zinc-500">{s.imgW}×{s.imgH} px · edição 100% local</p>
         </div>
-        <div className="flex items-center gap-1 rounded-xl border border-line bg-surface-1 p-1" role="group" aria-label="Histórico">
+        <div className="flex items-center gap-1 rounded-xl border border-white/[0.08] bg-surface-1/60 p-1 backdrop-blur-xl" role="group" aria-label="Histórico">
           <button
             onClick={s.undo}
             disabled={s.pastCount === 0}
             aria-label={`Desfazer (${s.pastCount} passos disponíveis)`}
             title="Desfazer (Ctrl+Z)"
-            className="rounded-lg p-2 text-zinc-300 hover:bg-white/10 hover:text-white disabled:pointer-events-none disabled:opacity-40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-400"
+            className="rounded-lg p-2 text-zinc-300 transition-all hover:bg-white/10 hover:text-white active:scale-90 disabled:pointer-events-none disabled:opacity-40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-400"
           >
             <Undo2 className="h-4 w-4" />
           </button>
@@ -332,7 +332,7 @@ export function FotoEditor() {
             disabled={s.futureCount === 0}
             aria-label={`Refazer (${s.futureCount} passos disponíveis)`}
             title="Refazer (Ctrl+Shift+Z)"
-            className="rounded-lg p-2 text-zinc-300 hover:bg-white/10 hover:text-white disabled:pointer-events-none disabled:opacity-40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-400"
+            className="rounded-lg p-2 text-zinc-300 transition-all hover:bg-white/10 hover:text-white active:scale-90 disabled:pointer-events-none disabled:opacity-40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-400"
           >
             <Redo2 className="h-4 w-4" />
           </button>
@@ -373,7 +373,7 @@ export function FotoEditor() {
         {/* Tool tabs */}
         <nav
           aria-label="Ferramentas do editor de fotos"
-          className="flex gap-1 overflow-x-auto rounded-2xl border border-line bg-surface-1 p-2 lg:flex-col lg:overflow-y-auto"
+          className="editor-scroll flex gap-1 overflow-x-auto rounded-2xl border border-white/[0.08] bg-surface-1/60 p-2 backdrop-blur-xl lg:flex-col lg:overflow-y-auto"
         >
           {TABS.map((t) => {
             const Icon = t.icon;
@@ -385,9 +385,9 @@ export function FotoEditor() {
                 aria-pressed={active}
                 aria-current={active ? "true" : undefined}
                 className={cn(
-                  "flex shrink-0 items-center gap-2.5 rounded-xl px-3 py-2.5 text-left text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-400",
+                  "flex shrink-0 items-center gap-2.5 rounded-xl px-3 py-2.5 text-left text-xs font-medium transition-all active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-400",
                   active
-                    ? "bg-gradient-to-r from-violet-600/25 to-fuchsia-600/15 text-white ring-1 ring-inset ring-violet-500/30"
+                    ? "bg-gradient-to-r from-violet-600/25 to-fuchsia-600/15 text-white shadow-[0_0_20px_-6px_rgba(139,92,246,0.5)] ring-1 ring-inset ring-violet-500/30"
                     : "text-zinc-400 hover:bg-white/5 hover:text-white",
                 )}
               >
@@ -406,7 +406,7 @@ export function FotoEditor() {
         {/* Context panel */}
         <aside
           aria-label="Painel de opções da ferramenta"
-          className="max-h-[60vh] overflow-y-auto rounded-2xl border border-line bg-surface-1 p-4 lg:max-h-none"
+          className="editor-scroll max-h-[60vh] overflow-y-auto rounded-2xl border border-white/[0.08] bg-surface-1/60 p-4 backdrop-blur-xl lg:max-h-none"
         >
           {s.activeTab === "ajustes" && <AjustesPanel />}
           {s.activeTab === "curvas" && <CurvasPanel />}
