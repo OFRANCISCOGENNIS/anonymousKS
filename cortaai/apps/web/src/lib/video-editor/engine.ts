@@ -139,7 +139,7 @@ function drawVisualClip(
     .join(" ");
 
   const blendOp = BLEND_MAP[clip.blendMode] ?? "source-over";
-  if (clip.mask) {
+  if (clip.mask || clip.chroma) {
     // desenha num buffer, recorta pela máscara (com feather) e compõe no palco
     const buf = getMaskBuffer(canvasW, canvasH);
     if (buf) {
@@ -159,7 +159,8 @@ function drawVisualClip(
       }
       bctx.restore();
       bctx.filter = "none";
-      paintMask(bctx, clip.mask, canvasW, canvasH);
+      if (clip.chroma) applyChromaKey(bctx, canvasW, canvasH, clip.chroma);
+      if (clip.mask) paintMask(bctx, clip.mask, canvasW, canvasH);
       ctx.save();
       ctx.globalAlpha = opacity;
       ctx.globalCompositeOperation = blendOp;
@@ -501,6 +502,41 @@ function paintMask(bctx: CanvasRenderingContext2D, mask: NonNullable<Clip["mask"
     bctx.fill();
   }
   bctx.restore();
+}
+
+/** Chroma key: remove a cor-chave (fundo verde/azul) tornando-a transparente. */
+function applyChromaKey(
+  bctx: CanvasRenderingContext2D,
+  w: number,
+  h: number,
+  chroma: { color: string; tolerance: number; softness: number },
+): void {
+  const kr = parseInt(chroma.color.slice(1, 3), 16);
+  const kg = parseInt(chroma.color.slice(3, 5), 16);
+  const kb = parseInt(chroma.color.slice(5, 7), 16);
+  // limiares em distância euclidiana RGB (0..441)
+  const t0 = chroma.tolerance * 255;
+  const t1 = t0 + Math.max(1, chroma.softness * 255);
+  let img: ImageData;
+  try {
+    img = bctx.getImageData(0, 0, w, h);
+  } catch {
+    return; // canvas contaminado (CORS) — sem keying
+  }
+  const d = img.data;
+  for (let i = 0; i < d.length; i += 4) {
+    if (d[i + 3] === 0) continue;
+    const dr = d[i] - kr;
+    const dg = d[i + 1] - kg;
+    const db = d[i + 2] - kb;
+    const dist = Math.sqrt(dr * dr + dg * dg + db * db);
+    if (dist <= t0) {
+      d[i + 3] = 0;
+    } else if (dist < t1) {
+      d[i + 3] = Math.round(d[i + 3] * ((dist - t0) / (t1 - t0)));
+    }
+  }
+  bctx.putImageData(img, 0, 0);
 }
 
 function tracePath(ctx: CanvasRenderingContext2D, kind: "rect" | "ellipse", cx: number, cy: number, w: number, h: number): void {

@@ -80,6 +80,10 @@ export interface Clip {
   transitionIn?: ClipAnim; // transição COM O CLIPE ANTERIOR adjacente (catálogo em transitions.ts)
   eq?: { low: number; mid: number; high: number }; // equalizador em dB (-12..+12)
   freeze?: boolean; // congela o frame em `trimIn` por toda a duração do clipe
+  /** Tratamentos de áudio (DSP real, aplicado na exportação). */
+  audioFx?: { denoise?: boolean; voice?: boolean };
+  /** Chroma key: remove a cor (fundo verde/azul) do clipe de vídeo. */
+  chroma?: { color: string; tolerance: number; softness: number };
   // Texto (só para clips em trilha 'text'): conteúdo e estilo básico.
   text?: {
     content: string;
@@ -261,6 +265,11 @@ function sanitizeClip(c: Clip, trackId: string): Clip {
     blendMode: c.blendMode ?? "normal",
     mask: sanitizeMask(c.mask),
     freeze: c.freeze === true ? true : undefined,
+    audioFx:
+      c.audioFx && (c.audioFx.denoise === true || c.audioFx.voice === true)
+        ? { denoise: c.audioFx.denoise === true || undefined, voice: c.audioFx.voice === true || undefined }
+        : undefined,
+    chroma: sanitizeChroma(c.chroma),
     animIn: sanitizeAnim(c.animIn),
     animOut: sanitizeAnim(c.animOut),
     fadeInMs: typeof c.fadeInMs === "number" && c.fadeInMs > 0 ? Math.min(10_000, Math.round(c.fadeInMs)) : undefined,
@@ -268,6 +277,17 @@ function sanitizeClip(c: Clip, trackId: string): Clip {
     transitionIn: sanitizeAnim(c.transitionIn),
     eq: sanitizeEq(c.eq),
     text: c.text,
+  };
+}
+
+function sanitizeChroma(ch: unknown): { color: string; tolerance: number; softness: number } | undefined {
+  if (!ch || typeof ch !== "object") return undefined;
+  const c = ch as { color?: unknown; tolerance?: unknown; softness?: unknown };
+  if (typeof c.color !== "string" || !/^#[0-9a-fA-F]{6}$/.test(c.color)) return undefined;
+  return {
+    color: c.color,
+    tolerance: clamp01(numOr(c.tolerance, 0.3)),
+    softness: clamp01(numOr(c.softness, 0.1)),
   };
 }
 

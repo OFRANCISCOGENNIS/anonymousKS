@@ -202,8 +202,39 @@ async function mixProjectAudio(
       gain.gain.setValueAtTime(vol, Math.max(startSec, endSec - fadeOutSec));
       gain.gain.linearRampToValueAtTime(0.0001, endSec);
     }
-    // equalizador de 3 bandas (opcional) entre a fonte e o ganho
+    // tratamentos de áudio (DSP): redução de ruído básica e realce de voz
     let head: AudioNode = src;
+    if (clip.audioFx?.denoise) {
+      const hp = offline.createBiquadFilter();
+      hp.type = "highpass";
+      hp.frequency.value = 100; // corta ronco/vibração
+      const lp = offline.createBiquadFilter();
+      lp.type = "lowpass";
+      lp.frequency.value = 7500; // corta chiado agudo
+      head.connect(hp);
+      hp.connect(lp);
+      head = lp;
+    }
+    if (clip.audioFx?.voice) {
+      const hp = offline.createBiquadFilter();
+      hp.type = "highpass";
+      hp.frequency.value = 120;
+      const presence = offline.createBiquadFilter();
+      presence.type = "peaking";
+      presence.frequency.value = 3000;
+      presence.Q.value = 1;
+      presence.gain.value = 5; // presença/clareza da fala
+      const comp = offline.createDynamicsCompressor();
+      comp.threshold.value = -28;
+      comp.ratio.value = 4;
+      comp.attack.value = 0.005;
+      comp.release.value = 0.15;
+      head.connect(hp);
+      hp.connect(presence);
+      presence.connect(comp);
+      head = comp;
+    }
+    // equalizador de 3 bandas (opcional) entre a fonte e o ganho
     if (clip.eq) {
       const low = offline.createBiquadFilter();
       low.type = "lowshelf";
@@ -218,7 +249,7 @@ async function mixProjectAudio(
       high.type = "highshelf";
       high.frequency.value = 4000;
       high.gain.value = clip.eq.high;
-      src.connect(low);
+      head.connect(low);
       low.connect(mid);
       mid.connect(high);
       head = high;
