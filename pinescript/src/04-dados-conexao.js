@@ -12,19 +12,27 @@ function setStatus(estado, texto) {
     document.body.classList.toggle('carregando', estado === 'connecting');
 }
 
+// fetch com TIMEOUT (AbortController): um servidor que aceita mas não responde
+// não pendura mais a requisição para sempre. Padrão 10s.
+function fetchTimeout(url, opts, ms) {
+    const ctrl = new AbortController();
+    const t = setTimeout(() => ctrl.abort(), ms || 10000);
+    return fetch(url, Object.assign({}, opts, { signal: ctrl.signal })).finally(() => clearTimeout(t));
+}
+
 // Retry com backoff p/ REST transitório (rede caindo, 429 de limite, 5xx do
-// servidor). Erros 4xx de dados (par inexistente etc.) não são repetidos — não
-// adianta insistir. Backoff: 0.5s, 1s, 2s.
+// servidor, timeout). Erros 4xx de dados (par inexistente etc.) não são
+// repetidos — não adianta insistir. Backoff: 0.5s, 1s, 2s.
 async function fetchRetry(url, opts, tentativas) {
     tentativas = tentativas || 3;
     let err;
     for (let i = 0; i < tentativas; i++) {
         try {
-            const r = await fetch(url, opts);
+            const r = await fetchTimeout(url, opts);
             if (r.ok) return r;
             if (r.status >= 400 && r.status < 500 && r.status !== 429) return r;   // erro de dados: devolve p/ tratar
             err = new Error('HTTP ' + r.status);
-        } catch (e) { err = e; }   // falha de rede/DNS/CORS
+        } catch (e) { err = e; }   // falha de rede/DNS/CORS/timeout (abort)
         if (i < tentativas - 1) await new Promise(res => setTimeout(res, 500 * Math.pow(2, i)));
     }
     throw err || new Error('falha de rede');
@@ -109,7 +117,8 @@ function conectarIdxWS(interval) {
     const conn = 'IDX@' + interval; idxConn = conn;
     const sock = new WebSocket(`${BINANCE_WS}/stream?streams=${streams}`);
     idxWS = sock;
-    sock.onopen = () => { if (idxConn === conn) { idxTent = 0; setStatus('on', 'AO VIVO (tick a tick) • Crypto IDX ≈ cesta Binance'); } };
+    const abriuTimer = setTimeout(() => { if (idxConn === conn && sock.readyState !== 1) { try { sock.close(); } catch (e) {} } }, 12000);
+    sock.onopen = () => { clearTimeout(abriuTimer); if (idxConn === conn) { idxTent = 0; setStatus('on', 'AO VIVO (tick a tick) • Crypto IDX ≈ cesta Binance'); } };
     sock.onmessage = (ev) => {
         if (idxConn !== conn) return;
         let msg; try { msg = JSON.parse(ev.data); } catch (e) { return; }
@@ -146,8 +155,11 @@ function conectarWS(symbol, interval) {
     setStatus('connecting', 'Conectando ao vivo…');
     const sock = new WebSocket(`${BINANCE_WS}/ws/${stream}`);
     ws = sock;
+    // Timeout de "conectando": se o onopen não chegar em 12s, força fechar
+    // (o onclose agenda a reconexão com backoff) — não fica preso em "Conectando…"
+    const abriuTimer = setTimeout(() => { if (conexaoAtual === stream && sock.readyState !== 1) { try { sock.close(); } catch (e) {} } }, 12000);
 
-    sock.onopen = () => { if (conexaoAtual === stream) { wsTent = 0; setStatus('on', `AO VIVO • ${symbol} ${interval}`); } };
+    sock.onopen = () => { clearTimeout(abriuTimer); if (conexaoAtual === stream) { wsTent = 0; setStatus('on', `AO VIVO • ${symbol} ${interval}`); } };
     sock.onmessage = (ev) => {
         if (conexaoAtual !== stream) return;
         let msg; try { msg = JSON.parse(ev.data); } catch (e) { return; }
@@ -204,7 +216,7 @@ async function fetchYahooJson(url, rodadas) {
     for (let r = 0; r < rodadas; r++) {
         for (const { p, i } of ordem) {
             try {
-                const resp = await fetch(p.montar(url));
+                const resp = await fetchTimeout(p.montar(url));
                 if (!resp.ok) throw new Error(p.nome + ' HTTP ' + resp.status);
                 const inner = JSON.parse(await p.texto(resp));
                 if (inner.chart && inner.chart.error) throw new Error(inner.chart.error.description || 'erro Yahoo');
@@ -384,8 +396,8 @@ async function carregar() {
     if (fonte() === 'sim') {
         conexaoAtual = '';
         setStatus('off', 'Simulado (offline)');
-        const numCandles = parseInt(document.getElementById('numCandles').value);
-        const volatilidade = parseFloat(document.getElementById('volatility').value);
+        const numCandles = lerNum('numCandles');
+        const volatilidade = lerNum('volatility');
         dados = gerarDadosSim(numCandles, volatilidade);
         refPares = gerarRefParesSim(dados);
         redesenharTudo(true);

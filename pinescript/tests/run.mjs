@@ -346,7 +346,7 @@ const rip = await p.evaluate(async () => {
   const r = btn.getBoundingClientRect();
   btn.dispatchEvent(new MouseEvent('click', { bubbles: true, clientX: r.left + 5, clientY: r.top + 5 }));
   const nasceu = !!btn.querySelector('.qo-ripple');
-  await new Promise(res => setTimeout(res, 700));
+  await new Promise(res => setTimeout(res, 1100));
   const sumiu = !btn.querySelector('.qo-ripple');
   return { nasceu, sumiu };
 });
@@ -424,6 +424,56 @@ const fmOtc = await p.evaluate(() => {
 check('fim de semana: forex sai da análise, cripto fica', fmOtc.puladas === 2 && fmOtc.sobraram === 'BTCUSDT,ETHUSDT', JSON.stringify(fmOtc));
 check('aviso OTC aparece com fonte forex no fim de semana (e some no sim)', fmOtc.banner && fmOtc.bannerSim);
 
+// FASE 1 — ESTABILIDADE
+// lerNum: clamp de faixa, NaN→default, realce visual
+const ln = await p.evaluate(() => {
+  const el = document.getElementById('emaRapida');
+  const antes = el.value;
+  el.value = '999'; const alto = lerNum('emaRapida');            // > max 50
+  const marcado = el.classList.contains('input-invalido');
+  el.value = '';    const vazio = lerNum('emaRapida');           // NaN → default
+  const cd = document.getElementById('cooldownVelas'); const cdAntes = cd.value;
+  cd.value = '-5';  const neg = lerNum('cooldownVelas');         // < min 0
+  el.value = antes; cd.value = cdAntes; lerNum('emaRapida');
+  return { alto, marcado, vazio, neg };
+});
+check('lerNum clampa acima do máximo (999→50)', ln.alto === 50);
+check('lerNum realça o campo corrigido', ln.marcado);
+check('lerNum trata vazio/NaN (→ default)', Number.isFinite(ln.vazio) && ln.vazio >= 1);
+check('lerNum clampa abaixo do mínimo (-5→0)', ln.neg === 0);
+// configProblemas + gate de decisão (EMA rápida ≥ lenta bloqueia veredito)
+const cfg = await p.evaluate(() => {
+  const er = document.getElementById('emaRapida'), el = document.getElementById('emaLenta');
+  const a = er.value, b = el.value;
+  er.value = '30'; el.value = '10';   // rápida ≥ lenta = incoerente
+  const probs = configProblemas().length;
+  recomputarIndicadores(); recomputarSinais(); atualizarDecisao();
+  const verd = document.getElementById('decisionVerdict').textContent;
+  er.value = a; el.value = b; recomputarIndicadores(); recomputarSinais(); atualizarDecisao();
+  return { probs, verd };
+});
+check('configProblemas detecta EMA rápida ≥ lenta', cfg.probs >= 1);
+check('decisão bloqueia com CONFIG INVÁLIDA (não gera sinal-lixo)', /CONFIG INV/.test(cfg.verd), cfg.verd);
+// fetchTimeout aborta requisição pendurada (servidor que nunca responde)
+const to = await p.evaluate(async () => {
+  const orig = window.fetch;
+  window.fetch = (u, o) => new Promise((_, rej) => { if (o && o.signal) o.signal.addEventListener('abort', () => rej(new Error('aborted'))); });
+  const t0 = Date.now(); let abortou = false;
+  try { await fetchTimeout('http://x', {}, 300); } catch (e) { abortou = true; }
+  window.fetch = orig;
+  return { abortou, ms: Date.now() - t0 };
+});
+check('fetchTimeout aborta request pendurada (~300ms)', to.abortou && to.ms < 1500, JSON.stringify(to));
+// window.onerror mantém o app vivo (não derruba a tela)
+const err = await p.evaluate(() => new Promise(res => {
+  let capturado = false;
+  const h = () => { capturado = true; };
+  window.addEventListener('error', h, { once: true });
+  setTimeout(() => { throw new Error('boom-teste'); }, 0);       // erro assíncrono não tratado
+  setTimeout(() => { window.removeEventListener('error', h); res({ capturado, vivo: typeof atualizarDecisao === 'function' }); }, 120);
+}));
+check('window.onerror captura erro e mantém o app vivo', err.capturado && err.vivo);
+
 // 8) PWA manifest
 check('PWA manifest presente', await p.$eval('link[rel=manifest]', e => e.href.startsWith('data:application/manifest')));
 
@@ -443,8 +493,9 @@ check('preset majors tem os 7 pares principais', await p2.evaluate(() => PRESETS
 check('treino automático sem erros de JS', jsErrs2.length === 0, jsErrs2.join(' | '));
 await p2.close();
 
-// 9) Sem erros de JS
-check('sem erros de JavaScript', jsErrs.length === 0, jsErrs.join(' | '));
+// 9) Sem erros de JS (exceto o 'boom-teste' lançado de propósito no teste do onerror)
+const errsReais = jsErrs.filter(m => !/boom-teste/.test(m));
+check('sem erros de JavaScript', errsReais.length === 0, errsReais.join(' | '));
 
 await browser.close();
 

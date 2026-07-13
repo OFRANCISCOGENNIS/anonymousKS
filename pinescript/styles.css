@@ -1642,3 +1642,9 @@ button:focus-visible, .scan-item:focus-visible, .ia-row:focus-visible {
 }
 .otc-aviso .btn-mini { flex-shrink: 0; }
 .scan-fil-fechado { opacity: 0.45; }
+
+/* Realce de input corrigido/inválido (clamp de faixa ou NaN) */
+.input-invalido {
+    border-color: var(--warning) !important;
+    box-shadow: 0 0 0 2px rgba(245, 158, 11, 0.25) !important;
+}

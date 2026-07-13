@@ -125,11 +125,13 @@ function agendarTick(fechou) {
     requestAnimationFrame(() => {
         _tickPend = false;
         const f = _tickFechou; _tickFechou = false;
-        atualizarUltimoCandle(f);
+        // Guarda: um erro no tick não pode derrubar o gráfico ao vivo.
+        try { atualizarUltimoCandle(f); } catch (e) { QLOG.erro('tick:', e); }
     });
 }
 
 function atualizarUltimoCandle(fechou) {
+    if (!dados || !dados.length || !serieVelas) return;   // feed vazio: nada a atualizar
     recomputarIndicadores();
     const last = dados.length - 1;
     const t = dados[last].time;
@@ -420,7 +422,7 @@ function atualizarQuantOps() {
     document.getElementById('qoSessao').textContent = dados.length ? sessaoDe(dados[last].time) : '—';
     // aprovadas/bloqueadas: entradas do histórico fora/dentro da janela de notícia
     const newsOn = document.getElementById('useNewsFilter').checked;
-    const newsJan = parseInt(document.getElementById('newsJanela').value);
+    const newsJan = lerNum('newsJanela');
     const bloqueadas = newsOn ? entradas.filter(e => noticiaProxima(e.entryTime, newsJan)).length : 0;
     document.getElementById('qoAprov').textContent = entradas.length - bloqueadas;
     document.getElementById('qoBloq').textContent = bloqueadas;
@@ -941,6 +943,19 @@ function atualizarDecisao() {
     const painel = document.querySelector('.decision-panel');
     if (!v || !confLive.fatores) return;
 
+    // Guarda de configuração incoerente: não gera veredito/alerta sobre "lixo".
+    const probs = configProblemas();
+    if (probs.length) {
+        v.textContent = 'CONFIG INVÁLIDA';
+        v.className = 'decision-verdict verdict-wait';
+        r.textContent = '⚠ ' + probs.join(' · ') + ' — corrija para gerar sinais.';
+        chips.innerHTML = '';
+        if (painel) painel.style.borderLeftColor = 'var(--warning)';
+        ultimoVerdictSom = 'CONFIG';   // impede alerta na volta ao estado válido
+        const fEl = document.getElementById('qualityFunnel'); if (fEl) fEl.innerHTML = '';
+        return;
+    }
+
     // Chips: para onde cada fator aponta AGORA (▲ CALL, ▼ PUT, ✓ ok, — neutro)
     chips.innerHTML = confLive.fatores.map(f => {
         let dirHtml;
@@ -957,7 +972,7 @@ function atualizarDecisao() {
 
     // Risco de notícia tem prioridade sobre qualquer confluência
     const newsOn = document.getElementById('useNewsFilter').checked;
-    const newsJan = parseInt(document.getElementById('newsJanela').value);
+    const newsJan = lerNum('newsJanela');
     const lastT = dados.length ? dados[dados.length - 1].time : 0;
     const riscoNoticia = newsOn && lastT && noticiaProxima(lastT, newsJan);
 
@@ -1012,7 +1027,10 @@ function atualizarDecisao() {
     // Som apenas na TRANSIÇÃO para CALL/PUT (não repete enquanto o veredito se
     // mantém; silenciado durante o treino de leitura para não apitar no replay)
     if (verdictKey !== ultimoVerdictSom) {
-        const ehEntrada = (verdictKey === 'CALL' || verdictKey === 'PUT') && !treino;
+        // Não registra/alerta sobre DADO VELADO: forex com mercado fechado (fim de
+        // semana) tem velas congeladas de sexta — sinal seria falso.
+        const dadoVelado = typeof forexFechado === 'function' && PARES_YAHOO[symbolAtual()] && forexFechado();
+        const ehEntrada = (verdictKey === 'CALL' || verdictKey === 'PUT') && !treino && !dadoVelado;
         const dirN = verdictKey === 'CALL' ? 1 : -1;
         if (ehEntrada) reanimar(v, 'v-flash');   // pulse do veredito na virada p/ CALL/PUT
         // Selo A/B/C e FUNIL da virada — calculados uma vez; o funil fica gravado

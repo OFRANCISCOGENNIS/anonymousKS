@@ -3,11 +3,11 @@
 // ============================================================================
 
 function recomputarIndicadores() {
-    const emaRapidaLen = parseInt(document.getElementById('emaRapida').value);
-    const emaLentaLen = parseInt(document.getElementById('emaLenta').value);
-    const rsiLen = parseInt(document.getElementById('rsiLen').value);
-    const atrLen = parseInt(document.getElementById('atrLen').value);
-    const atrMediaLen = parseInt(document.getElementById('atrMediaLen').value);
+    const emaRapidaLen = lerNum('emaRapida');
+    const emaLentaLen = lerNum('emaLenta');
+    const rsiLen = lerNum('rsiLen');
+    const atrLen = lerNum('atrLen');
+    const atrMediaLen = lerNum('atrMediaLen');
 
     const closes = dados.map(d => d.close);
     const highs = dados.map(d => d.high);
@@ -200,24 +200,24 @@ function recomputarSinais() {
     const useTendencia = document.getElementById('useTendencia').checked;
     const useEma200 = document.getElementById('useEma200').checked;
     const useMomentum = document.getElementById('useMomentum').checked;
-    const rsiSobrevenda = parseInt(document.getElementById('rsiSobrevenda').value);
-    const rsiSobrecompra = parseInt(document.getElementById('rsiSobrecompra').value);
+    const rsiSobrevenda = lerNum('rsiSobrevenda');
+    const rsiSobrecompra = lerNum('rsiSobrecompra');
     const useVolatilidade = document.getElementById('useVolatilidade').checked;
     const useEstrutura = document.getElementById('useEstrutura').checked;
-    const estruturaLookback = parseInt(document.getElementById('estruturaLookback').value);
-    const cooldownVelas = parseInt(document.getElementById('cooldownVelas').value);
+    const estruturaLookback = lerNum('estruturaLookback');
+    const cooldownVelas = lerNum('cooldownVelas');
     const confMode = document.getElementById('confMode').value;              // 'score' | 'estrita'
-    const minScore = parseInt(document.getElementById('minScore').value);
-    const janela = Math.max(1, parseInt(document.getElementById('confJanela').value));
+    const minScore = lerNum('minScore');
+    const janela = lerNum('confJanela');
     const useFluxo = document.getElementById('useFluxo').checked;
     const useCorrelacao = document.getElementById('useCorrelacao').checked;
-    const fluxoJanela = Math.max(2, parseInt(document.getElementById('fluxoJanela').value));
+    const fluxoJanela = lerNum('fluxoJanela');
     // Filtro Multi-Timeframe: htfTrend[i] = 1 (alta) / -1 (baixa) / 0 no TF maior
     const useHtf = document.getElementById('useHtf').checked && htfTrend.length === computed.closes.length;
     const usePadrao = document.getElementById('usePadrao').checked;
     const useSessao = document.getElementById('useSessao').checked;
     const useSR = document.getElementById('useSR').checked;
-    const srK = Math.max(0.1, parseFloat(document.getElementById('srAtr').value) || 0.5);
+    const srK = lerNum('srAtr');
     const useMacd = document.getElementById('useMacd').checked;
     const useBollinger = document.getElementById('useBollinger').checked;
     const usePeso = document.getElementById('usePesoIA').checked;

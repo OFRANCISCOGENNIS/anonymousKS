@@ -81,6 +81,71 @@ let conexaoAtual = '';       // "SYMBOL@interval" da conexão vigente
 let wsTent = 0, idxTent = 0; // tentativas de reconexão (backoff exponencial)
 
 // ============================================================================
+// UTILITÁRIOS DE ROBUSTEZ (logger central, leitura numérica segura, validação)
+// ============================================================================
+
+// Logger com nível: ?log=debug liga tudo; padrão só warn/erro. Evita console solto.
+const QLOG = {
+    nivel: _params.get('log') === 'debug' ? 3 : (_params.get('log') === 'off' ? 0 : 1),
+    warn(...a) { if (this.nivel >= 1) console.warn('[QO]', ...a); },
+    info(...a) { if (this.nivel >= 2) console.info('[QO]', ...a); },
+    debug(...a) { if (this.nivel >= 3) console.debug('[QO]', ...a); },
+    erro(...a) { if (this.nivel >= 1) console.error('[QO]', ...a); }
+};
+
+// Faixas válidas dos inputs numéricos (espelham os atributos min/max do HTML).
+const NUM_RANGES = {
+    emaRapida: { min: 1, max: 50 }, emaLenta: { min: 1, max: 50 }, rsiLen: { min: 1, max: 50 },
+    atrLen: { min: 1, max: 50 }, atrMediaLen: { min: 1, max: 100 },
+    rsiSobrevenda: { min: 1, max: 50 }, rsiSobrecompra: { min: 50, max: 99 },
+    estruturaLookback: { min: 2, max: 100 }, cooldownVelas: { min: 0, max: 50 },
+    minScore: { min: 1, max: 7 }, confJanela: { min: 1, max: 20 }, fluxoJanela: { min: 2, max: 100 },
+    srAtr: { min: 0.1, max: 3, float: 1 }, numCandles: { min: 20, max: 1000 },
+    volatility: { min: 0.5, max: 10, float: 1 }, payout: { min: 1, max: 500 },
+    newsJanela: { min: 1, max: 240 }, iaMinVal: { min: 3, max: 30 }
+};
+
+// Leitura numérica robusta: clamp na faixa + guarda de NaN/vazio + realce visual
+// no campo quando o valor foi corrigido. Nunca devolve NaN — usa o default/min.
+function lerNum(id, over) {
+    const el = document.getElementById(id);
+    const r = Object.assign({}, NUM_RANGES[id] || {}, over || {});
+    if (!el) return r.def != null ? r.def : (r.min != null ? r.min : 0);
+    const bruto = r.float ? parseFloat(el.value) : parseInt(el.value, 10);
+    const def = r.def != null ? r.def : (r.min != null ? r.min : 0);
+    let v = isFinite(bruto) ? bruto : def;
+    if (r.min != null && v < r.min) v = r.min;
+    if (r.max != null && v > r.max) v = r.max;
+    const corrigido = el.value !== '' && (!isFinite(bruto) || v !== bruto);
+    el.classList.toggle('input-invalido', corrigido);
+    return v;
+}
+
+// Combinações incoerentes que geram "lixo" — devolve lista de problemas (vazia = ok).
+// Usada para bloquear a geração de SINAIS/alertas (o gráfico ainda desenha).
+function configProblemas() {
+    const p = [];
+    if (lerNum('emaRapida') >= lerNum('emaLenta')) p.push('EMA rápida ≥ EMA lenta');
+    if (lerNum('rsiSobrevenda') >= lerNum('rsiSobrecompra')) p.push('RSI sobrevenda ≥ sobrecompra');
+    const nv = (typeof dados !== 'undefined' && dados) ? dados.length : 0;
+    if (nv && lerNum('confJanela') > nv) p.push('janela de confluência > nº de velas');
+    return p;
+}
+
+// Rede de segurança: um erro não tratado NÃO derruba a tela — loga e mostra um
+// aviso discreto (com throttle p/ não spammar). O app segue vivo.
+window.addEventListener('error', (e) => {
+    QLOG.erro('erro:', e.message, (e.filename || '') + ':' + (e.lineno || ''));
+    if (typeof showToast === 'function' && !window._qoErroToast) {
+        window._qoErroToast = 1; setTimeout(() => { window._qoErroToast = 0; }, 8000);
+        showToast('⚠ Erro interno contornado — o app continua funcionando.', 'err');
+    }
+});
+window.addEventListener('unhandledrejection', (e) => {
+    QLOG.erro('promessa rejeitada:', (e.reason && (e.reason.message || e.reason)) || e.reason);
+});
+
+// ============================================================================
 // BLOCO 1 — INDICADORES
 // ============================================================================
 
@@ -251,11 +316,11 @@ function paresReferencia() {
 // ============================================================================
 
 function recomputarIndicadores() {
-    const emaRapidaLen = parseInt(document.getElementById('emaRapida').value);
-    const emaLentaLen = parseInt(document.getElementById('emaLenta').value);
-    const rsiLen = parseInt(document.getElementById('rsiLen').value);
-    const atrLen = parseInt(document.getElementById('atrLen').value);
-    const atrMediaLen = parseInt(document.getElementById('atrMediaLen').value);
+    const emaRapidaLen = lerNum('emaRapida');
+    const emaLentaLen = lerNum('emaLenta');
+    const rsiLen = lerNum('rsiLen');
+    const atrLen = lerNum('atrLen');
+    const atrMediaLen = lerNum('atrMediaLen');
 
     const closes = dados.map(d => d.close);
     const highs = dados.map(d => d.high);
@@ -448,24 +513,24 @@ function recomputarSinais() {
     const useTendencia = document.getElementById('useTendencia').checked;
     const useEma200 = document.getElementById('useEma200').checked;
     const useMomentum = document.getElementById('useMomentum').checked;
-    const rsiSobrevenda = parseInt(document.getElementById('rsiSobrevenda').value);
-    const rsiSobrecompra = parseInt(document.getElementById('rsiSobrecompra').value);
+    const rsiSobrevenda = lerNum('rsiSobrevenda');
+    const rsiSobrecompra = lerNum('rsiSobrecompra');
     const useVolatilidade = document.getElementById('useVolatilidade').checked;
     const useEstrutura = document.getElementById('useEstrutura').checked;
-    const estruturaLookback = parseInt(document.getElementById('estruturaLookback').value);
-    const cooldownVelas = parseInt(document.getElementById('cooldownVelas').value);
+    const estruturaLookback = lerNum('estruturaLookback');
+    const cooldownVelas = lerNum('cooldownVelas');
     const confMode = document.getElementById('confMode').value;              // 'score' | 'estrita'
-    const minScore = parseInt(document.getElementById('minScore').value);
-    const janela = Math.max(1, parseInt(document.getElementById('confJanela').value));
+    const minScore = lerNum('minScore');
+    const janela = lerNum('confJanela');
     const useFluxo = document.getElementById('useFluxo').checked;
     const useCorrelacao = document.getElementById('useCorrelacao').checked;
-    const fluxoJanela = Math.max(2, parseInt(document.getElementById('fluxoJanela').value));
+    const fluxoJanela = lerNum('fluxoJanela');
     // Filtro Multi-Timeframe: htfTrend[i] = 1 (alta) / -1 (baixa) / 0 no TF maior
     const useHtf = document.getElementById('useHtf').checked && htfTrend.length === computed.closes.length;
     const usePadrao = document.getElementById('usePadrao').checked;
     const useSessao = document.getElementById('useSessao').checked;
     const useSR = document.getElementById('useSR').checked;
-    const srK = Math.max(0.1, parseFloat(document.getElementById('srAtr').value) || 0.5);
+    const srK = lerNum('srAtr');
     const useMacd = document.getElementById('useMacd').checked;
     const useBollinger = document.getElementById('useBollinger').checked;
     const usePeso = document.getElementById('usePesoIA').checked;
@@ -816,11 +881,13 @@ function agendarTick(fechou) {
     requestAnimationFrame(() => {
         _tickPend = false;
         const f = _tickFechou; _tickFechou = false;
-        atualizarUltimoCandle(f);
+        // Guarda: um erro no tick não pode derrubar o gráfico ao vivo.
+        try { atualizarUltimoCandle(f); } catch (e) { QLOG.erro('tick:', e); }
     });
 }
 
 function atualizarUltimoCandle(fechou) {
+    if (!dados || !dados.length || !serieVelas) return;   // feed vazio: nada a atualizar
     recomputarIndicadores();
     const last = dados.length - 1;
     const t = dados[last].time;
@@ -1111,7 +1178,7 @@ function atualizarQuantOps() {
     document.getElementById('qoSessao').textContent = dados.length ? sessaoDe(dados[last].time) : '—';
     // aprovadas/bloqueadas: entradas do histórico fora/dentro da janela de notícia
     const newsOn = document.getElementById('useNewsFilter').checked;
-    const newsJan = parseInt(document.getElementById('newsJanela').value);
+    const newsJan = lerNum('newsJanela');
     const bloqueadas = newsOn ? entradas.filter(e => noticiaProxima(e.entryTime, newsJan)).length : 0;
     document.getElementById('qoAprov').textContent = entradas.length - bloqueadas;
     document.getElementById('qoBloq').textContent = bloqueadas;
@@ -1632,6 +1699,19 @@ function atualizarDecisao() {
     const painel = document.querySelector('.decision-panel');
     if (!v || !confLive.fatores) return;
 
+    // Guarda de configuração incoerente: não gera veredito/alerta sobre "lixo".
+    const probs = configProblemas();
+    if (probs.length) {
+        v.textContent = 'CONFIG INVÁLIDA';
+        v.className = 'decision-verdict verdict-wait';
+        r.textContent = '⚠ ' + probs.join(' · ') + ' — corrija para gerar sinais.';
+        chips.innerHTML = '';
+        if (painel) painel.style.borderLeftColor = 'var(--warning)';
+        ultimoVerdictSom = 'CONFIG';   // impede alerta na volta ao estado válido
+        const fEl = document.getElementById('qualityFunnel'); if (fEl) fEl.innerHTML = '';
+        return;
+    }
+
     // Chips: para onde cada fator aponta AGORA (▲ CALL, ▼ PUT, ✓ ok, — neutro)
     chips.innerHTML = confLive.fatores.map(f => {
         let dirHtml;
@@ -1648,7 +1728,7 @@ function atualizarDecisao() {
 
     // Risco de notícia tem prioridade sobre qualquer confluência
     const newsOn = document.getElementById('useNewsFilter').checked;
-    const newsJan = parseInt(document.getElementById('newsJanela').value);
+    const newsJan = lerNum('newsJanela');
     const lastT = dados.length ? dados[dados.length - 1].time : 0;
     const riscoNoticia = newsOn && lastT && noticiaProxima(lastT, newsJan);
 
@@ -1703,7 +1783,10 @@ function atualizarDecisao() {
     // Som apenas na TRANSIÇÃO para CALL/PUT (não repete enquanto o veredito se
     // mantém; silenciado durante o treino de leitura para não apitar no replay)
     if (verdictKey !== ultimoVerdictSom) {
-        const ehEntrada = (verdictKey === 'CALL' || verdictKey === 'PUT') && !treino;
+        // Não registra/alerta sobre DADO VELADO: forex com mercado fechado (fim de
+        // semana) tem velas congeladas de sexta — sinal seria falso.
+        const dadoVelado = typeof forexFechado === 'function' && PARES_YAHOO[symbolAtual()] && forexFechado();
+        const ehEntrada = (verdictKey === 'CALL' || verdictKey === 'PUT') && !treino && !dadoVelado;
         const dirN = verdictKey === 'CALL' ? 1 : -1;
         if (ehEntrada) reanimar(v, 'v-flash');   // pulse do veredito na virada p/ CALL/PUT
         // Selo A/B/C e FUNIL da virada — calculados uma vez; o funil fica gravado
@@ -1934,19 +2017,27 @@ function setStatus(estado, texto) {
     document.body.classList.toggle('carregando', estado === 'connecting');
 }
 
+// fetch com TIMEOUT (AbortController): um servidor que aceita mas não responde
+// não pendura mais a requisição para sempre. Padrão 10s.
+function fetchTimeout(url, opts, ms) {
+    const ctrl = new AbortController();
+    const t = setTimeout(() => ctrl.abort(), ms || 10000);
+    return fetch(url, Object.assign({}, opts, { signal: ctrl.signal })).finally(() => clearTimeout(t));
+}
+
 // Retry com backoff p/ REST transitório (rede caindo, 429 de limite, 5xx do
-// servidor). Erros 4xx de dados (par inexistente etc.) não são repetidos — não
-// adianta insistir. Backoff: 0.5s, 1s, 2s.
+// servidor, timeout). Erros 4xx de dados (par inexistente etc.) não são
+// repetidos — não adianta insistir. Backoff: 0.5s, 1s, 2s.
 async function fetchRetry(url, opts, tentativas) {
     tentativas = tentativas || 3;
     let err;
     for (let i = 0; i < tentativas; i++) {
         try {
-            const r = await fetch(url, opts);
+            const r = await fetchTimeout(url, opts);
             if (r.ok) return r;
             if (r.status >= 400 && r.status < 500 && r.status !== 429) return r;   // erro de dados: devolve p/ tratar
             err = new Error('HTTP ' + r.status);
-        } catch (e) { err = e; }   // falha de rede/DNS/CORS
+        } catch (e) { err = e; }   // falha de rede/DNS/CORS/timeout (abort)
         if (i < tentativas - 1) await new Promise(res => setTimeout(res, 500 * Math.pow(2, i)));
     }
     throw err || new Error('falha de rede');
@@ -2031,7 +2122,8 @@ function conectarIdxWS(interval) {
     const conn = 'IDX@' + interval; idxConn = conn;
     const sock = new WebSocket(`${BINANCE_WS}/stream?streams=${streams}`);
     idxWS = sock;
-    sock.onopen = () => { if (idxConn === conn) { idxTent = 0; setStatus('on', 'AO VIVO (tick a tick) • Crypto IDX ≈ cesta Binance'); } };
+    const abriuTimer = setTimeout(() => { if (idxConn === conn && sock.readyState !== 1) { try { sock.close(); } catch (e) {} } }, 12000);
+    sock.onopen = () => { clearTimeout(abriuTimer); if (idxConn === conn) { idxTent = 0; setStatus('on', 'AO VIVO (tick a tick) • Crypto IDX ≈ cesta Binance'); } };
     sock.onmessage = (ev) => {
         if (idxConn !== conn) return;
         let msg; try { msg = JSON.parse(ev.data); } catch (e) { return; }
@@ -2068,8 +2160,11 @@ function conectarWS(symbol, interval) {
     setStatus('connecting', 'Conectando ao vivo…');
     const sock = new WebSocket(`${BINANCE_WS}/ws/${stream}`);
     ws = sock;
+    // Timeout de "conectando": se o onopen não chegar em 12s, força fechar
+    // (o onclose agenda a reconexão com backoff) — não fica preso em "Conectando…"
+    const abriuTimer = setTimeout(() => { if (conexaoAtual === stream && sock.readyState !== 1) { try { sock.close(); } catch (e) {} } }, 12000);
 
-    sock.onopen = () => { if (conexaoAtual === stream) { wsTent = 0; setStatus('on', `AO VIVO • ${symbol} ${interval}`); } };
+    sock.onopen = () => { clearTimeout(abriuTimer); if (conexaoAtual === stream) { wsTent = 0; setStatus('on', `AO VIVO • ${symbol} ${interval}`); } };
     sock.onmessage = (ev) => {
         if (conexaoAtual !== stream) return;
         let msg; try { msg = JSON.parse(ev.data); } catch (e) { return; }
@@ -2126,7 +2221,7 @@ async function fetchYahooJson(url, rodadas) {
     for (let r = 0; r < rodadas; r++) {
         for (const { p, i } of ordem) {
             try {
-                const resp = await fetch(p.montar(url));
+                const resp = await fetchTimeout(p.montar(url));
                 if (!resp.ok) throw new Error(p.nome + ' HTTP ' + resp.status);
                 const inner = JSON.parse(await p.texto(resp));
                 if (inner.chart && inner.chart.error) throw new Error(inner.chart.error.description || 'erro Yahoo');
@@ -2306,8 +2401,8 @@ async function carregar() {
     if (fonte() === 'sim') {
         conexaoAtual = '';
         setStatus('off', 'Simulado (offline)');
-        const numCandles = parseInt(document.getElementById('numCandles').value);
-        const volatilidade = parseFloat(document.getElementById('volatility').value);
+        const numCandles = lerNum('numCandles');
+        const volatilidade = lerNum('volatility');
         dados = gerarDadosSim(numCandles, volatilidade);
         refPares = gerarRefParesSim(dados);
         redesenharTudo(true);
@@ -3198,7 +3293,7 @@ function montarWidgetTV(tentativa) {
 
 async function carregarSimbolos() {
     try {
-        const resp = await fetch(`${BINANCE_REST}/api/v3/exchangeInfo`);
+        const resp = await fetchTimeout(`${BINANCE_REST}/api/v3/exchangeInfo`);
         if (!resp.ok) return;
         const info = await resp.json();
         const trading = info.symbols.filter(s => s.status === 'TRADING').map(s => s.symbol);
@@ -3248,7 +3343,7 @@ async function carregarNoticias() {
         const todas = [];
         for (const feed of NEWS_FEEDS) {
             try {
-                const resp = await fetch(NEWS_PROXY + encodeURIComponent(feed.url));
+                const resp = await fetchTimeout(NEWS_PROXY + encodeURIComponent(feed.url));
                 if (!resp.ok) continue;
                 const data = await resp.json();
                 const xml = data.contents || '';

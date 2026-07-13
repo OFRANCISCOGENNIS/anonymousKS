@@ -614,7 +614,7 @@ function montarWidgetTV(tentativa) {
 
 async function carregarSimbolos() {
     try {
-        const resp = await fetch(`${BINANCE_REST}/api/v3/exchangeInfo`);
+        const resp = await fetchTimeout(`${BINANCE_REST}/api/v3/exchangeInfo`);
         if (!resp.ok) return;
         const info = await resp.json();
         const trading = info.symbols.filter(s => s.status === 'TRADING').map(s => s.symbol);
@@ -664,7 +664,7 @@ async function carregarNoticias() {
         const todas = [];
         for (const feed of NEWS_FEEDS) {
             try {
-                const resp = await fetch(NEWS_PROXY + encodeURIComponent(feed.url));
+                const resp = await fetchTimeout(NEWS_PROXY + encodeURIComponent(feed.url));
                 if (!resp.ok) continue;
                 const data = await resp.json();
                 const xml = data.contents || '';
