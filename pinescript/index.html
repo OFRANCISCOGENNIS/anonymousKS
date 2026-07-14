@@ -40,6 +40,9 @@
             <button id="btnAjuda" class="qo-toggle qo-toggle-icon" type="button" title="Ajuda e atalhos (atalho ?)">❔</button>
         </header>
 
+        <!-- RAIL MINIMALISTA: painéis secundários viram ícones (clique abre/fecha) -->
+        <nav id="railPaineis" class="rail" aria-label="Painéis"></nav>
+
         <main class="main-content">
             <!-- SIDEBAR CONTROLES -->
             <aside class="sidebar">
@@ -311,7 +314,7 @@
                 </div>
 
                 <!-- INTELIGÊNCIA: Price Action | Volume/Delta | Análise da Operação -->
-                <div class="qo-intel">
+                <div class="qo-intel" id="painelIntel">
                     <div class="chart-container qo-panel">
                         <h2>PRICE ACTION</h2>
                         <div id="qoPA" class="qo-kv"></div>
@@ -439,7 +442,7 @@
                 </div>
 
                 <!-- RSI e ATR lado a lado -->
-                <div class="sub-row">
+                <div class="sub-row" id="painelSub">
                     <div class="chart-container">
                         <h2>📊 RSI (Momentum)</h2>
                         <div id="chartRsi" class="tv-chart tv-chart-sub"></div>
@@ -451,7 +454,7 @@
                 </div>
 
                 <!-- Fluxo de Volume: delta compra×venda + pressão por par -->
-                <div class="chart-container">
+                <div class="chart-container" id="painelFluxo">
                     <h2>🔄 Fluxo de Volume — compra × venda</h2>
                     <div class="fluxo-cols">
                         <div>
@@ -466,7 +469,7 @@
                 </div>
 
                 <!-- Avisos de Entrada com Expiração -->
-                <div class="chart-container">
+                <div class="chart-container" id="painelEntradas">
                     <h2>🔔 Avisos de Entrada (com expiração)</h2>
                     <div id="newsRiskBanner" class="news-risk-banner"></div>
                     <div class="entry-summary" id="entrySummary"></div>
@@ -491,7 +494,7 @@
                 </div>
 
                 <!-- Métricas de Análise (backtest) -->
-                <div class="chart-container">
+                <div class="chart-container" id="painelMetricas">
                     <h2>📈 Métricas de Análise (backtest)</h2>
                     <div class="metrics-toolbar">
                         <label>Payout por WIN (%) <input type="number" id="payout" value="87" min="1" max="500" step="1"></label>
@@ -515,7 +518,7 @@
                 </div>
 
                 <!-- Widget OFICIAL do TradingView (gráfico real, para conferência) -->
-                <div class="chart-container">
+                <div class="chart-container" id="painelTV">
                     <h2>📺 Gráfico oficial TradingView <span class="tv-sync-tag" id="tvSyncTag">—</span></h2>
                     <div class="tv-widget-wrap">
                         <div id="tvWidget"></div>
@@ -524,7 +527,7 @@
                 </div>
 
                 <!-- Notícias em tempo real -->
-                <div class="chart-container">
+                <div class="chart-container" id="painelNews">
                     <h2>📰 Notícias em tempo real (cripto)</h2>
                     <div class="news-toolbar">
                         <label class="news-filter"><input type="checkbox" id="newsSoMoeda"> <span>Só notícias da moeda atual</span></label>
@@ -535,7 +538,7 @@
                 </div>
 
                 <!-- Status resumido -->
-                <div class="chart-container status-container">
+                <div class="chart-container status-container" id="painelStatus">
                     <h2>🎯 Status</h2>
                     <div class="status-panel">
                         <div class="stat-row"><span>Sinais LONG (CALL):</span><strong id="countLong">0</strong></div>
@@ -661,6 +664,7 @@
     <script src="src/08-agentes.js"></script>
     <script src="src/09-piloto.js"></script>
     <script src="src/10-profit.js"></script>
+    <script src="src/11-minimal.js"></script>
     <!-- APP:END -->
 </body>
 </html>

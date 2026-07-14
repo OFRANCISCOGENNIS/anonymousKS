@@ -45,6 +45,8 @@ function aplicarControles(mostrar) {
     btn.classList.toggle('is-off', !mostrar);
     btn.setAttribute('aria-expanded', mostrar ? 'true' : 'false');
     btn.textContent = mostrar ? '⚙️ Controles' : '⚙️ Mostrar controles';
+    // a largura útil mudou: gráficos remedem no próximo frame
+    requestAnimationFrame(() => window.dispatchEvent(new Event('resize')));
 }
 document.getElementById('btnControles').addEventListener('click', function () {
     // se está oculta, o clique deve MOSTRAR; senão, ocultar

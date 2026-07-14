@@ -1295,6 +1295,7 @@ function renderHeat() {
     const panel = document.getElementById('heatPanel');
     if (!heatData.length) { panel.style.display = 'none'; return; }
     panel.style.display = 'block';
+    if (typeof railMostrar === 'function') railMostrar('heatPanel');
     document.getElementById('heatMeta').textContent = heatData.length + ' ativos · ' + fmtHora(Math.floor(Date.now() / 1000));
     const corDe = s => s >= 70 ? 'var(--call)' : s >= 50 ? 'var(--warning)' : 'var(--put)';
     document.getElementById('heatList').innerHTML = heatData
@@ -2677,7 +2678,7 @@ async function escanear() {
         document.getElementById('symbol').value = s;
         montarWidgetTV(); carregar();
     }));
-    document.getElementById('scanPanel').style.display = 'block';
+    document.getElementById('scanPanel').style.display = 'block'; if (typeof railMostrar === 'function') railMostrar('scanPanel');
     res.forEach(r => registrarEntrada(PARES_YAHOO[r.s] ? PARES_YAHOO[r.s].label : r.s, r.dir, r.score, r.enabled,
         { exp: (iaCache[r.s] && iaCache[r.s].exp) || parseInt(el('expiracao').value) || 5, sym: r.s, fonte: fonteDe(r.s) }));
     if (res.length) renderRegistro();
@@ -3028,7 +3029,7 @@ async function otimizarIA() {
     const beWR = 1 / (1 + payout);
     const EXP_OPCOES = [1, 5, 15, 30, 60];   // valores do seletor de expiração
 
-    document.getElementById('iaPanel').style.display = 'block';
+    document.getElementById('iaPanel').style.display = 'block'; if (typeof railMostrar === 'function') railMostrar('iaPanel');
     const resultados = [];   // { symbol, label, porTf, totalCombos }
     let totalCombosGeral = 0;
     for (let k = 0; k < symbols.length; k++) {
@@ -3177,7 +3178,7 @@ function barraWr(label, w, t) {
 function renderEstudo() {
     if (!dados.length || !computed.ema200) return;
     const av = entradas.filter(e => e.resultado === 'WIN' || e.resultado === 'LOSS');
-    document.getElementById('estudoPanel').style.display = 'block';
+    document.getElementById('estudoPanel').style.display = 'block'; if (typeof railMostrar === 'function') railMostrar('estudoPanel');
     document.getElementById('estudoMeta').textContent = av.length + ' operações analisadas';
     document.getElementById('estudoRegime').innerHTML = regimeAtual().map(c =>
         `<span class="decision-chip"><span class="${c.c}">${c.t}</span></span>`).join('');
@@ -3465,6 +3466,8 @@ function aplicarControles(mostrar) {
     btn.classList.toggle('is-off', !mostrar);
     btn.setAttribute('aria-expanded', mostrar ? 'true' : 'false');
     btn.textContent = mostrar ? '⚙️ Controles' : '⚙️ Mostrar controles';
+    // a largura útil mudou: gráficos remedem no próximo frame
+    requestAnimationFrame(() => window.dispatchEvent(new Event('resize')));
 }
 document.getElementById('btnControles').addEventListener('click', function () {
     // se está oculta, o clique deve MOSTRAR; senão, ocultar
@@ -4603,3 +4606,76 @@ function configurarPro() {
 }
 if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', configurarPro);
 else configurarPro();
+// ============================================================================
+// BLOCO 16 — MODO MINIMALISTA (rail de painéis)
+// ============================================================================
+// Por padrão só fica visível o ESSENCIAL: decisão+funil, gráfico de preço e o
+// Registro. Todos os painéis secundários viram ícones num rail vertical fino à
+// esquerda — clicou, abre/fecha; estado persistente. Os fluxos que auto-abrem
+// um painel (Scanner, IA, Estudo, Heatmap) chamam railMostrar() para revelar.
+
+const PAINEIS_MENU = [
+    { id: 'painelIntel', ico: '🧠', rot: 'Inteligência: Price Action · Liquidez · Smart Money · Volume/Delta · Análise da Operação' },
+    { id: 'painelSub', ico: '📊', rot: 'RSI & ATR (gráficos)' },
+    { id: 'painelFluxo', ico: '🔄', rot: 'Fluxo de Volume (compra × venda)' },
+    { id: 'heatPanel', ico: '🗺️', rot: 'Heatmap de Ativos' },
+    { id: 'scanPanel', ico: '🔎', rot: 'Scanner — melhores entradas' },
+    { id: 'iaPanel', ico: '🤖', rot: 'IA — melhores parâmetros' },
+    { id: 'agentesPanel', ico: '🕵️', rot: 'Agentes de Estudo' },
+    { id: 'pilotoPanel', ico: '🎮', rot: 'Piloto Automático (conta demo)' },
+    { id: 'proPanel', ico: '📶', rot: 'Volume Profile & Níveis (fib/S-R)' },
+    { id: 'bookPanel', ico: '📖', rot: 'Book de Ofertas & Times/Trades' },
+    { id: 'painelEntradas', ico: '🔔', rot: 'Avisos de Entrada (tabela)' },
+    { id: 'painelMetricas', ico: '📐', rot: 'Métricas de Análise (backtest)' },
+    { id: 'estudoPanel', ico: '📚', rot: 'Estudos de Mercado' },
+    { id: 'painelTV', ico: '📺', rot: 'Gráfico oficial TradingView' },
+    { id: 'painelNews', ico: '📰', rot: 'Notícias em tempo real' },
+    { id: 'painelStatus', ico: '🎯', rot: 'Status resumido' }
+];
+
+let paineisVis = JSON.parse(localStorage.getItem('paineisVis') || 'null');
+if (!paineisVis) { paineisVis = {}; PAINEIS_MENU.forEach(p => paineisVis[p.id] = 0); }   // padrão: tudo oculto
+
+function salvarPaineis() { localStorage.setItem('paineisVis', JSON.stringify(paineisVis)); }
+
+function aplicarPainel(id) {
+    const el = document.getElementById(id);
+    if (!el) return;
+    const on = !!paineisVis[id];
+    el.classList.toggle('painel-oculto', !on);
+    const b = document.querySelector('.rail-btn[data-p="' + id + '"]');
+    if (b) { b.classList.toggle('is-on', on); b.setAttribute('aria-pressed', on ? 'true' : 'false'); }
+}
+
+// Chamado pelos fluxos que auto-abrem um painel (scan/IA/estudo/heat): revela
+// no rail também, senão o usuário dispara a ação e "não acontece nada".
+function railMostrar(id) {
+    if (!(id in paineisVis)) return;
+    if (!paineisVis[id]) { paineisVis[id] = 1; salvarPaineis(); }
+    aplicarPainel(id);
+}
+
+function montarRail() {
+    const rail = document.getElementById('railPaineis');
+    if (!rail) return;
+    rail.innerHTML = PAINEIS_MENU.map(p =>
+        `<button class="rail-btn" type="button" data-p="${p.id}" title="${p.rot}" aria-pressed="false">${p.ico}</button>`
+    ).join('') + '<button class="rail-btn rail-all" type="button" data-all="1" title="Mostrar/ocultar todos os painéis">👁</button>';
+    rail.addEventListener('click', ev => {
+        const b = ev.target.closest('.rail-btn');
+        if (!b) return;
+        if (b.dataset.all) {
+            const abrir = PAINEIS_MENU.some(p => !paineisVis[p.id]);   // se algo está oculto, mostra tudo; senão esconde tudo
+            PAINEIS_MENU.forEach(p => paineisVis[p.id] = abrir ? 1 : 0);
+        } else {
+            paineisVis[b.dataset.p] = paineisVis[b.dataset.p] ? 0 : 1;
+        }
+        salvarPaineis();
+        PAINEIS_MENU.forEach(p => aplicarPainel(p.id));
+        // largura útil pode mudar (gráficos remedem)
+        requestAnimationFrame(() => window.dispatchEvent(new Event('resize')));
+    });
+    PAINEIS_MENU.forEach(p => aplicarPainel(p.id));
+}
+if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', montarRail);
+else montarRail();

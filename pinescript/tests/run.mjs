@@ -545,6 +545,30 @@ const bookMsgTxt = await p.evaluate(() => {
 });
 check('book avisa quando o par não é Binance (fonte sim)', /Binance/.test(bookMsgTxt), bookMsgTxt.slice(0, 60));
 
+// MODO MINIMALISTA: rail de painéis
+const rail = await p.evaluate(() => {
+  const botoes = document.querySelectorAll('#railPaineis .rail-btn').length;
+  // padrão de teste: estado salvo pelo fluxo anterior pode ter aberto scan/ia — zera
+  PAINEIS_MENU.forEach(x => paineisVis[x.id] = 0); salvarPaineis(); PAINEIS_MENU.forEach(x => aplicarPainel(x.id));
+  const fluxoOculto = getComputedStyle(document.getElementById('painelFluxo')).display === 'none';
+  const decisaoVisivel = getComputedStyle(document.querySelector('.decision-panel')).display !== 'none';
+  const precoVisivel = !!document.getElementById('chartPreco');
+  // clique no ícone abre o painel e persiste
+  document.querySelector('.rail-btn[data-p="painelFluxo"]').click();
+  const abriu = getComputedStyle(document.getElementById('painelFluxo')).display !== 'none';
+  const salvo = JSON.parse(localStorage.getItem('paineisVis')).painelFluxo === 1;
+  const iconeAtivo = document.querySelector('.rail-btn[data-p="painelFluxo"]').classList.contains('is-on');
+  // railMostrar (auto-abre do scanner/IA) revela painel oculto
+  railMostrar('scanPanel');
+  const scanRevelado = !document.getElementById('scanPanel').classList.contains('painel-oculto');
+  document.querySelector('.rail-btn[data-p="painelFluxo"]').click();   // fecha de volta
+  return { botoes, fluxoOculto, decisaoVisivel, precoVisivel, abriu, salvo, iconeAtivo, scanRevelado };
+});
+check('rail tem 16 painéis + botão "todos"', rail.botoes === 17, 'botoes=' + rail.botoes);
+check('minimalista: secundários ocultos, decisão+gráfico visíveis', rail.fluxoOculto && rail.decisaoVisivel && rail.precoVisivel, JSON.stringify(rail));
+check('clique no ícone abre o painel, persiste e marca o ícone', rail.abriu && rail.salvo && rail.iconeAtivo);
+check('railMostrar revela painel auto-aberto (scanner)', rail.scanRevelado);
+
 // 8) PWA manifest
 check('PWA manifest presente', await p.$eval('link[rel=manifest]', e => e.href.startsWith('data:application/manifest')));
 

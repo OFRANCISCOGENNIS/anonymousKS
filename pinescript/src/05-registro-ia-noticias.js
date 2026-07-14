@@ -341,7 +341,7 @@ async function otimizarIA() {
     const beWR = 1 / (1 + payout);
     const EXP_OPCOES = [1, 5, 15, 30, 60];   // valores do seletor de expiração
 
-    document.getElementById('iaPanel').style.display = 'block';
+    document.getElementById('iaPanel').style.display = 'block'; if (typeof railMostrar === 'function') railMostrar('iaPanel');
     const resultados = [];   // { symbol, label, porTf, totalCombos }
     let totalCombosGeral = 0;
     for (let k = 0; k < symbols.length; k++) {
@@ -490,7 +490,7 @@ function barraWr(label, w, t) {
 function renderEstudo() {
     if (!dados.length || !computed.ema200) return;
     const av = entradas.filter(e => e.resultado === 'WIN' || e.resultado === 'LOSS');
-    document.getElementById('estudoPanel').style.display = 'block';
+    document.getElementById('estudoPanel').style.display = 'block'; if (typeof railMostrar === 'function') railMostrar('estudoPanel');
     document.getElementById('estudoMeta').textContent = av.length + ' operações analisadas';
     document.getElementById('estudoRegime').innerHTML = regimeAtual().map(c =>
         `<span class="decision-chip"><span class="${c.c}">${c.t}</span></span>`).join('');

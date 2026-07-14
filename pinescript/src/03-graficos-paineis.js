@@ -539,6 +539,7 @@ function renderHeat() {
     const panel = document.getElementById('heatPanel');
     if (!heatData.length) { panel.style.display = 'none'; return; }
     panel.style.display = 'block';
+    if (typeof railMostrar === 'function') railMostrar('heatPanel');
     document.getElementById('heatMeta').textContent = heatData.length + ' ativos · ' + fmtHora(Math.floor(Date.now() / 1000));
     const corDe = s => s >= 70 ? 'var(--call)' : s >= 50 ? 'var(--warning)' : 'var(--put)';
     document.getElementById('heatList').innerHTML = heatData

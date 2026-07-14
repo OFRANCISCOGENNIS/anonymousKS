@@ -664,7 +664,7 @@ async function escanear() {
         document.getElementById('symbol').value = s;
         montarWidgetTV(); carregar();
     }));
-    document.getElementById('scanPanel').style.display = 'block';
+    document.getElementById('scanPanel').style.display = 'block'; if (typeof railMostrar === 'function') railMostrar('scanPanel');
     res.forEach(r => registrarEntrada(PARES_YAHOO[r.s] ? PARES_YAHOO[r.s].label : r.s, r.dir, r.score, r.enabled,
         { exp: (iaCache[r.s] && iaCache[r.s].exp) || parseInt(el('expiracao').value) || 5, sym: r.s, fonte: fonteDe(r.s) }));
     if (res.length) renderRegistro();

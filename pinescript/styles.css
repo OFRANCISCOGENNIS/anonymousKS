@@ -1686,3 +1686,39 @@ button:focus-visible, .scan-item:focus-visible, .ia-row:focus-visible {
 .tt-buy { color: var(--call); }
 .tt-sell { color: var(--put); }
 .tt-big { font-weight: 800; background: rgba(245, 158, 11, 0.10); border-radius: 4px; }
+
+/* ============================================================================
+   MODO MINIMALISTA: rail de painéis (ícones) + painéis ocultos
+   ============================================================================ */
+.painel-oculto { display: none !important; }
+.rail {
+    position: fixed; left: 0; top: var(--reg-top, 64px); bottom: 0;
+    width: 48px; z-index: 35;
+    display: flex; flex-direction: column; align-items: center; gap: 4px;
+    padding: 10px 5px;
+    background: var(--glass);
+    -webkit-backdrop-filter: blur(14px) saturate(1.2);
+    backdrop-filter: blur(14px) saturate(1.2);
+    border-right: 1px solid var(--glass-brd);
+    overflow-y: auto; scrollbar-width: none;
+}
+.rail::-webkit-scrollbar { display: none; }
+.rail-btn {
+    width: 38px; height: 38px; flex-shrink: 0;
+    border-radius: 10px; border: 1px solid transparent;
+    background: transparent; font-size: 17px; line-height: 1;
+    cursor: pointer; opacity: 0.45; transition: var(--transition);
+}
+.rail-btn:hover { opacity: 0.95; background: var(--surface-2); transform: translateY(-1px); }
+.rail-btn.is-on {
+    opacity: 1; background: var(--surface-2);
+    border-color: rgba(59, 130, 246, 0.45);
+    box-shadow: 0 0 8px rgba(59, 130, 246, 0.25);
+}
+.rail-all { margin-top: auto; opacity: 0.6; }
+.main-content { padding-left: 58px; }
+@media (max-width: 760px) {
+    .rail { width: 42px; padding: 8px 3px; }
+    .rail-btn { width: 34px; height: 34px; font-size: 15px; }
+    .main-content { padding-left: 48px; }
+}
