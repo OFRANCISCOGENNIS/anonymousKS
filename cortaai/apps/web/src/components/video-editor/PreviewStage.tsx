@@ -333,7 +333,7 @@ export function PreviewStage() {
           width={pw}
           height={ph}
           style={{ width: fit.w, height: fit.h }}
-          className="rounded-lg bg-black shadow-[0_0_0_1px_rgba(255,255,255,0.06),0_24px_80px_-24px_rgba(0,0,0,0.9),0_0_64px_-16px_rgba(139,92,246,0.25)]"
+          className="anim-rise rounded-lg bg-black shadow-[0_0_0_1px_rgba(255,255,255,0.06),0_24px_80px_-24px_rgba(0,0,0,0.9),0_0_64px_-16px_rgba(139,92,246,0.25)]"
         />
         {!hasMedia && (
           <p className="pointer-events-none absolute inset-0 flex items-center justify-center px-6 text-center text-sm text-zinc-500">
@@ -351,7 +351,7 @@ export function PreviewStage() {
           onClick={toggle}
           aria-label={playing ? "Pausar" : "Reproduzir"}
           disabled={!hasMedia}
-          className="absolute left-1/2 top-1/2 flex h-10 w-10 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full bg-gradient-to-r from-violet-600 to-fuchsia-600 text-white shadow-glow transition-all hover:shadow-[0_0_32px_-4px_rgba(217,70,239,0.7)] active:scale-90 disabled:opacity-40 disabled:shadow-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-400"
+          className={"absolute left-1/2 top-1/2 flex h-10 w-10 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full bg-gradient-to-r from-violet-600 to-fuchsia-600 text-white shadow-glow transition-all hover:shadow-[0_0_32px_-4px_rgba(217,70,239,0.7)] active:scale-90 disabled:opacity-40 disabled:shadow-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-400" + (hasMedia && !playing ? " anim-glow-pulse" : "")}
         >
           {playing ? <Pause className="h-4 w-4" /> : <Play className="ml-0.5 h-4 w-4" />}
         </button>

@@ -125,6 +125,52 @@ input[type="range"]::-moz-range-thumb {
   }
 }
 
+
+/* ---------------------------------------------------------------------------
+   Kit de animação do app (Fatia P): entradas suaves, pop de cards, brilho
+   pulsante e gradiente vivo em botões. Tudo dentro de prefers-reduced-motion:
+   no-preference — quem prefere menos movimento vê o conteúdo estático.
+   --------------------------------------------------------------------------- */
+@media (prefers-reduced-motion: no-preference) {
+  @keyframes anim-rise {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: none; }
+  }
+  .anim-rise {
+    animation: anim-rise 0.32s cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+
+  @keyframes anim-pop {
+    0% { opacity: 0; transform: scale(0.85); }
+    70% { transform: scale(1.03); }
+    100% { opacity: 1; transform: scale(1); }
+  }
+  .anim-pop {
+    animation: anim-pop 0.26s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+  }
+
+  @keyframes anim-glow-pulse {
+    0%, 100% { box-shadow: 0 0 24px -6px rgba(139, 92, 246, 0.45); }
+    50% { box-shadow: 0 0 44px -4px rgba(217, 70, 239, 0.75); }
+  }
+  .anim-glow-pulse {
+    animation: anim-glow-pulse 2.4s ease-in-out infinite;
+  }
+
+  .btn-gradient-live {
+    background-size: 200% 200%;
+    animation: gradient-move 4s ease infinite;
+  }
+
+  /* hover com leve elevação para cards clicáveis */
+  .hover-lift {
+    transition: transform 0.18s ease, box-shadow 0.18s ease;
+  }
+  .hover-lift:hover {
+    transform: translateY(-2px);
+  }
+}
+
 @keyframes caret-blink {
   0%, 50% { border-color: transparent; }
   51%, 100% { border-color: #34d399; }

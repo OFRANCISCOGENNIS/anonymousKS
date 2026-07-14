@@ -197,7 +197,7 @@ export default function EstudioPage() {
           </button>
           <button
             onClick={() => setExportOpen(true)}
-            className="ml-1 inline-flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-violet-600 to-fuchsia-600 px-3.5 py-1.5 text-xs font-semibold text-white shadow-glow transition-all hover:from-violet-500 hover:to-fuchsia-500 hover:shadow-[0_0_48px_-8px_rgba(217,70,239,0.6)] active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-400"
+            className="btn-gradient-live ml-1 inline-flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-violet-600 via-fuchsia-500 to-violet-600 px-3.5 py-1.5 text-xs font-semibold text-white shadow-glow transition-all hover:shadow-[0_0_48px_-8px_rgba(217,70,239,0.6)] active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-400"
           >
             <Download className="h-3.5 w-3.5" aria-hidden />
             Exportar
@@ -327,7 +327,7 @@ function MobileSheet({ title, open, onClose, children }: { title: string; open: 
             <ChevronDown className="h-4 w-4" />
           </button>
         </div>
-        <div className="max-h-[calc(70dvh-3.5rem)] overflow-y-auto border-t border-white/[0.06] p-3">{children}</div>
+        <div className="editor-scroll max-h-[calc(70dvh-3.5rem)] overflow-y-auto border-t border-white/[0.06] p-3">{open && <div className="panel-fade">{children}</div>}</div>
       </div>
       {open && <button aria-hidden tabIndex={-1} onClick={onClose} className="fixed inset-0 z-30 bg-black/50 lg:hidden" />}
     </>

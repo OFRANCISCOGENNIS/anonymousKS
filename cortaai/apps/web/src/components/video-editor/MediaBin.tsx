@@ -90,8 +90,10 @@ export function MediaBin() {
 
       {items.length > 0 && (
         <div className="grid grid-cols-3 gap-2">
-          {items.map((src) => (
-            <MediaThumb key={src.id} source={src} onAdd={() => addClipFromSource(src)} />
+          {items.map((src, i) => (
+            <div key={src.id} className="anim-pop" style={{ animationDelay: `${Math.min(i, 8) * 45}ms` }}>
+              <MediaThumb source={src} onAdd={() => addClipFromSource(src)} />
+            </div>
           ))}
         </div>
       )}
