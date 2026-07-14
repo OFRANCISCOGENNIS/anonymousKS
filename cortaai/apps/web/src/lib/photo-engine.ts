@@ -1848,3 +1848,84 @@ export function denoisePhotoCanvas(src: HTMLCanvasElement, strength = 60): HTMLC
   out.getContext("2d")!.putImageData(img, 0, 0);
   return out;
 }
+
+/**
+ * HDR / tonalidade local (estilo Camera Raw / DxO / Luminar) em 1 clique.
+ * Combina realce de CONTRASTE LOCAL (recupera micro-detalhe) com um mapeamento
+ * de tons que LEVANTA as sombras e COMPRIME os realces — o visual "HDR" plano e
+ * detalhado. Trabalha na luminância e reaplica a escala em RGB para preservar a
+ * cor (matiz). Devolve um novo canvas. `strength` 0..100.
+ */
+export function hdrToneMapCanvas(src: HTMLCanvasElement, strength = 60): HTMLCanvasElement {
+  const w = src.width;
+  const h = src.height;
+  const sctx = src.getContext("2d");
+  if (!sctx) return src;
+  const img = sctx.getImageData(0, 0, w, h);
+  const d = img.data;
+
+  // média local grande = base do contraste local (clarity)
+  const blur = new ImageData(new Uint8ClampedArray(d), w, h);
+  boxBlurImageData(blur, Math.max(2, Math.round(Math.min(w, h) / 12)), 2);
+  const bd = blur.data;
+
+  const k = Math.max(0, Math.min(1, strength / 100));
+  const localAmt = 0.6 * k; // contraste local
+  const gamma = 1 / (1 + 0.7 * k); // <1 levanta sombras e comprime realces
+  const sat = 1 + 0.18 * k; // leve reforço de cor
+  for (let i = 0; i < d.length; i += 4) {
+    const r = d[i];
+    const g = d[i + 1];
+    const b = d[i + 2];
+    const L = 0.299 * r + 0.587 * g + 0.114 * b;
+    const Lb = 0.299 * bd[i] + 0.587 * bd[i + 1] + 0.114 * bd[i + 2];
+    let tL = L + (L - Lb) * localAmt; // realça o detalhe local
+    tL = Math.max(0, Math.min(255, tL));
+    const ln = Math.pow(tL / 255, gamma) * 255; // curva de tom
+    const scale = L > 1 ? ln / L : 1;
+    let nr = r * scale;
+    let ng = g * scale;
+    let nb = b * scale;
+    const nl = 0.299 * nr + 0.587 * ng + 0.114 * nb;
+    nr = nl + (nr - nl) * sat;
+    ng = nl + (ng - nl) * sat;
+    nb = nl + (nb - nl) * sat;
+    d[i] = Math.max(0, Math.min(255, Math.round(nr)));
+    d[i + 1] = Math.max(0, Math.min(255, Math.round(ng)));
+    d[i + 2] = Math.max(0, Math.min(255, Math.round(nb)));
+  }
+
+  const out = makeCanvas(w, h);
+  out.getContext("2d")!.putImageData(img, 0, 0);
+  return out;
+}
+
+/**
+ * Nitidez global por máscara de desfoque (unsharp mask), estilo Topaz Sharpen.
+ * out = original + (original − borrado) × ganho: realça as bordas sem inventar
+ * detalhe. `amount` 0..100. Devolve um novo canvas.
+ */
+export function sharpenPhotoCanvas(src: HTMLCanvasElement, amount = 60): HTMLCanvasElement {
+  const w = src.width;
+  const h = src.height;
+  const sctx = src.getContext("2d");
+  if (!sctx) return src;
+  const img = sctx.getImageData(0, 0, w, h);
+  const d = img.data;
+
+  const blur = new ImageData(new Uint8ClampedArray(d), w, h);
+  boxBlurImageData(blur, Math.max(1, Math.round(Math.min(w, h) / 350) + 1), 1);
+  const bd = blur.data;
+
+  const gain = Math.max(0, Math.min(1, amount / 100)) * 1.4;
+  for (let i = 0; i < d.length; i += 4) {
+    for (let c = 0; c < 3; c++) {
+      const v = d[i + c] + (d[i + c] - bd[i + c]) * gain;
+      d[i + c] = v < 0 ? 0 : v > 255 ? 255 : Math.round(v);
+    }
+  }
+
+  const out = makeCanvas(w, h);
+  out.getContext("2d")!.putImageData(img, 0, 0);
+  return out;
+}
