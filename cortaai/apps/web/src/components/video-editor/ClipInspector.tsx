@@ -81,6 +81,42 @@ export function ClipInspector() {
     updateClip(clip.id, { transform: { ...clip.transform, ...patch } });
   }
 
+  /** Ken Burns: gera keyframes de câmera (zoom/pan) ao longo do clipe. */
+  function applyKenBurns(kind: "zoomIn" | "zoomOut" | "panRight" | "panLeft") {
+    const dur = clip.duration;
+    const other = clip.keyframes.filter((k) => k.property !== "scale" && k.property !== "x" && k.property !== "y");
+    const kfs: Keyframe[] = [];
+    const push = (property: AnimatableProperty, t: number, value: number) =>
+      kfs.push({ property, timeMs: Math.round(t), value, easing: "easeInOut" });
+    if (kind === "zoomIn") {
+      push("scale", 0, 1);
+      push("scale", dur, 1.18);
+    } else if (kind === "zoomOut") {
+      push("scale", 0, 1.18);
+      push("scale", dur, 1);
+    } else if (kind === "panRight") {
+      push("scale", 0, 1.14);
+      push("scale", dur, 1.14);
+      push("x", 0, -0.06);
+      push("x", dur, 0.06);
+    } else {
+      push("scale", 0, 1.14);
+      push("scale", dur, 1.14);
+      push("x", 0, 0.06);
+      push("x", dur, -0.06);
+    }
+    updateClip(clip.id, { keyframes: [...other, ...kfs].sort((a, b) => a.timeMs - b.timeMs) });
+    toast("Movimento aplicado", { description: "Câmera com keyframes ao longo do clipe (vale no preview e na exportação)." });
+  }
+
+  function removeKenBurns() {
+    updateClip(clip.id, {
+      keyframes: clip.keyframes.filter((k) => k.property !== "scale" && k.property !== "x" && k.property !== "y"),
+    });
+  }
+
+  const hasKenBurns = clip.keyframes.some((k) => k.property === "scale" || k.property === "x" || k.property === "y");
+
   function patchColorAdjust(patch: Partial<{ brightness: number; contrast: number; saturation: number; hue: number }>) {
     const base = clip.colorAdjust ?? { brightness: 0, contrast: 0, saturation: 0, hue: 0 };
     const next = { ...base, ...patch };
@@ -211,6 +247,37 @@ export function ClipInspector() {
           <Slider label="Posição Y" value={clip.transform.y} min={-0.5} max={0.5} step={0.01} onChange={(v) => patchTransform({ y: v })} format={(v) => `${Math.round(v * 100)}`} />
           <Slider label="Rotação" value={clip.transform.rotation} min={-180} max={180} step={1} onChange={(v) => patchTransform({ rotation: v })} format={(v) => `${Math.round(v)}°`} />
           <Slider label="Opacidade" value={clip.transform.opacity} min={0} max={1} step={0.01} onChange={(v) => patchTransform({ opacity: v })} format={(v) => `${Math.round(v * 100)}%`} />
+        </Section>
+      )}
+
+      {/* movimento de câmera (Ken Burns) */}
+      {isVisual && !clip.text && (
+        <Section title="Movimento (Ken Burns)">
+          <div className="grid grid-cols-2 gap-1.5">
+            {([
+              ["zoomIn", "Zoom in"],
+              ["zoomOut", "Zoom out"],
+              ["panRight", "Panorâmica →"],
+              ["panLeft", "← Panorâmica"],
+            ] as const).map(([kind, label]) => (
+              <button
+                key={kind}
+                onClick={() => applyKenBurns(kind)}
+                className="rounded-lg border border-line bg-surface-1 px-2 py-1.5 text-[11px] font-medium text-zinc-300 transition-colors hover:border-violet-500/50 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-400"
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+          {hasKenBurns && (
+            <button
+              onClick={removeKenBurns}
+              className="mt-1.5 w-full rounded-lg border border-line bg-surface-1 px-2 py-1.5 text-[11px] font-medium text-zinc-400 transition-colors hover:border-rose-500/50 hover:text-rose-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-400"
+            >
+              Remover movimento
+            </button>
+          )}
+          <p className="mt-1 text-[10px] leading-relaxed text-zinc-600">Zoom/panorâmica automáticos por keyframes — ótimo para dar vida a fotos paradas.</p>
         </Section>
       )}
 

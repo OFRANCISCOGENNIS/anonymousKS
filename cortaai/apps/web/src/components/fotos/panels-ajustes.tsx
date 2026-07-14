@@ -4,13 +4,13 @@
 // persisted slice of the photo editor: localStorage "cortaai-photo-presets").
 
 import { useState } from "react";
-import { Aperture, Maximize2, RotateCcw, Save, Scissors, Smile, Sparkles, Trash2, Wand2 } from "lucide-react";
+import { Aperture, Focus, Maximize2, RotateCcw, Save, Scissors, Smile, Sparkles, Sun, Trash2, Wand2 } from "lucide-react";
 import { toast } from "@/store/toast";
 import { getBaseCanvas, usePhotoEditorStore, usePhotoPresetsStore } from "@/store/photo-editor";
 import { Slider } from "@/components/ui/slider";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { autoEnhanceAdjustments, backgroundBlurCanvas, denoisePhotoCanvas, portraitRetouch, upscaleCanvas, type Adjustments } from "@/lib/photo-engine";
+import { autoEnhanceAdjustments, backgroundBlurCanvas, denoisePhotoCanvas, hdrToneMapCanvas, portraitRetouch, sharpenPhotoCanvas, upscaleCanvas, type Adjustments } from "@/lib/photo-engine";
 import { removeBackground } from "@/lib/ai/background-removal";
 
 const GROUPS: { title: string; items: { key: keyof Adjustments; label: string; min?: number }[] }[] = [
@@ -125,6 +125,32 @@ export function AjustesPanel() {
     }, 30);
   }
 
+  function hdr() {
+    if (busy) return;
+    setBusy("Aplicando HDR…");
+    setTimeout(() => {
+      try {
+        applyPixelOp((base) => hdrToneMapCanvas(base, 60));
+        toast("HDR aplicado", { description: "Sombras abertas e detalhe local realçado, preservando a cor.", variant: "success" });
+      } finally {
+        setBusy(null);
+      }
+    }, 30);
+  }
+
+  function sharpen() {
+    if (busy) return;
+    setBusy("Aumentando a nitidez…");
+    setTimeout(() => {
+      try {
+        applyPixelOp((base) => sharpenPhotoCanvas(base, 60));
+        toast("Nitidez aumentada", { description: "Bordas realçadas por máscara de desfoque (unsharp).", variant: "success" });
+      } finally {
+        setBusy(null);
+      }
+    }, 30);
+  }
+
   async function removeBg() {
     if (busy) return;
     const base = getBaseCanvas();
@@ -171,6 +197,12 @@ export function AjustesPanel() {
           </Button>
           <Button size="sm" variant="secondary" disabled={!hasImage || !!busy} onClick={denoise}>
             <Sparkles className="h-3.5 w-3.5" aria-hidden /> Reduzir ruído
+          </Button>
+          <Button size="sm" variant="secondary" disabled={!hasImage || !!busy} onClick={hdr}>
+            <Sun className="h-3.5 w-3.5" aria-hidden /> HDR (tons)
+          </Button>
+          <Button size="sm" variant="secondary" disabled={!hasImage || !!busy} onClick={sharpen}>
+            <Focus className="h-3.5 w-3.5" aria-hidden /> Nitidez
           </Button>
           <Button size="sm" variant="secondary" disabled={!hasImage || !!busy} onClick={removeBg}>
             <Scissors className="h-3.5 w-3.5" aria-hidden /> Remover fundo (IA)
