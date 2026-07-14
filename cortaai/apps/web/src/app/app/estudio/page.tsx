@@ -18,11 +18,13 @@ import {
   FolderOpen,
   Music2,
   Redo2,
+  Scissors,
   SlidersHorizontal,
   Type as TypeIcon,
   Undo2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { toast } from "@/store/toast";
 import { makeProject, validateProject } from "@/lib/video-editor/model";
 import {
   getCurrentProjectId,
@@ -54,6 +56,7 @@ export default function EstudioPage() {
   const canRedo = useVideoEditor((s) => s.future.length > 0);
   const sourceCount = useVideoEditor((s) => Object.keys(s.sources).length);
   const selectedClipId = useVideoEditor((s) => s.selectedClipId);
+  const splitAtPlayhead = useVideoEditor((s) => s.splitAtPlayhead);
   const addTextClip = useVideoEditor((s) => s.addTextClip);
   const renameProject = useVideoEditor((s) => s.renameProject);
   const projectName = useVideoEditor((s) => s.project.name);
@@ -61,6 +64,23 @@ export default function EstudioPage() {
   const [sheet, setSheet] = useState<Sheet>(null);
   const [exportOpen, setExportOpen] = useState(false);
   const [projectsOpen, setProjectsOpen] = useState(false);
+
+  // ------- dividir/fatiar o clipe no cursor (com feedback honesto) --------------
+  function handleSplit() {
+    const countClips = (p: ReturnType<typeof useVideoEditor.getState>["project"]) =>
+      p.tracks.reduce((n, t) => n + t.clips.length, 0);
+    const before = countClips(useVideoEditor.getState().project);
+    splitAtPlayhead();
+    const after = countClips(useVideoEditor.getState().project);
+    if (after > before) {
+      toast("Vídeo dividido no cursor", { description: "Cada metade virou um clipe — arraste, apague ou edite separadamente." });
+    } else {
+      toast("Nada para dividir aqui", {
+        description: "Mova o cursor da linha do tempo para cima de um clipe e toque em Dividir de novo.",
+        variant: "error",
+      });
+    }
+  }
 
   // ------- seed / restauração do projeto atual --------------------------------
   useEffect(() => {
@@ -255,6 +275,7 @@ export default function EstudioPage() {
       {/* Barra inferior (mobile) */}
       <nav aria-label="Ferramentas" className="flex shrink-0 items-stretch gap-1 overflow-x-auto border-t border-white/[0.06] bg-surface-1/80 px-2 pt-1 pb-[calc(0.35rem+env(safe-area-inset-bottom))] backdrop-blur-xl lg:hidden">
         <MobileTool icon={SlidersHorizontal} label="Editar" onClick={() => setSheet("inspector")} highlight={selectedClipId != null} />
+        <MobileTool icon={Scissors} label="Dividir" onClick={handleSplit} />
         <MobileTool icon={FolderOpen} label={`Mídia${sourceCount > 0 ? ` (${sourceCount})` : ""}`} onClick={() => setSheet("bin")} />
         <MobileTool icon={Music2} label="Áudio" onClick={() => setSheet("music")} />
         <MobileTool icon={TypeIcon} label="Texto" onClick={() => addTextClip("Seu texto")} />
