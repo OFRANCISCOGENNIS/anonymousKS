@@ -1,30 +1,37 @@
 "use client";
 
-// Estúdio de vídeo multitrilha — layout PRO estilo CapCut/Premiere.
-// Desktop (lg): mídia+música+gravação+legendas à esquerda, preview no centro,
-// PROPRIEDADES à direita, timeline interativa embaixo. Mobile: preview
-// dominante + barra de ferramentas inferior com gavetas. Multi-projetos com
+// Estúdio de vídeo multitrilha — layout "EDITOR PROFISSIONAL" (referência do
+// usuário): header com logo/PRO + status de autosave + resolução + Exportar,
+// rail esquerdo com labels que troca o painel de ferramentas, preview central
+// com timeline embaixo, PROPRIEDADES em abas à direita. Mobile: preview
+// dominante + barra inferior com gavetas (formato CapCut). Multi-projetos com
 // autosave em localStorage; atalhos de teclado profissionais.
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import {
   ArrowLeft,
+  AudioLines,
   Captions,
   ChevronDown,
   Circle,
+  Clapperboard,
   Download,
   FolderKanban,
   FolderOpen,
+  Home,
   Music2,
+  Play,
   Redo2,
   Scissors,
   SlidersHorizontal,
+  Sparkles,
+  SwatchBook,
   Type as TypeIcon,
   Undo2,
+  Wrench,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { toast } from "@/store/toast";
 import { makeProject, validateProject } from "@/lib/video-editor/model";
 import {
   getCurrentProjectId,
@@ -34,17 +41,60 @@ import {
 } from "@/lib/video-editor/project-library";
 import { projectDurationMs } from "@/lib/video-editor/timeline-math";
 import { useVideoEditor } from "@/store/video-editor";
+import { useAuthStore } from "@/store/auth";
+import { toast } from "@/store/toast";
 import { TimelineTracks } from "@/components/video-editor/TimelineTracks";
 import { MediaBin } from "@/components/video-editor/MediaBin";
 import { MusicPanel } from "@/components/video-editor/MusicPanel";
 import { CaptionsPanel } from "@/components/video-editor/CaptionsPanel";
 import { RecordPanel } from "@/components/video-editor/RecordPanel";
 import { ClipInspector } from "@/components/video-editor/ClipInspector";
-import { ExportProjectModal } from "@/components/video-editor/ExportProjectModal";
+import { EXPORT_RES_KEY, ExportProjectModal } from "@/components/video-editor/ExportProjectModal";
 import { ProjectsModal } from "@/components/video-editor/ProjectsModal";
 import { PreviewStage } from "@/components/video-editor/PreviewStage";
+import {
+  EffectsPanel,
+  FiltersPanel,
+  StorageCard,
+  TextPanel,
+  ToolsPanel,
+  TransitionsPanel,
+  type RailPanel,
+} from "@/components/video-editor/StudioPanels";
 
 type Sheet = "bin" | "music" | "record" | "captions" | "inspector" | null;
+
+const RAIL_ITEMS: { id: RailPanel; icon: typeof Wrench; label: string }[] = [
+  { id: "ferramentas", icon: Wrench, label: "Ferramentas" },
+  { id: "midia", icon: FolderOpen, label: "Mídia" },
+  { id: "audio", icon: Music2, label: "Áudio" },
+  { id: "texto", icon: TypeIcon, label: "Texto" },
+  { id: "legendas", icon: Captions, label: "Legendas" },
+  { id: "transicoes", icon: Clapperboard, label: "Transições" },
+  { id: "filtros", icon: SwatchBook, label: "Filtros" },
+  { id: "efeitos", icon: Sparkles, label: "Efeitos" },
+  { id: "gravar", icon: Circle, label: "Gravar" },
+];
+
+const PANEL_TITLES: Record<RailPanel, string> = {
+  ferramentas: "Ferramentas",
+  midia: "Mídia",
+  audio: "Áudio",
+  texto: "Texto",
+  legendas: "Legendas",
+  transicoes: "Transições",
+  filtros: "Filtros",
+  efeitos: "Efeitos",
+  gravar: "Gravar",
+};
+
+const RES_OPTIONS = [
+  { id: "720p", label: "HD" },
+  { id: "1080p", label: "Full HD" },
+  { id: "1440p", label: "2K" },
+  { id: "2160p", label: "4K" },
+  { id: "4320p", label: "8K" },
+] as const;
 
 export default function EstudioPage() {
   const loadProject = useVideoEditor((s) => s.loadProject);
@@ -56,14 +106,38 @@ export default function EstudioPage() {
   const canRedo = useVideoEditor((s) => s.future.length > 0);
   const sourceCount = useVideoEditor((s) => Object.keys(s.sources).length);
   const selectedClipId = useVideoEditor((s) => s.selectedClipId);
+  const select = useVideoEditor((s) => s.select);
   const splitAtPlayhead = useVideoEditor((s) => s.splitAtPlayhead);
   const addTextClip = useVideoEditor((s) => s.addTextClip);
   const renameProject = useVideoEditor((s) => s.renameProject);
   const projectName = useVideoEditor((s) => s.project.name);
+  const user = useAuthStore((s) => s.user);
   const seeded = useRef(false);
   const [sheet, setSheet] = useState<Sheet>(null);
+  const [rail, setRail] = useState<RailPanel>("ferramentas");
   const [exportOpen, setExportOpen] = useState(false);
   const [projectsOpen, setProjectsOpen] = useState(false);
+  const [saveState, setSaveState] = useState<"salvo" | "salvando">("salvo");
+  const [exportRes, setExportRes] = useState<string>("1080p");
+
+  // resolução padrão de exportação (persistida; o modal Exportar lê daqui)
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem(EXPORT_RES_KEY);
+      if (stored && RES_OPTIONS.some((r) => r.id === stored)) setExportRes(stored);
+    } catch {
+      /* sem storage */
+    }
+  }, []);
+
+  function pickRes(id: string) {
+    setExportRes(id);
+    try {
+      localStorage.setItem(EXPORT_RES_KEY, id);
+    } catch {
+      /* sem storage */
+    }
+  }
 
   // ------- dividir/fatiar o clipe no cursor (com feedback honesto) --------------
   function handleSplit() {
@@ -112,10 +186,12 @@ export default function EstudioPage() {
     let timer: ReturnType<typeof setTimeout> | null = null;
     const unsub = useVideoEditor.subscribe((s, prev) => {
       if (s.project === prev.project && s.sources === prev.sources) return;
+      setSaveState("salvando");
       if (timer) clearTimeout(timer);
       timer = setTimeout(() => {
         saveProjectEntry(s.project, Object.values(s.sources), projectDurationMs(s.project.tracks));
         setCurrentProjectId(s.project.id);
+        setSaveState("salvo");
       }, 800);
     });
     return () => {
@@ -124,13 +200,17 @@ export default function EstudioPage() {
     };
   }, []);
 
-  // ------- abrir gavetas a partir da timeline (botões "+" estilo CapCut) --------
+  // ------- abrir gavetas/painéis a partir da timeline (botões "+") --------------
   useEffect(() => {
     function onOpenSheet(e: Event) {
       const detail = (e as CustomEvent<string>).detail;
       if (detail === "bin" || detail === "music" || detail === "record" || detail === "captions" || detail === "inspector") {
         setSheet(detail);
       }
+      // no desktop, o mesmo evento troca o painel do rail
+      const map: Record<string, RailPanel | undefined> = { bin: "midia", music: "audio", captions: "legendas", record: "gravar" };
+      const panel = map[detail];
+      if (panel) setRail(panel);
     }
     window.addEventListener("studio-open-sheet", onOpenSheet);
     return () => window.removeEventListener("studio-open-sheet", onOpenSheet);
@@ -166,6 +246,8 @@ export default function EstudioPage() {
     return () => window.removeEventListener("keydown", onKey);
   }, []);
 
+  const initial = (user?.name ?? "C").trim().charAt(0).toUpperCase() || "C";
+
   return (
     <div className="flex h-[100dvh] flex-col overflow-hidden bg-surface bg-[radial-gradient(ellipse_60%_40%_at_50%_-10%,rgba(139,92,246,0.10),transparent)]">
       {/* Topo */}
@@ -173,21 +255,42 @@ export default function EstudioPage() {
         <Link
           href="/app"
           title="Sair do estúdio"
-          className="inline-flex items-center gap-1 rounded-lg px-2 py-1.5 text-sm text-zinc-400 transition-colors hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-400"
+          aria-label="Sair do estúdio"
+          className="inline-flex items-center rounded-lg p-1.5 text-zinc-400 transition-colors hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-400"
         >
           <ArrowLeft className="h-4 w-4" aria-hidden />
-          <span className="hidden sm:inline">Sair</span>
         </Link>
-        <input
-          key={projectName}
-          defaultValue={projectName}
-          onBlur={(e) => renameProject(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter") (e.target as HTMLInputElement).blur();
-          }}
-          aria-label="Nome do projeto"
-          className="min-w-0 flex-1 truncate rounded-lg border border-transparent bg-transparent px-2 py-1 text-sm font-semibold text-white hover:border-line focus:border-violet-400 focus:outline-none"
-        />
+        <div className="hidden items-center gap-2 md:flex">
+          <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-gradient-to-br from-violet-600 to-fuchsia-600 shadow-glow">
+            <Play className="ml-0.5 h-4 w-4 fill-white text-white" aria-hidden />
+          </span>
+          <span className="leading-tight">
+            <span className="block text-sm font-extrabold tracking-wide text-white">ESTÚDIO</span>
+            <span className="block text-[8px] font-semibold uppercase tracking-[0.18em] text-zinc-500">Editor profissional</span>
+          </span>
+          <span className="rounded-full border border-violet-400/40 bg-violet-500/15 px-2 py-0.5 text-[9px] font-bold tracking-wider text-violet-300">
+            PRO
+          </span>
+        </div>
+
+        {/* nome do projeto + autosave */}
+        <div className="flex min-w-0 flex-1 flex-col items-center">
+          <input
+            key={projectName}
+            defaultValue={projectName}
+            onBlur={(e) => renameProject(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") (e.target as HTMLInputElement).blur();
+            }}
+            aria-label="Nome do projeto"
+            className="w-full max-w-[240px] truncate rounded-lg border border-transparent bg-transparent px-2 py-0.5 text-center text-sm font-semibold text-white hover:border-line focus:border-violet-400 focus:outline-none"
+          />
+          <span className="flex items-center gap-1 text-[9px] text-zinc-500">
+            <span className={cn("h-1.5 w-1.5 rounded-full", saveState === "salvo" ? "bg-emerald-400" : "animate-pulse bg-amber-400")} aria-hidden />
+            {saveState === "salvo" ? "Salvo automaticamente" : "Salvando…"}
+          </span>
+        </div>
+
         <button
           onClick={() => setProjectsOpen(true)}
           aria-label="Projetos"
@@ -222,54 +325,130 @@ export default function EstudioPage() {
             <Download className="h-3.5 w-3.5" aria-hidden />
             Exportar
           </button>
+          <select
+            value={exportRes}
+            onChange={(e) => pickRes(e.target.value)}
+            aria-label="Resolução de exportação"
+            title="Resolução padrão da exportação"
+            className="hidden rounded-xl border border-line bg-surface-1 px-2 py-1.5 text-xs font-semibold text-zinc-200 sm:block focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-400"
+          >
+            {RES_OPTIONS.map((r) => (
+              <option key={r.id} value={r.id}>
+                {r.label}
+              </option>
+            ))}
+          </select>
+          <span
+            title={user?.name ?? "Você"}
+            className="relative ml-1 hidden h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-full border border-white/10 bg-surface-2 text-xs font-bold text-violet-200 sm:flex"
+          >
+            {user?.avatarUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={user.avatarUrl} alt="" className="h-full w-full object-cover" />
+            ) : (
+              initial
+            )}
+            <span className="absolute bottom-0 right-0 h-2 w-2 rounded-full border border-surface bg-emerald-400" aria-hidden />
+          </span>
         </div>
       </header>
 
       {/* Área principal */}
       <div className="flex min-h-0 flex-1 flex-col lg:flex-row">
-        <aside className="editor-scroll hidden shrink-0 space-y-5 overflow-y-auto border-r border-white/[0.06] bg-surface-1/30 p-3 lg:block lg:w-[280px]">
-          <MediaBin />
-          <div>
-            <p className="mb-2 flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-zinc-500">
-              <Circle className="h-3 w-3 text-rose-400" aria-hidden /> Gravar
-            </p>
-            <RecordPanel />
+        {/* rail esquerdo com labels (desktop) */}
+        <nav aria-label="Seções do editor" className="hidden shrink-0 flex-col border-r border-white/[0.06] bg-surface-1/40 lg:flex lg:w-[164px]">
+          <div className="editor-scroll min-h-0 flex-1 overflow-y-auto p-2">
+            <Link
+              href="/app"
+              className="flex items-center gap-2.5 rounded-xl px-2.5 py-2 text-xs font-medium text-zinc-400 transition-colors hover:bg-white/5 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-400"
+            >
+              <Home className="h-4 w-4" aria-hidden /> Início
+            </Link>
+            <button
+              onClick={() => setProjectsOpen(true)}
+              className="flex w-full items-center gap-2.5 rounded-xl px-2.5 py-2 text-xs font-medium text-zinc-400 transition-colors hover:bg-white/5 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-400"
+            >
+              <FolderKanban className="h-4 w-4" aria-hidden /> Projetos
+            </button>
+            <div className="my-1.5 border-t border-white/[0.06]" />
+            {RAIL_ITEMS.map((item) => (
+              <button
+                key={item.id}
+                onClick={() => setRail(item.id)}
+                aria-pressed={rail === item.id}
+                className={cn(
+                  "flex w-full items-center gap-2.5 rounded-xl px-2.5 py-2 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-400",
+                  rail === item.id ? "bg-violet-500/15 text-violet-200 ring-1 ring-inset ring-violet-400/30" : "text-zinc-400 hover:bg-white/5 hover:text-white",
+                )}
+              >
+                <item.icon className={cn("h-4 w-4", item.id === "gravar" && "text-rose-400")} aria-hidden />
+                {item.label}
+                {item.id === "midia" && sourceCount > 0 && (
+                  <span className="ml-auto rounded-full bg-violet-500/20 px-1.5 text-[9px] font-bold text-violet-300">{sourceCount}</span>
+                )}
+              </button>
+            ))}
           </div>
-          <div>
-            <p className="mb-2 flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-zinc-500">
-              <Music2 className="h-3.5 w-3.5" aria-hidden /> Música
-            </p>
-            <MusicPanel />
+          <div className="shrink-0 p-2">
+            <StorageCard />
           </div>
-          <div>
-            <p className="mb-2 flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-zinc-500">
-              <Captions className="h-3.5 w-3.5" aria-hidden /> Legendas
-            </p>
-            <CaptionsPanel />
+        </nav>
+
+        {/* coluna do painel ativo (desktop) */}
+        <aside className="editor-scroll hidden shrink-0 overflow-y-auto border-r border-white/[0.06] bg-surface-1/25 p-3 lg:block lg:w-[248px]">
+          <p className="mb-2.5 flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-zinc-500">
+            {PANEL_TITLES[rail]}
+          </p>
+          <div key={rail} className="panel-fade">
+            {rail === "ferramentas" && <ToolsPanel onNavigate={setRail} />}
+            {rail === "midia" && <MediaBin />}
+            {rail === "audio" && <MusicPanel />}
+            {rail === "texto" && <TextPanel />}
+            {rail === "legendas" && <CaptionsPanel />}
+            {rail === "transicoes" && <TransitionsPanel />}
+            {rail === "filtros" && <FiltersPanel />}
+            {rail === "efeitos" && <EffectsPanel />}
+            {rail === "gravar" && <RecordPanel />}
           </div>
         </aside>
-        <div className="min-h-0 flex-1 p-2 sm:p-3">
-          <PreviewStage />
+
+        {/* centro: preview + timeline */}
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+          <div className="min-h-0 flex-1 p-2 sm:p-3">
+            <PreviewStage />
+          </div>
+          <div className="shrink-0 px-2 pb-1 sm:px-3">
+            <TimelineTracks />
+          </div>
         </div>
-        <aside className="editor-scroll hidden shrink-0 overflow-y-auto border-l border-white/[0.06] bg-surface-1/30 p-3 lg:block lg:w-[280px]">
+
+        {/* Propriedades (desktop) */}
+        <aside className="editor-scroll hidden shrink-0 overflow-y-auto border-l border-white/[0.06] bg-surface-1/30 p-3 lg:block lg:w-[292px]">
           <div className="mb-2 flex items-center justify-between">
             <p className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-zinc-500">
               <SlidersHorizontal className="h-3.5 w-3.5" aria-hidden /> Propriedades
             </p>
-            <button
-              onClick={() => addTextClip("Seu texto")}
-              className="inline-flex items-center gap-1 rounded-lg border border-line px-2 py-1 text-[10px] font-medium text-zinc-300 hover:border-violet-500/50 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-400"
-            >
-              <TypeIcon className="h-3 w-3" aria-hidden /> Texto
-            </button>
+            <div className="flex items-center gap-1">
+              <button
+                onClick={() => addTextClip("Seu texto")}
+                className="inline-flex items-center gap-1 rounded-lg border border-line px-2 py-1 text-[10px] font-medium text-zinc-300 hover:border-violet-500/50 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-400"
+              >
+                <TypeIcon className="h-3 w-3" aria-hidden /> Texto
+              </button>
+              {selectedClipId && (
+                <button
+                  onClick={() => select(null)}
+                  aria-label="Fechar propriedades (desmarcar clipe)"
+                  title="Desmarcar clipe"
+                  className="rounded-lg p-1 text-zinc-500 transition-colors hover:bg-white/5 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-400"
+                >
+                  <ChevronDown className="h-3.5 w-3.5 rotate-[-90deg]" />
+                </button>
+              )}
+            </div>
           </div>
           <ClipInspector />
         </aside>
-      </div>
-
-      {/* Timeline */}
-      <div className="shrink-0 px-2 pb-1 sm:px-3">
-        <TimelineTracks />
       </div>
 
       {/* Barra inferior (mobile) */}
@@ -277,7 +456,7 @@ export default function EstudioPage() {
         <MobileTool icon={SlidersHorizontal} label="Editar" onClick={() => setSheet("inspector")} highlight={selectedClipId != null} />
         <MobileTool icon={Scissors} label="Dividir" onClick={handleSplit} />
         <MobileTool icon={FolderOpen} label={`Mídia${sourceCount > 0 ? ` (${sourceCount})` : ""}`} onClick={() => setSheet("bin")} />
-        <MobileTool icon={Music2} label="Áudio" onClick={() => setSheet("music")} />
+        <MobileTool icon={AudioLines} label="Áudio" onClick={() => setSheet("music")} />
         <MobileTool icon={TypeIcon} label="Texto" onClick={() => addTextClip("Seu texto")} />
         <MobileTool icon={Captions} label="Legendas" onClick={() => setSheet("captions")} />
         <MobileTool icon={Circle} label="Gravar" onClick={() => setSheet("record")} />
