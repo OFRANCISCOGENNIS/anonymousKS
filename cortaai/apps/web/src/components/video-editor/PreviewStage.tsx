@@ -7,7 +7,7 @@
 // compostas por cima no mesmo instante.
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Pause, Play, Redo2, Undo2 } from "lucide-react";
+import { Maximize2, Pause, Play, Redo2, SkipBack, SkipForward, Undo2 } from "lucide-react";
 import { drawComposite, type Drawable } from "@/lib/video-editor/engine";
 import type { Clip } from "@/lib/video-editor/model";
 import { sourceObjectUrl, type MediaSource } from "@/lib/video-editor/media-registry";
@@ -19,6 +19,27 @@ function fmt(ms: number): string {
   const m = Math.floor(s / 60);
   const ss = Math.floor(s % 60);
   return `${m}:${String(ss).padStart(2, "0")}`;
+}
+
+/** Proporção como texto ("9:16", "16:9", "1:1"). */
+function aspectLabel(w: number, h: number): string {
+  const g = (a: number, b: number): number => (b === 0 ? a : g(b, a % b));
+  const d = g(w, h) || 1;
+  const rw = w / d;
+  const rh = h / d;
+  if (rw > 32 || rh > 32) return `${(w / h).toFixed(2)}:1`;
+  return `${rw}:${rh}`;
+}
+
+/** Nome da resolução pelo lado curto (720 → HD, 1080 → Full HD…). */
+function resLabel(w: number, h: number): string {
+  const short = Math.min(w, h);
+  if (short >= 4320) return "8K";
+  if (short >= 2160) return "4K";
+  if (short >= 1440) return "2K";
+  if (short >= 1080) return "Full HD";
+  if (short >= 720) return "HD";
+  return `${short}p`;
 }
 
 export function PreviewStage() {
@@ -310,6 +331,21 @@ export function PreviewStage() {
     else void play();
   }
 
+  /** Avança/retrocede exatamente 1 frame (pausado). */
+  function stepFrame(dir: 1 | -1) {
+    setPlaying(false);
+    const frame = 1000 / Math.max(1, project.fps);
+    const head = useVideoEditor.getState().playheadMs;
+    setPlayhead(Math.min(durationMs, Math.max(0, head + dir * frame)));
+  }
+
+  function toggleFullscreen() {
+    const el = stageRef.current;
+    if (!el) return;
+    if (document.fullscreenElement) void document.exitFullscreen();
+    else void el.requestFullscreen?.().catch(() => undefined);
+  }
+
   // atalho de teclado (barra de espaço) disparado pela página do estúdio
   useEffect(() => {
     function onToggle() {
@@ -335,6 +371,12 @@ export function PreviewStage() {
           style={{ width: fit.w, height: fit.h }}
           className="anim-rise rounded-lg bg-black shadow-[0_0_0_1px_rgba(255,255,255,0.06),0_24px_80px_-24px_rgba(0,0,0,0.9),0_0_64px_-16px_rgba(139,92,246,0.25)]"
         />
+        <span className="pointer-events-none absolute left-3 top-2.5 hidden items-center gap-1.5 lg:flex">
+          <span className="text-[10px] font-medium text-zinc-500">Pré-visualização</span>
+          <span className="rounded-md bg-violet-500/20 px-1.5 py-0.5 text-[9px] font-bold text-violet-300 ring-1 ring-inset ring-violet-400/30">
+            {resLabel(pw, ph)}
+          </span>
+        </span>
         {!hasMedia && (
           <p className="pointer-events-none absolute inset-0 flex items-center justify-center px-6 text-center text-sm text-zinc-500">
             Importe uma mídia para começar o preview.
@@ -342,25 +384,46 @@ export function PreviewStage() {
         )}
       </div>
 
-      {/* transporte estilo CapCut: tempo à esquerda, play central, desfazer/refazer à direita */}
+      {/* transporte: tempo à esquerda, frame-a-frame + play central, proporção/tela cheia à direita */}
       <div className="relative flex shrink-0 items-center rounded-2xl border border-white/[0.08] bg-surface-1/60 px-3 py-2 backdrop-blur-xl">
         <span className="font-mono text-xs tabular-nums text-zinc-300">
           {fmt(playheadMs)} <span className="text-zinc-600">/ {fmt(durationMs)}</span>
         </span>
-        <button
-          onClick={toggle}
-          aria-label={playing ? "Pausar" : "Reproduzir"}
-          disabled={!hasMedia}
-          className={"absolute left-1/2 top-1/2 flex h-10 w-10 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full bg-gradient-to-r from-violet-600 to-fuchsia-600 text-white shadow-glow transition-all hover:shadow-[0_0_32px_-4px_rgba(217,70,239,0.7)] active:scale-90 disabled:opacity-40 disabled:shadow-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-400" + (hasMedia && !playing ? " anim-glow-pulse" : "")}
-        >
-          {playing ? <Pause className="h-4 w-4" /> : <Play className="ml-0.5 h-4 w-4" />}
-        </button>
+        <span className="absolute left-1/2 top-1/2 flex -translate-x-1/2 -translate-y-1/2 items-center gap-1.5">
+          <button
+            onClick={() => stepFrame(-1)}
+            disabled={!hasMedia}
+            aria-label="Frame anterior"
+            title="Frame anterior"
+            className="hidden rounded-lg p-1.5 text-zinc-400 transition-all hover:bg-white/5 hover:text-white active:scale-90 disabled:opacity-40 sm:block focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-400"
+          >
+            <SkipBack className="h-4 w-4" />
+          </button>
+          <button
+            onClick={toggle}
+            aria-label={playing ? "Pausar" : "Reproduzir"}
+            disabled={!hasMedia}
+            className={"flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-r from-violet-600 to-fuchsia-600 text-white shadow-glow transition-all hover:shadow-[0_0_32px_-4px_rgba(217,70,239,0.7)] active:scale-90 disabled:opacity-40 disabled:shadow-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-400" + (hasMedia && !playing ? " anim-glow-pulse" : "")}
+          >
+            {playing ? <Pause className="h-4 w-4" /> : <Play className="ml-0.5 h-4 w-4" />}
+          </button>
+          <button
+            onClick={() => stepFrame(1)}
+            disabled={!hasMedia}
+            aria-label="Próximo frame"
+            title="Próximo frame"
+            className="hidden rounded-lg p-1.5 text-zinc-400 transition-all hover:bg-white/5 hover:text-white active:scale-90 disabled:opacity-40 sm:block focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-400"
+          >
+            <SkipForward className="h-4 w-4" />
+          </button>
+        </span>
         <span className="ml-auto flex items-center gap-0.5">
+          {/* desfazer/refazer só no celular (no desktop ficam no topo) */}
           <button
             onClick={undo}
             disabled={!canUndo}
             aria-label="Desfazer"
-            className="rounded-lg p-2 text-zinc-400 transition-all hover:bg-white/5 hover:text-white active:scale-90 disabled:opacity-40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-400"
+            className="rounded-lg p-2 text-zinc-400 transition-all hover:bg-white/5 hover:text-white active:scale-90 disabled:opacity-40 lg:hidden focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-400"
           >
             <Undo2 className="h-4 w-4" />
           </button>
@@ -368,9 +431,21 @@ export function PreviewStage() {
             onClick={redo}
             disabled={!canRedo}
             aria-label="Refazer"
-            className="rounded-lg p-2 text-zinc-400 transition-all hover:bg-white/5 hover:text-white active:scale-90 disabled:opacity-40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-400"
+            className="rounded-lg p-2 text-zinc-400 transition-all hover:bg-white/5 hover:text-white active:scale-90 disabled:opacity-40 lg:hidden focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-400"
           >
             <Redo2 className="h-4 w-4" />
+          </button>
+          <span className="hidden font-mono text-[10px] text-zinc-500 lg:block" title="Proporção do projeto">
+            {aspectLabel(pw, ph)}
+          </span>
+          <button
+            onClick={toggleFullscreen}
+            disabled={!hasMedia}
+            aria-label="Tela cheia"
+            title="Tela cheia"
+            className="hidden rounded-lg p-2 text-zinc-400 transition-all hover:bg-white/5 hover:text-white active:scale-90 disabled:opacity-40 lg:block focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-400"
+          >
+            <Maximize2 className="h-4 w-4" />
           </button>
         </span>
       </div>

@@ -4,7 +4,7 @@
 // (WebCodecs): todas as trilhas visíveis + áudio mixado (som dos vídeos e
 // música). O arquivo baixa na hora. Sem WebCodecs, aviso honesto.
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Download, Info, XCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { isExportSupported, renderProjectToBlob, type ExportFormat } from "@/lib/video-editor/export-project";
@@ -22,6 +22,19 @@ const RESOLUTIONS = [
   { id: "2160p", label: "4K", shortSide: 2160, hint: "pesado" },
   { id: "4320p", label: "8K", shortSide: 4320, hint: "experimental" },
 ] as const;
+
+/** Resolução padrão persistida (o seletor do topo do Estúdio escreve aqui). */
+export const EXPORT_RES_KEY = "cortaai-export-res";
+
+function readDefaultRes(): (typeof RESOLUTIONS)[number]["id"] {
+  try {
+    const v = localStorage.getItem(EXPORT_RES_KEY);
+    if (v && RESOLUTIONS.some((r) => r.id === v)) return v as (typeof RESOLUTIONS)[number]["id"];
+  } catch {
+    /* sem storage */
+  }
+  return "1080p";
+}
 
 const FPS_OPTIONS = [24, 30, 60] as const;
 
@@ -45,6 +58,11 @@ export function ExportProjectModal({ open, onClose }: { open: boolean; onClose: 
   const supported = isExportSupported();
   const durationMs = projectDurationMs(project.tracks);
   const heavyRes = resolution === "1440p" || resolution === "2160p" || resolution === "4320p";
+
+  // sincroniza com a resolução padrão escolhida no topo do Estúdio
+  useEffect(() => {
+    if (open) setResolution(readDefaultRes());
+  }, [open]);
 
   async function startExport() {
     setExporting(true);
