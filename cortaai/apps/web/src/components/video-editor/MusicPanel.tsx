@@ -77,12 +77,13 @@ export function MusicPanel() {
         </p>
         <p className="mb-2 text-[11px] text-zinc-500">Geradas no seu aparelho — 100% livres para postar.</p>
         <div className="grid grid-cols-2 gap-2">
-          {MUSIC_PRESETS.map((p) => (
+          {MUSIC_PRESETS.map((p, i) => (
             <button
               key={p.id}
+              style={{ animationDelay: `${i * 50}ms` }}
               onClick={() => addGenerated(p.id, "music")}
               disabled={busy !== null}
-              className="flex items-center gap-2 rounded-xl border border-line bg-surface-1 px-3 py-2.5 text-left text-sm font-medium text-zinc-200 transition-colors hover:border-violet-500/50 hover:text-white disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-400"
+              className="anim-rise hover-lift flex items-center gap-2 rounded-xl border border-line bg-surface-1 px-3 py-2.5 text-left text-sm font-medium text-zinc-200 transition-colors hover:border-violet-500/50 hover:text-white disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-400"
             >
               <span className="text-lg" aria-hidden>
                 {busy === p.id ? <Loader2 className="h-4 w-4 animate-spin" /> : p.emoji}
@@ -96,12 +97,13 @@ export function MusicPanel() {
       <div>
         <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-zinc-500">Efeitos sonoros</p>
         <div className="flex flex-wrap gap-1.5">
-          {SFX_PRESETS.map((p) => (
+          {SFX_PRESETS.map((p, i) => (
             <button
               key={p.id}
+              style={{ animationDelay: `${i * 40}ms` }}
               onClick={() => addGenerated(p.id, "sfx")}
               disabled={busy !== null}
-              className="inline-flex items-center gap-1 rounded-lg border border-line bg-surface-1 px-2 py-1.5 text-[11px] font-medium text-zinc-300 transition-colors hover:border-violet-500/50 hover:text-white disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-400"
+              className="anim-pop inline-flex items-center gap-1 rounded-lg border border-line bg-surface-1 px-2 py-1.5 text-[11px] font-medium text-zinc-300 transition-colors hover:border-violet-500/50 hover:text-white disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-400"
             >
               <span aria-hidden>{busy === p.id ? <Loader2 className="h-3 w-3 animate-spin" /> : p.emoji}</span>
               {p.name}

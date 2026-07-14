@@ -412,6 +412,7 @@ export function FotoEditor() {
           aria-label="Painel de opções da ferramenta"
           className="editor-scroll max-h-[60vh] overflow-y-auto rounded-2xl border border-white/[0.08] bg-surface-1/60 p-4 backdrop-blur-xl lg:max-h-none"
         >
+          <div key={s.activeTab} className="panel-fade">
           {s.activeTab === "ajustes" && <AjustesPanel />}
           {s.activeTab === "curvas" && <CurvasPanel />}
           {s.activeTab === "cor" && <CorHslPanel />}
@@ -422,6 +423,7 @@ export function FotoEditor() {
           {s.activeTab === "luz" && <LuzPanel />}
           {s.activeTab === "texto" && <TextoPanel />}
           {s.activeTab === "camadas" && <CamadasPanel />}
+          </div>
         </aside>
       </div>
 

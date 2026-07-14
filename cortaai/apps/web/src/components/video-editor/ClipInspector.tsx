@@ -119,7 +119,7 @@ export function ClipInspector() {
   }
 
   return (
-    <div className="space-y-4 text-sm">
+    <div key={clip.id} className="anim-rise space-y-4 text-sm">
       <div className="flex items-center gap-2">
         <p className="min-w-0 flex-1 truncate text-xs font-semibold text-white" title={name}>
           {name}
