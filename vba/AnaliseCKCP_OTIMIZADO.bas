@@ -4046,6 +4046,21 @@ ProxEQ:
         End If
         outp(rr, 12) = obs1
 
+        ' OBS2: motivo do veredito do PEP3 (mesmo texto em TODAS as linhas do
+        ' PEP3, para leitura do porque aprovou/reprovou).
+        Dim obs2 As String
+        If dPep3Reprov.Exists(p3obs) Then
+            If dPep3Motiv.Exists(p3obs) Then
+                obs2 = "PEP3 REPROVADO: " & CStr(dPep3Motiv(p3obs))
+            Else
+                obs2 = "PEP3 REPROVADO: familia UC fora da margem"
+            End If
+        Else
+            obs2 = "PEP3 APROVADO: nenhuma familia UC do PEP3 fora da margem de " & _
+                   Format$(CfgNum("MARGEM_ADERENCIA", 10), "0.##") & "%"
+        End If
+        outp(rr, 13) = obs2
+
         ' -------------------------------------------------------------------
         ' FASE 1.2: alimenta os vereditos ODI em memoria, replicando a regra
         ' que o PAINEL EXECUTIVO aplicava ao ler a planilha:
@@ -4952,7 +4967,8 @@ Private Sub Gerar_Regras()
     s = s & "PROPAGACAO PEP3|ODI reprovada reprova o PEP3|Se a ODI (.I) de um PEP3NIVEL for REPROVADA, todos os PEP4NIVEL do mesmo PEP3 (inclusive ODD) ficam REPROVADOS." & vbLf
     s = s & "PROPAGACAO PEP3|ODI sem UC reprova o PEP3|Se a ODI (.I) de um PEP3NIVEL estiver SEM UC, todo o PEP3 fica REPROVADO." & vbLf
     s = s & "ADERENCIA ANEEL (aba MATERIAL)|Sinal por tipo de PEP|Na aba MATERIAL: ODD (.D) com QTD ou VALOR positivo = NAO ADERENTE; ODI/ODM/ODS com QTD ou VALOR negativo = NAO ADERENTE." & vbLf
-    s = s & "OBSERVACOES|Motivo do REPROVADO (OBS1)|A coluna OBS1 da aba MATERIAL vs SERVICO traz o motivo: familia UC fora da margem (com MAT/SRV) e, na propagacao, qual ODI reprovou e quais familias (ou ODI sem UC)." & vbLf
+    s = s & "OBSERVACOES|Motivo do REPROVADO (OBS1)|A coluna OBS1 da aba MATERIAL vs SERVICO traz o motivo da linha: familia UC fora da margem (com MAT/SRV) e, na propagacao, qual ODI reprovou e quais familias (ou ODI sem UC)." & vbLf
+    s = s & "OBSERVACOES|Veredito do PEP3 (OBS2)|A coluna OBS2 repete em TODAS as linhas do PEP3 o motivo do veredito: APROVADO (nenhuma familia UC fora da margem) ou REPROVADO (com o motivo agregado)." & vbLf
     s = s & "FILTRAGEM|Linhas NULO ignoradas|Linhas com MAT = 0 e SRV = 0 (NULO) nao sao trazidas para a aba MATERIAL vs SERVICO." & vbLf
 
     Dim linhas() As String: linhas = Split(s, vbLf)
