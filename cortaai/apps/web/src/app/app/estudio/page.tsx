@@ -390,35 +390,34 @@ export default function EstudioPage() {
             ))}
           </div>
           <div className="shrink-0 p-2">
-            <StorageCard />
+            <StorageCard onManage={() => setProjectsOpen(true)} />
           </div>
         </nav>
 
-        {/* coluna do painel ativo (desktop) */}
-        <aside className="editor-scroll hidden shrink-0 overflow-y-auto border-r border-white/[0.06] bg-surface-1/25 p-3 lg:block lg:w-[248px]">
-          <p className="mb-2.5 flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-zinc-500">
-            {PANEL_TITLES[rail]}
-          </p>
-          <div key={rail} className="panel-fade">
-            {rail === "ferramentas" && <ToolsPanel onNavigate={setRail} />}
-            {rail === "midia" && <MediaBin />}
-            {rail === "audio" && <MusicPanel />}
-            {rail === "texto" && <TextPanel />}
-            {rail === "legendas" && <CaptionsPanel />}
-            {rail === "transicoes" && <TransitionsPanel />}
-            {rail === "filtros" && <FiltersPanel />}
-            {rail === "efeitos" && <EffectsPanel />}
-            {rail === "gravar" && <RecordPanel />}
-          </div>
-        </aside>
-
-        {/* centro: preview + timeline */}
+        {/* centro: preview + timeline + faixa de ferramentas (desktop) */}
         <div className="flex min-h-0 min-w-0 flex-1 flex-col">
           <div className="min-h-0 flex-1 p-2 sm:p-3">
             <PreviewStage />
           </div>
           <div className="shrink-0 px-2 pb-1 sm:px-3">
             <TimelineTracks />
+          </div>
+          {/* faixa inferior larga: ferramentas de edição / painel do rail (desktop) */}
+          <div className="hidden shrink-0 border-t border-white/[0.06] bg-surface-1/25 lg:block">
+            <p className="px-3 pb-1 pt-2 text-[11px] font-semibold uppercase tracking-wide text-zinc-500">
+              {rail === "ferramentas" ? "Ferramentas de edição" : PANEL_TITLES[rail]}
+            </p>
+            <div key={rail} className="panel-fade editor-scroll max-h-[42dvh] overflow-y-auto px-3 pb-3">
+              {rail === "ferramentas" && <ToolsPanel onNavigate={setRail} />}
+              {rail === "midia" && <MediaBin />}
+              {rail === "audio" && <MusicPanel />}
+              {rail === "texto" && <TextPanel />}
+              {rail === "legendas" && <CaptionsPanel />}
+              {rail === "transicoes" && <TransitionsPanel />}
+              {rail === "filtros" && <FiltersPanel />}
+              {rail === "efeitos" && <EffectsPanel />}
+              {rail === "gravar" && <RecordPanel />}
+            </div>
           </div>
         </div>
 

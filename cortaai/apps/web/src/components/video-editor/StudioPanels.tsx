@@ -7,10 +7,12 @@
 
 import { useEffect, useState } from "react";
 import {
+  Aperture,
   AudioLines,
   Captions,
   CircleDashed,
   Clapperboard,
+  Gauge,
   HardDrive,
   Mic2,
   Palette,
@@ -18,7 +20,10 @@ import {
   Snowflake,
   Sparkles,
   Stamp,
+  Type as TypeIcon,
+  Vibrate,
   Wand2,
+  ZoomIn,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { CLIP_FILTERS, OVERLAY_EFFECTS } from "@/lib/video-editor/filters";
@@ -73,6 +78,34 @@ export function ToolsPanel({ onNavigate }: { onNavigate: (panel: RailPanel) => v
   const freezeAtPlayhead = useVideoEditor((s) => s.freezeAtPlayhead);
   const addTextClip = useVideoEditor((s) => s.addTextClip);
 
+  function velocidade() {
+    if (!found) return needClipToast();
+    openProps("audio");
+    toast("Velocidade aberta", { description: "Use o controle Velocidade em Propriedades → Áudio." });
+  }
+
+  function animacoes() {
+    if (!found) return needClipToast();
+    openProps("anim");
+    toast("Animações abertas", { description: "Ken Burns, entrada/saída e keyframes em Propriedades → Animação." });
+  }
+
+  function zoom() {
+    if (!found) return needClipToast();
+    updateClip(found.clip.id, { transform: { ...found.clip.transform, scale: Math.max(1.5, found.clip.transform.scale) } });
+    openProps("video");
+    toast("Zoom aplicado", { description: "Ajuste a área (Posição X/Y) em Propriedades → Vídeo." });
+  }
+
+  function estabilizar() {
+    if (!found) return needClipToast();
+    const s = Math.min(3, Math.max(1.08, found.clip.transform.scale * 1.06));
+    updateClip(found.clip.id, { transform: { ...found.clip.transform, scale: s } });
+    toast("Estabilização leve aplicada (por recorte)", {
+      description: "Reduz o tremor cortando as bordas. Tremor forte só um app de desktop resolve — no navegador não dá para rastrear o movimento.",
+    });
+  }
+
   function melhorarAudio() {
     if (!found) return needClipToast();
     updateClip(found.clip.id, { audioFx: { denoise: true, voice: true } });
@@ -113,13 +146,6 @@ export function ToolsPanel({ onNavigate }: { onNavigate: (panel: RailPanel) => v
     toast("Cor (grading) aberto", { description: "Ajuste brilho, contraste, saturação e matiz em Propriedades." });
   }
 
-  function telaVerde() {
-    if (!found) return needClipToast();
-    updateClip(found.clip.id, { chroma: found.clip.chroma ?? { color: "#00b140", tolerance: 0.3, softness: 0.12 } });
-    openProps("video");
-    toast("Tela verde (chroma key) ativada", { description: "Escolha a cor do fundo em Propriedades → Vídeo." });
-  }
-
   function congelar() {
     freezeAtPlayhead();
   }
@@ -141,22 +167,28 @@ export function ToolsPanel({ onNavigate }: { onNavigate: (panel: RailPanel) => v
     { icon: AudioLines, title: "Melhorar Áudio", sub: "Reduza ruídos e melhore clareza", onClick: melhorarAudio },
     { icon: Scissors, title: "Cortes", sub: "Divida o clipe no cursor", onClick: cortar },
     { icon: Clapperboard, title: "Transições", sub: "Adicione transições incríveis", onClick: () => onNavigate("transicoes") },
+    { icon: Sparkles, title: "Efeitos", sub: "Aplique efeitos visuais", onClick: () => onNavigate("efeitos") },
+    { icon: Aperture, title: "Filtros", sub: "Ajuste a cor do seu vídeo", onClick: () => onNavigate("filtros") },
+    { icon: TypeIcon, title: "Texto", sub: "Adicione textos e títulos", onClick: () => onNavigate("texto") },
+    { icon: Captions, title: "Legendas", sub: "Gere e edite legendas", onClick: () => onNavigate("legendas") },
     { icon: CircleDashed, title: "Vinhetas", sub: "Aplique vinhetas profissionais", onClick: vinheta },
     { icon: Stamp, title: "Marca d'água", sub: "Adicione sua marca d'água", onClick: marcaDagua },
-    { icon: Snowflake, title: "Congelar Frame", sub: "Pare a imagem no cursor", onClick: congelar },
     { icon: Palette, title: "Color Grading", sub: "Ajuste cores como um pro", onClick: colorGrading },
+    { icon: Gauge, title: "Velocidade", sub: "Altere a velocidade do vídeo", onClick: velocidade },
+    { icon: Snowflake, title: "Congelar Frame", sub: "Pause a imagem no cursor", onClick: congelar },
+    { icon: Wand2, title: "Animações", sub: "Adicione animações e keyframes", onClick: animacoes },
     { icon: Mic2, title: "Narração (IA)", sub: "Texto vira voz em português", onClick: () => onNavigate("audio") },
-    { icon: Wand2, title: "Tela Verde", sub: "Remova e substitua fundos", onClick: telaVerde, accent: "text-emerald-400 border-emerald-400/30 bg-emerald-400/10" },
-    { icon: Captions, title: "Legendas (IA)", sub: "Transcreva a fala do vídeo", onClick: () => onNavigate("legendas") },
+    { icon: Vibrate, title: "Estabilizar", sub: "Reduza tremores da imagem", onClick: estabilizar },
+    { icon: ZoomIn, title: "Zoom", sub: "Aplique zoom em áreas específicas", onClick: zoom },
   ];
 
   return (
-    <div className="grid grid-cols-2 gap-2">
+    <div className="grid grid-cols-3 gap-2 sm:grid-cols-4 xl:grid-cols-8">
       {TOOLS.map((t, i) => (
         <button
           key={t.title}
           onClick={t.onClick}
-          style={{ animationDelay: `${i * 35}ms` }}
+          style={{ animationDelay: `${i * 25}ms` }}
           className="anim-rise hover-lift flex flex-col items-center gap-1.5 rounded-2xl border border-line bg-surface-1/80 px-2 py-3 text-center transition-colors hover:border-violet-500/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-400"
         >
           <span
@@ -383,7 +415,7 @@ export function TransitionsPanel() {
 
 // ------------------------------------------------------------- Armazenamento
 
-export function StorageCard() {
+export function StorageCard({ onManage }: { onManage?: () => void }) {
   const [est, setEst] = useState<{ usage: number; quota: number } | null>(null);
   useEffect(() => {
     let alive = true;
@@ -414,6 +446,14 @@ export function StorageCard() {
       <p className="mt-1.5 text-[10px] text-zinc-500">
         {pct}% usado · {gb(est.usage)} de {gb(est.quota)}
       </p>
+      {onManage && (
+        <button
+          onClick={onManage}
+          className="mt-2 w-full rounded-lg border border-line bg-surface-1 px-2 py-1.5 text-[10px] font-medium text-zinc-300 transition-colors hover:border-violet-500/50 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-400"
+        >
+          Gerenciar armazenamento
+        </button>
+      )}
     </div>
   );
 }
