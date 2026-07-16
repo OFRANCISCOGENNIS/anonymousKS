@@ -518,6 +518,47 @@ check('LH+HL = Compressão (triângulo)', /Compressão/.test(estr.compressao.nom
 check('sem swings suficientes = Indefinida', estr.indef.nome === 'Indefinida');
 check('card PRICE ACTION renderiza a estrutura definida', /Estrutura/.test(estr.naTela) && !/Altista|Baixista/.test(estr.naTela));
 
+// 4.9.9) Zonas S/R no gráfico + rótulos de estrutura + Análise Mestre
+const zonas = await p.evaluate(() => {
+  const z = calcularZonasSR();
+  const todas = [...z.resist, ...z.supor];
+  const comForca = todas.every(x => /FORTE|MÉDIA|FRACA/.test(x.forca) && x.n >= 1);
+  const ladosCertos = z.resist.every(x => x.preco > z.close) && z.supor.every(x => x.preco < z.close);
+  // liga o toggle → overlay com faixas rotuladas + marcadores HH/HL/LH/LL
+  document.getElementById('zonasAtivo').checked = true;
+  desenharZonasSR(true);
+  const faixas = document.querySelectorAll('#zonasOverlay .zona-faixa').length;
+  const rotulo = document.querySelector('#zonasOverlay .zona-rot');
+  const temRotulo = rotulo && /ZONA DE (SUPORTE|RESISTÊNCIA)/.test(rotulo.textContent) && /toque/.test(rotulo.textContent);
+  const marcs = marcadoresEstrutura();
+  const temHHHL = marcs.some(m => /HH|HL|LH|LL/.test(m.text));
+  // desliga → overlay some
+  desenharZonasSR(false);
+  document.getElementById('zonasAtivo').checked = false;
+  const limpou = !document.getElementById('zonasOverlay');
+  return { qtd: todas.length, comForca, ladosCertos, faixas, temRotulo, temHHHL, limpou };
+});
+check('zonas S/R calculadas com força por toques', zonas.qtd >= 2 && zonas.comForca, 'qtd=' + zonas.qtd);
+check('resistências acima do preço · suportes abaixo', zonas.ladosCertos);
+check('toggle 🟩 desenha faixas rotuladas no gráfico', zonas.faixas >= 2 && zonas.temRotulo, 'faixas=' + zonas.faixas);
+check('pivôs recebem rótulos HH/HL/LH/LL', zonas.temHHHL);
+check('desligar remove o overlay', zonas.limpou);
+const am = await p.evaluate(() => {
+  const html = gerarAnaliseMestre();
+  const partes = ['Contexto geral', 'Estrutura de mercado', 'Linhas de tendência', 'Zonas de suporte', 'Pullback', 'Liquidez', 'Plano de trade', 'Confluências', 'Cenários', 'Psicologia', 'notas 0–10'];
+  const temTudo = partes.every(t => html.includes(t));
+  abrirAnaliseMestre();
+  const aberto = document.getElementById('analiseModal').style.display === 'flex';
+  const temNotas = document.querySelectorAll('#analiseBody .am-tabela tr').length >= 8;
+  const temPlano = /Stop técnico|Sem zonas suficientes/.test(document.getElementById('analiseBody').textContent);
+  document.getElementById('analiseFechar').click();
+  const fechou = document.getElementById('analiseModal').style.display === 'none';
+  return { temTudo, aberto, temNotas, temPlano, fechou };
+});
+check('Análise Mestre cobre as 13 seções do roteiro', am.temTudo);
+check('modal 🎓 abre com tabela de notas e plano de trade', am.aberto && am.temNotas && am.temPlano);
+check('modal 🎓 fecha no ✕', am.fechou);
+
 // 4.10) Padrões de preço (Fase 2): doji, harami, CHoCH, topo/fundo duplo, triângulo
 const pads = await p.evaluate(() => {
   const doji = ehDoji(10, 10.5, 9.5, 10.02) && !ehDoji(10, 10.5, 9.5, 10.4);

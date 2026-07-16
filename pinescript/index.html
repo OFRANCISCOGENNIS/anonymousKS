@@ -414,6 +414,7 @@
                 <div class="chart-container" id="proPanel">
                     <h2>📊 Volume Profile & Níveis <span id="proMeta" class="tv-sync-tag"></span></h2>
                     <label class="reg-filtro"><input type="checkbox" id="niveisAtivo"> <span>📐 Desenhar níveis no gráfico — <strong>Fibonacci automático</strong> (última perna) + <strong>S/R</strong> mais próximos</span></label>
+                    <label class="reg-filtro"><input type="checkbox" id="zonasAtivo"> <span>🟩 <strong>Zonas de S/R</strong> como faixas no gráfico (forte/média/fraca por nº de toques) + rótulos <strong>HH/HL/LH/LL</strong> nos pivôs</span></label>
                     <div id="vpBody" class="vp-body"></div>
                 </div>
 
@@ -471,7 +472,8 @@
 
                 <!-- Gráfico de Velas (Candlestick) + EMAs (com meus sinais) -->
                 <div class="chart-container" id="chartPanel">
-                    <h2>💹 <span id="chartTitulo">Preço (Velas) & EMAs + sinais</span> <span id="liveBadge" class="live-badge">● AO VIVO</span></h2>
+                    <h2>💹 <span id="chartTitulo">Preço (Velas) & EMAs + sinais</span> <span id="liveBadge" class="live-badge">● AO VIVO</span>
+                        <button id="btnAnalise" class="btn-ghost" style="float:right;" title="Leitura completa do gráfico: estrutura, zonas, liquidez, plano de trade, cenários e notas">🎓 Análise Mestre</button></h2>
                     <div id="chartPreco" class="tv-chart tv-chart-main"></div>
                     <div class="chart-legend" id="legendPreco"></div>
                 </div>
@@ -718,6 +720,16 @@
             </div>
         </div>
 
+        <!-- MODAL DA ANÁLISE MESTRE (🎓 leitura completa do gráfico) -->
+        <div id="analiseModal" class="ajuda-overlay" style="display:none;">
+            <div class="ajuda-card am-card">
+                <button id="analiseFechar" class="ajuda-x" type="button" aria-label="Fechar">✕</button>
+                <h2>🎓 Análise Mestre — leitura completa do gráfico</h2>
+                <div id="analiseBody"></div>
+                <p class="ajuda-nota">⚠️ Estudo calculado dos dados carregados — fatos (swings, zonas, toques) separados de hipóteses (cenários). Não é recomendação.</p>
+            </div>
+        </div>
+
         <!-- FOOTER -->
         <footer class="footer">
             <p>⚠️ <strong>FERRAMENTA DE ESTUDO.</strong> Não é recomendação. Opções binárias/expirações curtas (1m/5m) são de altíssimo risco — spread e taxas corroem o edge. Sinais exigem backtest e validação antes de qualquer uso real.</p>
@@ -749,6 +761,7 @@
     <script src="src/20-agentes-cfg.js"></script>
     <script src="src/21-backup.js"></script>
     <script src="src/22-infos.js"></script>
+    <script src="src/23-zonas.js"></script>
     <!-- APP:END -->
 </body>
 </html>

@@ -161,8 +161,15 @@ function atualizarMarcadores() {
         color: e.dir === 'CALL' ? '#26a69a' : '#ef5350',
         shape: e.dir === 'CALL' ? 'arrowUp' : 'arrowDown',
         text: `${e.dir} ${e.score}/${e.enabled} • ${e.expMin}m`
-    })).sort((a, b) => a.time - b.time);
-    serieVelas.setMarkers(marc);
+    }));
+    // Zonas S/R ligadas (bloco 28): rótulos HH/HL/LH/LL nos pivôs + reposiciona as faixas
+    try {
+        if (typeof zonasSRAtivas !== 'undefined' && zonasSRAtivas) {
+            marc.push(...marcadoresEstrutura());
+            reposicionarZonas();
+        }
+    } catch (e) { }
+    serieVelas.setMarkers(marc.sort((a, b) => a.time - b.time));
 }
 
 function atualizarLegenda() {
