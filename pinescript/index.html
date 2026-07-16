@@ -654,6 +654,29 @@
             </div>
         </div>
 
+        <!-- MODAL DE DETALHE DA ENTRADA (clique na notificação ou na linha do Registro) -->
+        <div id="detalheModal" class="ajuda-overlay" style="display:none;">
+            <div class="ajuda-card det-card">
+                <button id="detFechar" class="ajuda-x" type="button" aria-label="Fechar">✕</button>
+                <div id="detTitulo" class="det-titulo"></div>
+                <div id="detHorarios" class="det-horarios"></div>
+                <div class="det-grid">
+                    <div class="det-esq">
+                        <div id="detGrafico" class="det-grafico"></div>
+                        <div id="detNumeros" class="det-numeros"></div>
+                    </div>
+                    <div class="det-dir">
+                        <h3 class="det-h">🎯 Motivos (fatores a favor)</h3>
+                        <div id="detFatores" class="det-fatores"></div>
+                        <h3 class="det-h">🔎 Funil de qualidade no momento</h3>
+                        <div id="detFunil" class="det-funil"></div>
+                        <div id="detRessalvas" class="det-ressalvas" style="display:none;"></div>
+                    </div>
+                </div>
+                <p class="ajuda-nota">⚠️ Retrato de <strong>estudo</strong> do instante da entrada. Não é ordem nem recomendação. O horário de saída é entrada + expiração.</p>
+            </div>
+        </div>
+
         <!-- FOOTER -->
         <footer class="footer">
             <p>⚠️ <strong>FERRAMENTA DE ESTUDO.</strong> Não é recomendação. Opções binárias/expirações curtas (1m/5m) são de altíssimo risco — spread e taxas corroem o edge. Sinais exigem backtest e validação antes de qualquer uso real.</p>
@@ -675,6 +698,7 @@
     <script src="src/10-profit.js"></script>
     <script src="src/11-minimal.js"></script>
     <script src="src/12-priceaction.js"></script>
+    <script src="src/13-detalhe.js"></script>
     <!-- APP:END -->
 </body>
 </html>

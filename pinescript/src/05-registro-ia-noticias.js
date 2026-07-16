@@ -56,7 +56,7 @@ function renderRegistro() {
         const res = r.resultado === 'WIN' ? '<span class="reg-res reg-win" title="acertou">✓</span>'
             : r.resultado === 'LOSS' ? '<span class="reg-res reg-loss" title="errou">✗</span>'
             : (r.exp && r.t + r.exp * 60 > Math.floor(Date.now() / 1000)) ? '<span class="reg-res reg-open" title="aguardando expiração">⏳</span>' : '';
-        return `<div class="reg-row"><span class="reg-hora">${fmtHora(r.t)}</span>` +
+        return `<div class="reg-row" data-idx="${registro.indexOf(r)}" title="ver motivos, gráfico e horários"><span class="reg-hora">${fmtHora(r.t)}</span>` +
             `<span class="reg-par">${r.par}${r.live ? ' <span class="reg-tag" title="IA ao vivo">IA</span>' : ''}</span>` +
             (r.grade ? `<span class="reg-grade grade-${r.grade}">${r.grade}</span>` : '') +
             (r.funil != null ? `<span class="reg-funil" title="funil de qualidade no momento da entrada">${r.funil}/6</span>` : '') +

@@ -89,11 +89,19 @@ function aplicarTema(t) {
 document.getElementById('btnTema').addEventListener('click', () => aplicarTema(temaAtual() === 'dark' ? 'light' : 'dark'));
 
 // ---- Notificação de navegador (aba em 2º plano) ----
-function notificar(titulo, corpo) {
+function notificar(titulo, corpo, idx) {
     if (!document.getElementById('notifAtivo').checked) return;
     if (!('Notification' in window) || Notification.permission !== 'granted') return;
     if (!document.hidden) return;   // só quando a aba NÃO está em foco (senão o som já basta)
-    try { new Notification(titulo, { body: corpo, tag: 'quantops-veredito', silent: false }); } catch (e) { }
+    try {
+        const n = new Notification(titulo, { body: corpo, tag: 'quantops-veredito', silent: false });
+        // um clique na notificação traz a aba de volta e abre o detalhe da entrada
+        n.onclick = () => {
+            window.focus();
+            try { if (typeof abrirDetalheEntrada === 'function') abrirDetalheEntrada(idx != null ? idx : _ultimaEntradaIdx); } catch (e) { }
+            n.close();
+        };
+    } catch (e) { }
 }
 document.getElementById('notifAtivo').addEventListener('change', function () {
     if (!this.checked) return;

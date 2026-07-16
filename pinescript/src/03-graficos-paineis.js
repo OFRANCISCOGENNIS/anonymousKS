@@ -1036,7 +1036,8 @@ function atualizarDecisao() {
         if (ehEntrada) reanimar(v, 'v-flash');   // pulse do veredito na virada p/ CALL/PUT
         // Selo A/B/C e FUNIL da virada — calculados uma vez; o funil fica gravado
         // na entrada para o placar por funil provar (ou desmentir) a qualidade.
-        const gGrade = ehEntrada && dados.length ? calcularGrade(dirN).grade : null;
+        const gFull = ehEntrada && dados.length ? calcularGrade(dirN) : null;
+        const gGrade = gFull ? gFull.grade : null;
         let fn = null;
         if (ehEntrada && dados.length) { try { fn = avaliarFunil(riscoNoticia); } catch (e) { } }
         // Registro em tempo real: a virada do veredito para CALL/PUT entra na
@@ -1045,11 +1046,14 @@ function atualizarDecisao() {
             const lbl = PARES_YAHOO[symbolAtual()] ? PARES_YAHOO[symbolAtual()].label : symbolAtual();
             const funilN = fn ? fn.okCount : null;
             const extra = { grade: gGrade, funil: funilN, live: 1, exp: parseInt(document.getElementById('expiracao').value) || 5, sym: symbolAtual(), fonte: fonte() };
+            // Retrato da entrada (motivos + mini-gráfico) p/ abrir no clique da notificação/linha
+            try { extra.det = snapshotEntrada(verdictKey, gFull, fn); } catch (e) { }
             // Piloto Automático: se a virada passa no gatilho, vira operação paper (conta demo)
             if (typeof pilotoQualifica === 'function' && pilotoQualifica(gGrade, funilN)) {
                 extra.paper = 1; extra.stake = pilotoStakeAtual(); extra.payout = pilotoPayout();
             }
             registrarEntrada(lbl, dirN, Math.max(long, short), enabled, extra);
+            _ultimaEntradaIdx = registro.length - 1;
             renderRegistro();
         }
         if (document.getElementById('somAtivo').checked && !treino) {
@@ -1062,7 +1066,7 @@ function atualizarDecisao() {
         const sniper = sniperEl && sniperEl.checked;
         if (ehEntrada && gGrade === 'A' && (!sniper || (fn && fn.okCount >= 5))) {
             const lbl = PARES_YAHOO[symbolAtual()] ? PARES_YAHOO[symbolAtual()].label : symbolAtual();
-            notificar(`🅰 ${verdictKey === 'CALL' ? '▲ CALL' : '▼ PUT'} — ${lbl}`, `Nível A${fn ? ' · funil ' + fn.okCount + '/6' : ''} · ${Math.max(long, short)}/${enabled} fatores · exp ${document.getElementById('expiracao').value}m`);
+            notificar(`🅰 ${verdictKey === 'CALL' ? '▲ CALL' : '▼ PUT'} — ${lbl}`, `Nível A${fn ? ' · funil ' + fn.okCount + '/6' : ''} · ${Math.max(long, short)}/${enabled} fatores · exp ${document.getElementById('expiracao').value}m`, _ultimaEntradaIdx);
         }
         ultimoVerdictSom = verdictKey;
     }

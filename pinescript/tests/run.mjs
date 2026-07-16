@@ -132,6 +132,47 @@ const filtA = await p.evaluate(() => {
 check('filtro "A e B" mostra 2 de 4 (esconde C e sem-selo)', filtA.soAB === 2, 'soAB=' + filtA.soAB);
 check('sem filtro mostra as 4', filtA.todas === 4, 'todas=' + filtA.todas);
 
+// 4.6) Detalhe da entrada: 1 clique → motivos + gráfico + horários (entrar × sair)
+const det = await p.evaluate(() => {
+  const t0 = dados[20].time, exp = 5;
+  registro = [{
+    t: t0, par: 'EUR/USD', dir: 1, score: 5, enabled: 6, exp, sym: 'EURUSD', fonte: 'sim', grade: 'A',
+    det: {
+      veredito: 'CALL', entryPrice: dados[20].close, grade: 'A', score: 82, pEst: 0.62, pLB: 0.56, pN: 40, expOp: 0.15,
+      motivos: ['amostra pequena (8 ops) — pouca confiança'],
+      fatores: [{ nome: 'Tendência', dir: 1 }, { nome: 'RSI', dir: -1 }, { nome: 'MACD', dir: 1 }],
+      funil: [{ rot: 'Regime', ok: true }, { rot: 'Confluência', ok: true }, { rot: 'Portões', ok: false }, { rot: 'Evidência', ok: true }, { rot: 'Calibração', ok: null }, { rot: 'Execução', ok: true }],
+      velas: dados.slice(0, 21).map(d => ({ time: d.time, open: d.open, high: d.high, low: d.low, close: d.close }))
+    }
+  }];
+  document.getElementById('regSoA').checked = false; renderRegistro();
+  abrirDetalheEntrada(0);
+  const modal = document.getElementById('detalheModal');
+  const p2 = n => String(n).padStart(2, '0');
+  const hEsp = d => { const x = new Date(d * 1000); return p2(x.getHours()) + ':' + p2(x.getMinutes()); };
+  return {
+    aberto: modal.style.display === 'flex',
+    hor: document.getElementById('detHorarios').textContent,
+    entrarEsp: hEsp(t0), sairEsp: hEsp(t0 + exp * 60),
+    nFatores: document.querySelectorAll('#detFatores .det-chip').length,
+    nFunil: document.querySelectorAll('#detFunil .funil-elo').length,
+    ressalva: document.getElementById('detRessalvas').textContent,
+    rowIdx: (document.querySelector('#registroBody .reg-row') || {}).dataset ? document.querySelector('#registroBody .reg-row').dataset.idx : null
+  };
+});
+check('detalhe abre no clique (modal visível)', det.aberto);
+check('horário de ENTRAR correto', det.hor.includes(det.entrarEsp), det.hor);
+check('horário de SAIR = entrada + expiração', det.hor.includes(det.sairEsp), 'esperado ' + det.sairEsp + ' em: ' + det.hor);
+check('motivos: 3 fatores em chips', det.nFatores === 3, 'nFatores=' + det.nFatores);
+check('funil: 6 elos no detalhe', det.nFunil === 6, 'nFunil=' + det.nFunil);
+await p.waitForSelector('#detGrafico canvas', { timeout: 3000 }).catch(() => {});
+check('mini-gráfico desenhado (canvas)', await p.$$eval('#detGrafico canvas', e => e.length) > 0);
+check('ressalvas do selo exibidas', /amostra pequena/.test(det.ressalva), det.ressalva);
+check('linha do Registro carrega data-idx clicável', det.rowIdx === '0', 'idx=' + det.rowIdx);
+// fecha o modal (Escape) para não interferir nos próximos testes
+await p.keyboard.press('Escape');
+check('detalhe fecha no Escape', await p.evaluate(() => document.getElementById('detalheModal').style.display === 'none'));
+
 // 4.5) Métricas de assertividade: Wilson LB penaliza amostra pequena; expectativa
 const stat = await p.evaluate(() => ({
   lbPequena: wilsonLB(5, 6), lbGrande: wilsonLB(55, 80),
