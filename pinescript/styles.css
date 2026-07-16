@@ -1780,3 +1780,13 @@ body.tem-registro #detalheModal .det-card { right: var(--reg-w); border-radius: 
     }
 }
 @media (prefers-reduced-motion: reduce) { #detalheModal .det-card { animation: none !important; } }
+
+/* ---- Meus filtros (presets salvos pelo usuário) ---- */
+.filtros-row { display: flex; gap: 6px; margin-bottom: 8px; }
+.filtros-row input[type="text"], .filtros-row select {
+    flex: 1; min-width: 0;
+    background: var(--surface-2); color: var(--ink);
+    border: 1px solid var(--hairline); border-radius: 8px;
+    padding: 7px 10px; font-size: 12.5px;
+}
+.filtros-row .btn-mini { flex: 0 0 auto; }

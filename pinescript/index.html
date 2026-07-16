@@ -202,6 +202,20 @@
                     <p class="group-note">Liga os fatores certos p/ cada regime · <strong>Auto</strong> detecta e aplica.</p>
                 </section>
 
+                <!-- Meus filtros (presets salvos pelo usuário) -->
+                <section class="control-group">
+                    <h3>💾 Meus filtros</h3>
+                    <div class="filtros-row">
+                        <input type="text" id="filtroNome" placeholder="nome do filtro (ex.: scalp EUR)" maxlength="40">
+                        <button id="btnFiltroSalvar" type="button" class="btn-mini">💾 Salvar</button>
+                    </div>
+                    <div class="filtros-row">
+                        <select id="filtrosSalvos"><option value="">— aplicar filtro salvo —</option></select>
+                        <button id="btnFiltroExcluir" type="button" class="btn-mini">🗑</button>
+                    </div>
+                    <p class="group-note">Salva TODOS os fatores, portões e tolerâncias atuais com um nome. Aplicar restaura tudo de uma vez.</p>
+                </section>
+
                 <!-- Confluência -->
                 <section class="control-group">
                     <h3>🎯 Confluência</h3>
@@ -702,6 +716,7 @@
     <script src="src/11-minimal.js"></script>
     <script src="src/12-priceaction.js"></script>
     <script src="src/13-detalhe.js"></script>
+    <script src="src/14-filtros.js"></script>
     <!-- APP:END -->
 </body>
 </html>

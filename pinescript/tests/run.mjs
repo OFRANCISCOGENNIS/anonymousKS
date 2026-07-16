@@ -202,6 +202,39 @@ check('PA bloqueia CALL longe de suporte/LTA (vira AGUARDAR 📐)', /AGUARDAR �
 check('motivo do bloqueio cita suporte/LTA e a tolerância', /suporte\/LTA/.test(paGate.motivo) && /ATR/.test(paGate.motivo), paGate.motivo);
 check('no teste da zona a CALL volta a valer', /CALL/.test(paGate.txt2), paGate.txt2);
 
+// 4.8) Meus filtros: salvar / aplicar / excluir presets do usuário
+const filtros = await p.evaluate(() => {
+  localStorage.removeItem('filtrosSalvos');
+  // estado A: MACD ligado, PA ligado com tolerância 1.2
+  document.getElementById('useMacd').checked = true;
+  document.getElementById('usePA').checked = true;
+  document.getElementById('paAtr').value = '1.2';
+  document.getElementById('filtroNome').value = 'meu scalp';
+  filtroSalvar();
+  const salvou = !!JSON.parse(localStorage.getItem('filtrosSalvos'))['meu scalp'];
+  const noSelect = [...document.querySelectorAll('#filtrosSalvos option')].some(o => o.value === 'meu scalp');
+  // muda tudo (estado B) e aplica o salvo de volta
+  document.getElementById('useMacd').checked = false;
+  document.getElementById('usePA').checked = false;
+  document.getElementById('paAtr').value = '0.3';
+  filtroAplicar('meu scalp');
+  const restaurou = document.getElementById('useMacd').checked
+    && document.getElementById('usePA').checked
+    && document.getElementById('paAtr').value === '1.2';
+  // excluir
+  document.getElementById('filtrosSalvos').value = 'meu scalp';
+  filtroExcluir();
+  const excluiu = !JSON.parse(localStorage.getItem('filtrosSalvos'))['meu scalp']
+    && ![...document.querySelectorAll('#filtrosSalvos option')].some(o => o.value === 'meu scalp');
+  // limpa o estado p/ não interferir nos próximos testes
+  document.getElementById('usePA').checked = false; document.getElementById('paAtr').value = '0.8';
+  recalcularSinaisApenas();
+  return { salvou, noSelect, restaurou, excluiu };
+});
+check('filtro salvo persiste e entra no seletor', filtros.salvou && filtros.noSelect);
+check('aplicar restaura fatores, portões e tolerâncias', filtros.restaurou);
+check('excluir remove do storage e do seletor', filtros.excluiu);
+
 // 4.5) Métricas de assertividade: Wilson LB penaliza amostra pequena; expectativa
 const stat = await p.evaluate(() => ({
   lbPequena: wilsonLB(5, 6), lbGrande: wilsonLB(55, 80),
