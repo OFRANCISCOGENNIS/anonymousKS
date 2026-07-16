@@ -52,6 +52,17 @@ function baseValue(clip: Clip, property: AnimatableProperty): number {
   }
 }
 
+/**
+ * Provider de máscara de PESSOA (remoção de fundo por IA). Registrado em
+ * runtime pelo módulo de IA (lib/ai/video-segmenter) para manter o motor puro.
+ * Recebe o elemento-fonte e devolve um canvas de máscara (alpha = pessoa).
+ */
+export type BgMaskProvider = (el: CanvasImageSource, srcW: number, srcH: number) => CanvasImageSource | null;
+let bgMaskProvider: BgMaskProvider | null = null;
+export function setBgMaskProvider(p: BgMaskProvider | null): void {
+  bgMaskProvider = p;
+}
+
 const BLEND_MAP: Record<string, GlobalCompositeOperation> = {
   normal: "source-over",
   multiply: "multiply",
@@ -143,7 +154,7 @@ function drawVisualClip(
     .join(" ");
 
   const blendOp = BLEND_MAP[clip.blendMode] ?? "source-over";
-  if (clip.mask || clip.chroma) {
+  if (clip.mask || clip.chroma || clip.bgRemove) {
     // desenha num buffer, recorta pela máscara (com feather) e compõe no palco
     const buf = getMaskBuffer(canvasW, canvasH);
     if (buf) {
@@ -163,6 +174,24 @@ function drawVisualClip(
       }
       bctx.restore();
       bctx.filter = "none";
+      // remoção de fundo por IA: máscara de pessoa aplicada com a MESMA
+      // transformação do frame (o provider é registrado pelo módulo de IA)
+      if (clip.bgRemove && bgMaskProvider) {
+        const maskEl = bgMaskProvider(d.el, d.w, d.h);
+        if (maskEl) {
+          bctx.save();
+          bctx.globalCompositeOperation = "destination-in";
+          bctx.translate(canvasW / 2 + tx, canvasH / 2 + ty);
+          if (rotation) bctx.rotate((rotation * Math.PI) / 180);
+          try {
+            bctx.drawImage(maskEl, -drawW / 2, -drawH / 2, drawW, drawH);
+          } catch {
+            /* máscara indisponível neste frame */
+          }
+          bctx.restore();
+          bctx.globalCompositeOperation = "source-over";
+        }
+      }
       if (clip.chroma) applyChromaKey(bctx, canvasW, canvasH, clip.chroma);
       if (clip.mask) paintMask(bctx, clip.mask, canvasW, canvasH);
       ctx.save();

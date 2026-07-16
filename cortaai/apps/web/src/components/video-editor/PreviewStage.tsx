@@ -9,6 +9,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Maximize2, Pause, Play, Redo2, SkipBack, SkipForward, Undo2 } from "lucide-react";
 import { drawComposite, type Drawable } from "@/lib/video-editor/engine";
+import { ensureBgVideoSegmenter } from "@/lib/ai/video-segmenter";
 import type { Clip } from "@/lib/video-editor/model";
 import { sourceObjectUrl, type MediaSource } from "@/lib/video-editor/media-registry";
 import { audioGainAt, clipAtTime, clipEndMs, projectDurationMs, sourceTimeForClip, tracksForRender } from "@/lib/video-editor/timeline-math";
@@ -182,6 +183,21 @@ export function PreviewStage() {
     ro.observe(el);
     return () => ro.disconnect();
   }, []);
+
+  // --- remoção de fundo por IA: carrega o modelo quando algum clipe usa --------
+  const needsBgSeg = useMemo(() => project.tracks.some((t) => t.clips.some((c) => c.bgRemove)), [project.tracks]);
+  useEffect(() => {
+    if (!needsBgSeg) return;
+    void ensureBgVideoSegmenter();
+    function onReady() {
+      // redesenha o frame atual assim que o modelo carregar
+      const canvas = canvasRef.current;
+      const c = canvas?.getContext("2d");
+      if (canvas && c) drawComposite(c, pw, ph, project, useVideoEditor.getState().playheadMs, resolve);
+    }
+    window.addEventListener("cortaai-bgseg-ready", onReady);
+    return () => window.removeEventListener("cortaai-bgseg-ready", onReady);
+  }, [needsBgSeg, project, pw, ph, resolve]);
 
   const fit = useMemo(() => {
     if (!stageSize) return { w: 320, h: 320 * (ph / pw) };

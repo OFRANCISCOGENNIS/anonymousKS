@@ -15,6 +15,7 @@ import { CLIP_FILTERS, OVERLAY_EFFECTS } from "@/lib/video-editor/filters";
 import { TRANSITIONS } from "@/lib/video-editor/transitions";
 import { projectDurationMs } from "@/lib/video-editor/timeline-math";
 import { registerFile } from "@/lib/video-editor/media-registry";
+import { ensureBgVideoSegmenter, isBgVideoReady } from "@/lib/ai/video-segmenter";
 import type { AnimatableProperty, BlendMode, Clip, ClipMask, Keyframe } from "@/lib/video-editor/model";
 import { useVideoEditor } from "@/store/video-editor";
 import { toast } from "@/store/toast";
@@ -371,9 +372,28 @@ export function ClipInspector() {
             </Section>
           )}
 
-          {/* chroma key (fundo verde) */}
+          {/* remoção de fundo: IA (sem tela verde) + chroma key */}
           {isVideoClip && (
-            <Section title="Tela verde (chroma key)">
+            <Section title="Remover fundo">
+              <div className="mb-2 space-y-1">
+                <Switch
+                  label="IA sem tela verde (recorta pessoas)"
+                  checked={clip.bgRemove === true}
+                  onChange={(on) => {
+                    updateClip(clip.id, { bgRemove: on || undefined });
+                    if (on && !isBgVideoReady()) {
+                      toast("Baixando a IA de recorte (~3 MB)…", {
+                        description: "O fundo some assim que o modelo carregar. Fica em cache para as próximas vezes.",
+                        important: true,
+                      });
+                    }
+                    if (on) void ensureBgVideoSegmenter();
+                  }}
+                />
+                <p className="text-[10px] leading-relaxed text-zinc-600">
+                  Rotoscopia automática por IA no seu aparelho — melhor com pessoas em destaque. Vale no preview e na exportação.
+                </p>
+              </div>
               <Switch
                 label="Ativar (para vídeos com fundo verde/azul)"
                 checked={!!clip.chroma}
