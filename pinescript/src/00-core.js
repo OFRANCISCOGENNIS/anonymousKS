@@ -100,7 +100,7 @@ const NUM_RANGES = {
     rsiSobrevenda: { min: 1, max: 50 }, rsiSobrecompra: { min: 50, max: 99 },
     estruturaLookback: { min: 2, max: 100 }, cooldownVelas: { min: 0, max: 50 },
     minScore: { min: 1, max: 7 }, confJanela: { min: 1, max: 20 }, fluxoJanela: { min: 2, max: 100 },
-    srAtr: { min: 0.1, max: 3, float: 1 }, numCandles: { min: 20, max: 1000 },
+    srAtr: { min: 0.1, max: 3, float: 1 }, paAtr: { min: 0.1, max: 3, float: 1 }, numCandles: { min: 20, max: 1000 },
     volatility: { min: 0.5, max: 10, float: 1 }, payout: { min: 1, max: 500 },
     newsJanela: { min: 1, max: 240 }, iaMinVal: { min: 3, max: 30 }
 };

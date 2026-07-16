@@ -218,6 +218,8 @@ function recomputarSinais() {
     const useSessao = document.getElementById('useSessao').checked;
     const useSR = document.getElementById('useSR').checked;
     const srK = lerNum('srAtr');
+    const usePA = document.getElementById('usePA').checked;
+    const paK = lerNum('paAtr');
     const useMacd = document.getElementById('useMacd').checked;
     const useBollinger = document.getElementById('useBollinger').checked;
     const usePeso = document.getElementById('usePesoIA').checked;
@@ -341,6 +343,20 @@ function recomputarSinais() {
 
         if (i === closes.length - 1) {
             const vsLast = useSR ? vetoSR(piv, i, closes[i], atrValues[i], srK) : { vetoLong: false, vetoShort: false };
+            // Filtro Price Action: a entrada só vale no TESTE de uma zona — CALL
+            // perto de suporte/LTA, PUT perto de resistência/LTB (≤ paK × ATR).
+            let paOkLong = true, paOkShort = true;
+            if (usePA && typeof calcularLT === 'function') {
+                const pv = piv || acharPivotsSR();
+                const atrV = atrValues[i] || closes[i] * 0.002;
+                const tol = atrV * paK;
+                const lta = calcularLT(pv.sup, closes.length, 'LTA', 0.35, atrV);
+                const ltb = calcularLT(pv.res, closes.length, 'LTB', 0.35, atrV);
+                const nivSup = pv.sup.map(p => p.price); if (lta) nivSup.push(lta.atual);
+                const nivRes = pv.res.map(p => p.price); if (ltb) nivRes.push(ltb.atual);
+                paOkLong = nivSup.some(pr => Math.abs(closes[i] - pr) <= tol);
+                paOkShort = nivRes.some(pr => Math.abs(closes[i] - pr) <= tol);
+            }
             confLive = {
                 long: longScore, short: shortScore, enabled: enabledCount,
                 longW, shortW, usePeso,
@@ -348,6 +364,7 @@ function recomputarSinais() {
                 minScore, confMode,
                 htfDir: useHtf ? htfTrend[i] : 0, useHtf,
                 srVetoLong: vsLast.vetoLong, srVetoShort: vsLast.vetoShort, useSR,
+                usePA, paOkLong, paOkShort,
                 sessao: sessaoDe(dados[i].time), sessaoForte: sessaoForte(dados[i].time), useSessao,
                 fatores: [
                     { nome: 'Tendência', on: useTendencia, dir: tL ? 1 : tS ? -1 : 0 },
@@ -359,7 +376,10 @@ function recomputarSinais() {
                     { nome: 'Correlação', on: useCorrelacao, dir: corrDir },
                     { nome: 'Padrão', on: usePadrao, dir: pat.up ? 1 : pat.down ? -1 : 0 },
                     { nome: 'MACD', on: useMacd, dir: xL ? 1 : xS ? -1 : 0 },
-                    { nome: 'Bollinger', on: useBollinger, dir: bL ? 1 : bS ? -1 : 0 }
+                    { nome: 'Bollinger', on: useBollinger, dir: bL ? 1 : bS ? -1 : 0 },
+                    // chip informativo do filtro PA (portão, não entra na pontuação):
+                    // ▲ = zona de suporte/LTA perto · ▼ = resistência/LTB · — = longe
+                    { nome: 'PA zona', on: usePA, dir: (paOkLong && paOkShort) ? 2 : paOkLong ? 1 : paOkShort ? -1 : 0 }
                 ]
             };
         }

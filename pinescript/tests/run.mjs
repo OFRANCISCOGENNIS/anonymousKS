@@ -173,6 +173,35 @@ check('linha do Registro carrega data-idx clicável', det.rowIdx === '0', 'idx='
 await p.keyboard.press('Escape');
 check('detalhe fecha no Escape', await p.evaluate(() => document.getElementById('detalheModal').style.display === 'none'));
 
+// 4.7) Filtro Price Action (LTA/LTB + S/R): portão que só deixa entrar no teste da zona
+const paChip = await p.evaluate(() => {
+  const antes = confLive.enabled;
+  document.getElementById('usePA').checked = true; recalcularSinaisApenas();
+  return {
+    on: confLive.usePA, enabledIgual: confLive.enabled === antes,
+    chip: [...document.querySelectorAll('.decision-chip')].some(e => /PA zona/.test(e.textContent)),
+    temFlags: typeof confLive.paOkLong === 'boolean' && typeof confLive.paOkShort === 'boolean'
+  };
+});
+check('filtro PA liga: chip "PA zona" aparece', paChip.on && paChip.chip);
+check('filtro PA é portão (não altera a pontuação de fatores)', paChip.enabledIgual);
+check('confLive carrega paOkLong/paOkShort', paChip.temFlags);
+const paGate = await p.evaluate(() => {
+  const bak = confLive;
+  document.getElementById('useNewsFilter').checked = false;
+  confLive = Object.assign({}, confLive, { long: 6, short: 0, enabled: 6, minScore: 3, confMode: 'score', usePA: true, paOkLong: false, paOkShort: true });
+  atualizarDecisao();
+  const txt = document.getElementById('decisionVerdict').textContent;
+  const motivo = document.getElementById('decisionReason').textContent;
+  confLive.paOkLong = true; atualizarDecisao();
+  const txt2 = document.getElementById('decisionVerdict').textContent;
+  confLive = bak; document.getElementById('usePA').checked = false; recalcularSinaisApenas();
+  return { txt, motivo, txt2 };
+});
+check('PA bloqueia CALL longe de suporte/LTA (vira AGUARDAR 📐)', /AGUARDAR 📐/.test(paGate.txt), paGate.txt);
+check('motivo do bloqueio cita suporte/LTA e a tolerância', /suporte\/LTA/.test(paGate.motivo) && /ATR/.test(paGate.motivo), paGate.motivo);
+check('no teste da zona a CALL volta a valer', /CALL/.test(paGate.txt2), paGate.txt2);
+
 // 4.5) Métricas de assertividade: Wilson LB penaliza amostra pequena; expectativa
 const stat = await p.evaluate(() => ({
   lbPequena: wilsonLB(5, 6), lbGrande: wilsonLB(55, 80),

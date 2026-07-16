@@ -100,7 +100,7 @@ const NUM_RANGES = {
     rsiSobrevenda: { min: 1, max: 50 }, rsiSobrecompra: { min: 50, max: 99 },
     estruturaLookback: { min: 2, max: 100 }, cooldownVelas: { min: 0, max: 50 },
     minScore: { min: 1, max: 7 }, confJanela: { min: 1, max: 20 }, fluxoJanela: { min: 2, max: 100 },
-    srAtr: { min: 0.1, max: 3, float: 1 }, numCandles: { min: 20, max: 1000 },
+    srAtr: { min: 0.1, max: 3, float: 1 }, paAtr: { min: 0.1, max: 3, float: 1 }, numCandles: { min: 20, max: 1000 },
     volatility: { min: 0.5, max: 10, float: 1 }, payout: { min: 1, max: 500 },
     newsJanela: { min: 1, max: 240 }, iaMinVal: { min: 3, max: 30 }
 };
@@ -531,6 +531,8 @@ function recomputarSinais() {
     const useSessao = document.getElementById('useSessao').checked;
     const useSR = document.getElementById('useSR').checked;
     const srK = lerNum('srAtr');
+    const usePA = document.getElementById('usePA').checked;
+    const paK = lerNum('paAtr');
     const useMacd = document.getElementById('useMacd').checked;
     const useBollinger = document.getElementById('useBollinger').checked;
     const usePeso = document.getElementById('usePesoIA').checked;
@@ -654,6 +656,20 @@ function recomputarSinais() {
 
         if (i === closes.length - 1) {
             const vsLast = useSR ? vetoSR(piv, i, closes[i], atrValues[i], srK) : { vetoLong: false, vetoShort: false };
+            // Filtro Price Action: a entrada só vale no TESTE de uma zona — CALL
+            // perto de suporte/LTA, PUT perto de resistência/LTB (≤ paK × ATR).
+            let paOkLong = true, paOkShort = true;
+            if (usePA && typeof calcularLT === 'function') {
+                const pv = piv || acharPivotsSR();
+                const atrV = atrValues[i] || closes[i] * 0.002;
+                const tol = atrV * paK;
+                const lta = calcularLT(pv.sup, closes.length, 'LTA', 0.35, atrV);
+                const ltb = calcularLT(pv.res, closes.length, 'LTB', 0.35, atrV);
+                const nivSup = pv.sup.map(p => p.price); if (lta) nivSup.push(lta.atual);
+                const nivRes = pv.res.map(p => p.price); if (ltb) nivRes.push(ltb.atual);
+                paOkLong = nivSup.some(pr => Math.abs(closes[i] - pr) <= tol);
+                paOkShort = nivRes.some(pr => Math.abs(closes[i] - pr) <= tol);
+            }
             confLive = {
                 long: longScore, short: shortScore, enabled: enabledCount,
                 longW, shortW, usePeso,
@@ -661,6 +677,7 @@ function recomputarSinais() {
                 minScore, confMode,
                 htfDir: useHtf ? htfTrend[i] : 0, useHtf,
                 srVetoLong: vsLast.vetoLong, srVetoShort: vsLast.vetoShort, useSR,
+                usePA, paOkLong, paOkShort,
                 sessao: sessaoDe(dados[i].time), sessaoForte: sessaoForte(dados[i].time), useSessao,
                 fatores: [
                     { nome: 'Tendência', on: useTendencia, dir: tL ? 1 : tS ? -1 : 0 },
@@ -672,7 +689,10 @@ function recomputarSinais() {
                     { nome: 'Correlação', on: useCorrelacao, dir: corrDir },
                     { nome: 'Padrão', on: usePadrao, dir: pat.up ? 1 : pat.down ? -1 : 0 },
                     { nome: 'MACD', on: useMacd, dir: xL ? 1 : xS ? -1 : 0 },
-                    { nome: 'Bollinger', on: useBollinger, dir: bL ? 1 : bS ? -1 : 0 }
+                    { nome: 'Bollinger', on: useBollinger, dir: bL ? 1 : bS ? -1 : 0 },
+                    // chip informativo do filtro PA (portão, não entra na pontuação):
+                    // ▲ = zona de suporte/LTA perto · ▼ = resistência/LTB · — = longe
+                    { nome: 'PA zona', on: usePA, dir: (paOkLong && paOkShort) ? 2 : paOkLong ? 1 : paOkShort ? -1 : 0 }
                 ]
             };
         }
@@ -1758,6 +1778,20 @@ function atualizarDecisao() {
         v.className = 'decision-verdict verdict-wait';
         r.textContent = `CALL ${long}/${enabled} · PUT ${short}/${enabled} · mín. ${alvo}`;
         cor = 'var(--ink-muted)';
+    }
+
+    // Filtro Price Action (LTA/LTB + S/R): a entrada só vale no TESTE de uma
+    // zona — CALL perto de suporte/LTA, PUT perto de resistência/LTB. Longe da
+    // zona, o veredito vira AGUARDAR (sem som, notificação ou registro).
+    if (confLive.usePA && (verdictKey === 'CALL' || verdictKey === 'PUT')) {
+        const paOk = verdictKey === 'CALL' ? confLive.paOkLong : confLive.paOkShort;
+        if (!paOk) {
+            v.textContent = 'AGUARDAR 📐';
+            v.className = 'decision-verdict verdict-wait';
+            r.textContent = `📐 PA: preço longe de ${verdictKey === 'CALL' ? 'suporte/LTA' : 'resistência/LTB'} — espere o teste da zona (≤ ${lerNum('paAtr')} ATR)`;
+            cor = 'var(--ink-muted)';
+            verdictKey = 'PA';
+        }
     }
     if (painel) painel.style.borderLeftColor = cor;
 
@@ -3771,7 +3805,7 @@ document.addEventListener('click', function desbloquear() {
 document.getElementById('newsSoMoeda').addEventListener('change', renderNoticias);
 // Confluência: mudar modo/pontuação/janela recalcula os sinais na hora
 ['confMode', 'minScore', 'confJanela', 'useFluxo', 'fluxoJanela',
-    'usePadrao', 'useSessao', 'useSR', 'srAtr', 'usePesoIA', 'useGrade', 'useMacd', 'useBollinger'].forEach(id =>
+    'usePadrao', 'useSessao', 'useSR', 'srAtr', 'usePA', 'paAtr', 'usePesoIA', 'useGrade', 'useMacd', 'useBollinger'].forEach(id =>
     document.getElementById(id).addEventListener('change', recalcularSinaisApenas));
 // Correlação/pares de referência: recarrega os pares e recalcula
 ['useCorrelacao', 'refPairs'].forEach(id =>

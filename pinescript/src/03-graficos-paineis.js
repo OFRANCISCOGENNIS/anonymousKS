@@ -1003,6 +1003,20 @@ function atualizarDecisao() {
         r.textContent = `CALL ${long}/${enabled} · PUT ${short}/${enabled} · mín. ${alvo}`;
         cor = 'var(--ink-muted)';
     }
+
+    // Filtro Price Action (LTA/LTB + S/R): a entrada só vale no TESTE de uma
+    // zona — CALL perto de suporte/LTA, PUT perto de resistência/LTB. Longe da
+    // zona, o veredito vira AGUARDAR (sem som, notificação ou registro).
+    if (confLive.usePA && (verdictKey === 'CALL' || verdictKey === 'PUT')) {
+        const paOk = verdictKey === 'CALL' ? confLive.paOkLong : confLive.paOkShort;
+        if (!paOk) {
+            v.textContent = 'AGUARDAR 📐';
+            v.className = 'decision-verdict verdict-wait';
+            r.textContent = `📐 PA: preço longe de ${verdictKey === 'CALL' ? 'suporte/LTA' : 'resistência/LTB'} — espere o teste da zona (≤ ${lerNum('paAtr')} ATR)`;
+            cor = 'var(--ink-muted)';
+            verdictKey = 'PA';
+        }
+    }
     if (painel) painel.style.borderLeftColor = cor;
 
     // Selo de qualidade A/B/C — amarra confluência + IA + HTF + S/R + sessão.

@@ -345,7 +345,7 @@ document.addEventListener('click', function desbloquear() {
 document.getElementById('newsSoMoeda').addEventListener('change', renderNoticias);
 // Confluência: mudar modo/pontuação/janela recalcula os sinais na hora
 ['confMode', 'minScore', 'confJanela', 'useFluxo', 'fluxoJanela',
-    'usePadrao', 'useSessao', 'useSR', 'srAtr', 'usePesoIA', 'useGrade', 'useMacd', 'useBollinger'].forEach(id =>
+    'usePadrao', 'useSessao', 'useSR', 'srAtr', 'usePA', 'paAtr', 'usePesoIA', 'useGrade', 'useMacd', 'useBollinger'].forEach(id =>
     document.getElementById(id).addEventListener('change', recalcularSinaisApenas));
 // Correlação/pares de referência: recarrega os pares e recalcula
 ['useCorrelacao', 'refPairs'].forEach(id =>

@@ -222,6 +222,8 @@
                     <label><input type="checkbox" id="useSessao"> <span>Só sessões fortes (Londres / Nova York)</span></label>
                     <label><input type="checkbox" id="useSR"> <span>Vetar entradas coladas em Suporte/Resistência</span></label>
                     <label>Distância mín. de S/R (× ATR) <input type="number" id="srAtr" value="0.5" min="0.1" max="3" step="0.1"></label>
+                    <label><input type="checkbox" id="usePA"> <span>Filtro Price Action (só entrar no TESTE de LTA/LTB ou S/R)</span></label>
+                    <label>Distância máx. da zona (× ATR) <input type="number" id="paAtr" value="0.8" min="0.1" max="3" step="0.1"></label>
                     <label><input type="checkbox" id="usePesoIA"> <span>Pontuação dinâmica (pesos por regime de mercado × acerto IA)</span></label>
                     <label><input type="checkbox" id="useGrade" checked> <span>Selo de qualidade A/B/C no veredito</span></label>
                 </section>
@@ -625,6 +627,7 @@
                             <li>O backtest roda num <strong>Web Worker</strong> (segundo plano), então a tela não trava durante a otimização.</li>
                             <li><strong>🕵️ Agentes de Estudo</strong> (opcional): com o estudo contínuo ativado, 4 agentes trabalham sozinhos — 🧪 reotimiza as moedas em rodízio, 🔭 aplica os parâmetros certos quando o regime vira, ⚖️ audita a calibração e 🧠 mede os fatores. O painel mostra o que cada um encontrou.</li>
                             <li><strong>🧭 Price Action — Entradas</strong>: LTA/LTB (2+ pivôs na direção; 3+ toques validam a linha), zonas de confluência (S/R + fib + LT a ≤0.5 ATR entre si), alinhamento micro (estrutura HH/HL × LH/LL do TF) × macro (TF maior/EMA200) e vela de confirmação. Leitura descritiva: a entrada de qualidade nasce no TESTE de uma zona — nunca "no meio do nada".</li>
+                            <li><strong>📐 Filtro Price Action</strong> (portão, nos controles): com ele ligado, o veredito CALL só vale com o preço a ≤ X ATR de um suporte ou da LTA; PUT só perto de resistência ou da LTB. Longe da zona vira <em>AGUARDAR 📐</em> — sem som, notificação ou registro. O chip <em>PA zona</em> mostra o lado da zona mais próxima.</li>
                             <li><strong>📊 Ferramentas Pro</strong> (estilo Profit): <strong>Volume Profile</strong> com POC/área de valor, <strong>níveis no gráfico</strong> (Fibonacci automático + S/R) e <strong>Book de Ofertas + Times &amp; Trades</strong> ao vivo (profundidade e fita reais da Binance, com pressão compra×venda e agressões grandes em destaque).</li>
                             <li><strong>🎮 Piloto Automático</strong> (paper trading): opera sozinho numa <strong>conta DEMO simulada</strong> sobre dados reais — registra as entradas que passam no gatilho (nível A / funil ≥5) como operações com stake e acompanha saldo, win rate e drawdown. <strong>Não toca em corretora</strong> (a Binomo bloqueia iframe e proíbe bots); a operação real, se você quiser, é manual.</li>
                         </ul>
