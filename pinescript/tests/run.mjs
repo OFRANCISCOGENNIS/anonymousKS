@@ -463,6 +463,40 @@ check('linha do Registro ganha o badge 📝', bkp.badge);
 check('reabrir o detalhe mostra nota e tags ativas', bkp.notaNaTela && bkp.tagsOn === 2);
 check('relatório inclui a seção Diário da semana', bkp.noRelatorio);
 
+// 4.9.7) Ícones informativos: clique → popover explicando (painel/métrica/fator/elo)
+const infos = await p.evaluate(() => {
+  const clique = el => { el.dispatchEvent(new MouseEvent('click', { bubbles: true, clientX: 300, clientY: 300 })); };
+  // emoji do título do painel principal
+  const ico = document.querySelector('#chartPanel .ico-info');
+  let popPainel = null;
+  if (ico) { clique(ico); popPainel = document.getElementById('infoPop'); }
+  const painelOk = ico && popPainel && /Gráfico principal/.test(popPainel.textContent);
+  const naoRecolheu = !document.querySelector('#chartPanel').classList.contains('recolhido');
+  // tile da topbar
+  clique(document.querySelector('.qo-stat'));
+  const popStat = document.getElementById('infoPop');
+  const statOk = popStat && /Mercado Atual/.test(popStat.textContent) && /abrir Decisão/.test(popStat.textContent);
+  // chip de fator
+  const chip = document.querySelector('#decisionChips .decision-chip');
+  let chipOk = false;
+  if (chip) { clique(chip); const pp = document.getElementById('infoPop'); chipOk = !!pp && pp.textContent.length > 40; }
+  // elo do funil
+  const elo = document.querySelector('.funil-elo');
+  let eloOk = false;
+  if (elo) { clique(elo); const pp = document.getElementById('infoPop'); eloOk = !!pp && /Elo:/.test(pp.textContent); }
+  // Escape fecha
+  document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+  const fechou = !document.getElementById('infoPop');
+  const qtdIcones = document.querySelectorAll('.ico-info').length;
+  return { painelOk, naoRecolheu, statOk, chipOk, eloOk, fechou, qtdIcones };
+});
+check('emoji do painel → popover com a explicação (sem recolher o card)', infos.painelOk && infos.naoRecolheu);
+check('tile da topbar → popover com ação "abrir Decisão"', infos.statOk);
+check('chip de fator → popover explicativo', infos.chipOk);
+check('elo do funil → popover "Elo:"', infos.eloOk);
+check('Escape fecha o popover', infos.fechou);
+check('ícones clicáveis nos títulos (10+ painéis)', infos.qtdIcones >= 10, 'n=' + infos.qtdIcones);
+
 // 4.10) Padrões de preço (Fase 2): doji, harami, CHoCH, topo/fundo duplo, triângulo
 const pads = await p.evaluate(() => {
   const doji = ehDoji(10, 10.5, 9.5, 10.02) && !ehDoji(10, 10.5, 9.5, 10.4);

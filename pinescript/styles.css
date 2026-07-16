@@ -1983,3 +1983,21 @@ body::before {
 /* ---- Botões de conserto em 1 clique no log dos agentes ---- */
 .ag-fix { font-size: 11px; padding: 1px 8px; margin-left: 4px; border-color: rgba(34, 211, 238, 0.45); color: var(--neon-1, var(--accent)); white-space: nowrap; }
 .ag-fix:hover { background: rgba(34, 211, 238, 0.12); }
+
+/* ---- Popover de informação (clique nos ícones) ---- */
+#infoPop {
+    position: fixed; z-index: 1200; max-width: 320px;
+    background: var(--surface); border: 1px solid rgba(139, 92, 246, 0.45);
+    border-radius: 12px; padding: 12px 14px;
+    box-shadow: 0 16px 44px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(34, 211, 238, 0.12);
+    animation: infoPopIn 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+}
+@keyframes infoPopIn { from { transform: translateY(6px) scale(0.97); opacity: 0; } to { transform: none; opacity: 1; } }
+#infoPop .ip-tit { font-size: 13px; font-weight: 800; color: var(--ink); margin-bottom: 6px; }
+#infoPop .ip-corpo { font-size: 12.5px; color: var(--ink-2); line-height: 1.5; }
+#infoPop .ip-corpo em { color: var(--neon-1); font-style: normal; }
+#infoPop .ip-acao { margin-top: 10px; width: 100%; }
+.ico-info { cursor: pointer; transition: transform 0.15s, filter 0.15s; display: inline-block; }
+.ico-info:hover { transform: scale(1.25); filter: drop-shadow(0 0 8px rgba(34, 211, 238, 0.6)); }
+.qo-stat, #decisionChips .decision-chip, .funil-elo { cursor: pointer; }
+@media (prefers-reduced-motion: reduce) { #infoPop { animation: none; } .ico-info:hover { transform: none; } }
