@@ -20,6 +20,12 @@ Private mDifCondNu As Double ' COND NU: dif ABSOLUTA tolerada (CONFIG DIF_ABS_CO
 Private mDifAbsCabo As Double ' familias DIF_ABS_FAMILIAS: dif ABSOLUTA tolerada
 Private mFamDifAbs As Object ' tokens normalizados das familias com dif absoluta
 
+' Buffer de escrita da aba ALERTA CRITICO (perf: as ~10 escritas de celula por
+' alerta viram 1 unica atribuicao de Range no final). Transposto (col, linha)
+' porque ReDim Preserve so cresce a ULTIMA dimensao.
+Private mAlBuf() As Variant
+Private mAlCap As Long
+
 ' Resultado da avaliacao de uma linha SAP x PRJ. Fonte UNICA da regra de
 ' aderencia: alimenta tanto o calculo do veredito (loop 1) quanto a
 ' exibicao de SIT MAT/APROVACAO/MOTIVO (loop 2) em ProcessarSAPxPRJ.
@@ -274,6 +280,7 @@ Public Sub GerarInventario()
     wb.Worksheets("SUBSTITUICOES").Delete
     wb.Worksheets("PRECO UNITARIO").Delete
     wb.Worksheets("RANKING DE RISCO").Delete
+    wb.Worksheets("DIAGNOSTICO BASE").Delete
     On Error GoTo ErrHandler
     Application.DisplayAlerts = True
 
@@ -310,6 +317,10 @@ Public Sub GerarInventario()
 
     mStep = "ALERTA CRITICO" : tt = Timer : On Error Resume Next : Err.Clear
     Call ProcessarAlertaCritico(wsBase, wsAlertaC)
+    FimEtapa Err.Number, Err.Description, mStep, tt : On Error GoTo ErrHandler
+
+    mStep = "DIAGNOSTICO BASE" : tt = Timer : On Error Resume Next : Err.Clear
+    Call ProcessarDiagnosticoBase(wsBase, wb)
     FimEtapa Err.Number, Err.Description, mStep, tt : On Error GoTo ErrHandler
 
     mStep = "RANKING DE RISCO" : tt = Timer : On Error Resume Next : Err.Clear
@@ -353,6 +364,7 @@ Public Sub GerarInventario()
            "  - PRECO UNITARIO (faixa MIN/MAX)" & vbCrLf & _
            "  - ALERTA CRITICO" & vbCrLf & _
            "  - RANKING DE RISCO (score por obra)" & vbCrLf & _
+           "  - DIAGNOSTICO BASE (saude dos dados 0-100)" & vbCrLf & _
            "  - CONFIG / HISTORICO (parametros e evolucao)" & vbCrLf & vbCrLf & _
            "Base: " & wsBase.Name
     If mFalhas <> "" Then
@@ -1696,11 +1708,16 @@ Private Sub ProcessarAlertaCritico(wsBase As Worksheet, ws As Worksheet)
     Dim refCol As Long : refCol = idxPep4 : If refCol = 0 Then refCol = 1
     Dim lastRow As Long
     lastRow = wsBase.Cells(wsBase.Rows.Count, refCol).End(xlUp).Row
-    If lastRow < 2 Then GoTo Finaliza2
+    If lastRow < 2 Then outRow = 2 : GoTo Finaliza2
 
     Dim d As Variant
     d = wsBase.Range(wsBase.Cells(2, 1), wsBase.Cells(lastRow, lastC)).Value
     Dim n As Long : n = lastRow - 1
+
+    ' Saida bufferizada (perf): alertas acumulados em memoria via AlertaCel e
+    ' escritos na planilha numa unica atribuicao em Finaliza2
+    mAlCap = 4 * n + 256
+    ReDim mAlBuf(1 To 11, 1 To mAlCap)
 
     Dim p4pep3b  As Object : Set p4pep3b = CreateObject("Scripting.Dictionary")
     Dim p4uc     As Object : Set p4uc    = CreateObject("Scripting.Dictionary")
@@ -1745,22 +1762,22 @@ Private Sub ProcessarAlertaCritico(wsBase As Worksheet, ws As Worksheet)
     Dim kk As Variant
     For Each kk In p4pep3b.Keys
         If p4odi(kk) And Not ucNzP4.Exists(kk) Then
-            ws.Cells(outRow, 1).Value = "ODI SEM UC"
-            ws.Cells(outRow, 2).Value = p4pep3b(kk)
-            ws.Cells(outRow, 3).Value = kk
+            AlertaCel outRow, 1, "ODI SEM UC"
+            AlertaCel outRow, 2, p4pep3b(kk)
+            AlertaCel outRow, 3, kk
             If p4uc.Exists(kk) Then
-                ws.Cells(outRow, 11).Value = "ODI (PEP .I) com TODAS as UC zeradas (MAT LIB SAP = 0)"
+                AlertaCel outRow, 11, "ODI (PEP .I) com TODAS as UC zeradas (MAT LIB SAP = 0)"
             Else
-                ws.Cells(outRow, 11).Value = "ODI (PEP .I) sem nenhum item TIPO=UC"
+                AlertaCel outRow, 11, "ODI (PEP .I) sem nenhum item TIPO=UC"
             End If
             outRow = outRow + 1
         End If
         ' ODI sem nenhum material COM
         If p4odi(kk) And Not p4com.Exists(kk) Then
-            ws.Cells(outRow, 1).Value = "ODI SEM COM"
-            ws.Cells(outRow, 2).Value = p4pep3b(kk)
-            ws.Cells(outRow, 3).Value = kk
-            ws.Cells(outRow, 11).Value = "ODI (PEP .I) sem nenhum material TIPO=COM"
+            AlertaCel outRow, 1, "ODI SEM COM"
+            AlertaCel outRow, 2, p4pep3b(kk)
+            AlertaCel outRow, 3, kk
+            AlertaCel outRow, 11, "ODI (PEP .I) sem nenhum material TIPO=COM"
             outRow = outRow + 1
         End If
     Next kk
@@ -1769,10 +1786,10 @@ Private Sub ProcessarAlertaCritico(wsBase As Worksheet, ws As Worksheet)
     Dim kP3 As Variant
     For Each kP3 In pep3All.Keys
         If Not pep3UCb.Exists(kP3) Then
-            ws.Cells(outRow, 1).Value = "PEP SEM UC"
-            ws.Cells(outRow, 2).Value = kP3
-            ws.Cells(outRow, 3).Value = pep3All(kP3)
-            ws.Cells(outRow, 11).Value = "PEP3 sem nenhum item TIPO=UC cadastrado"
+            AlertaCel outRow, 1, "PEP SEM UC"
+            AlertaCel outRow, 2, kP3
+            AlertaCel outRow, 3, pep3All(kP3)
+            AlertaCel outRow, 11, "PEP3 sem nenhum item TIPO=UC cadastrado"
             outRow = outRow + 1
         End If
     Next kP3
@@ -1792,28 +1809,28 @@ Private Sub ProcessarAlertaCritico(wsBase As Worksheet, ws As Worksheet)
         If pep4 = "" Then GoTo ProxLinha2
 
         If (Right(pep4, 2) = ".M" Or InStr(pep4, ".M.") > 0) And InStr(famN, "POSTE") > 0 Then
-            ws.Cells(outRow, 1).Value = "POSTE EM PEP .M"
-            ws.Cells(outRow, 2).Value = pep3
-            ws.Cells(outRow, 3).Value = pep4
-            ws.Cells(outRow, 4).Value = codMat
-            ws.Cells(outRow, 5).Value = descMat
-            ws.Cells(outRow, 6).Value = familia
-            ws.Cells(outRow, 7).Value = valor
-            ws.Cells(outRow, 8).Value = qtd
-            ws.Cells(outRow, 11).Value = "Poste em PEP4 com sufixo .M (ODM)"
+            AlertaCel outRow, 1, "POSTE EM PEP .M"
+            AlertaCel outRow, 2, pep3
+            AlertaCel outRow, 3, pep4
+            AlertaCel outRow, 4, codMat
+            AlertaCel outRow, 5, descMat
+            AlertaCel outRow, 6, familia
+            AlertaCel outRow, 7, valor
+            AlertaCel outRow, 8, qtd
+            AlertaCel outRow, 11, "Poste em PEP4 com sufixo .M (ODM)"
             outRow = outRow + 1
         End If
 
         If (Right(pep4, 2) = ".S" Or InStr(pep4, ".S.") > 0) And InStr(famN, "POSTE") > 0 Then
-            ws.Cells(outRow, 1).Value = "POSTE EM PEP .S"
-            ws.Cells(outRow, 2).Value = pep3
-            ws.Cells(outRow, 3).Value = pep4
-            ws.Cells(outRow, 4).Value = codMat
-            ws.Cells(outRow, 5).Value = descMat
-            ws.Cells(outRow, 6).Value = familia
-            ws.Cells(outRow, 7).Value = valor
-            ws.Cells(outRow, 8).Value = qtd
-            ws.Cells(outRow, 11).Value = "Poste em PEP4 com sufixo .S (ODS)"
+            AlertaCel outRow, 1, "POSTE EM PEP .S"
+            AlertaCel outRow, 2, pep3
+            AlertaCel outRow, 3, pep4
+            AlertaCel outRow, 4, codMat
+            AlertaCel outRow, 5, descMat
+            AlertaCel outRow, 6, familia
+            AlertaCel outRow, 7, valor
+            AlertaCel outRow, 8, qtd
+            AlertaCel outRow, 11, "Poste em PEP4 com sufixo .S (ODS)"
             outRow = outRow + 1
         End If
 
@@ -1840,26 +1857,26 @@ Private Sub ProcessarAlertaCritico(wsBase As Worksheet, ws As Worksheet)
             End If
         End If
         If (odTp = "ODI" Or odTp = "ODM" Or odTp = "ODS") And qtd < 0 And codMat <> "" Then
-            ws.Cells(outRow, 1).Value = "MATERIAL NEGATIVO"
-            ws.Cells(outRow, 2).Value = pep3
-            ws.Cells(outRow, 3).Value = pep4
-            ws.Cells(outRow, 4).Value = codMat
-            ws.Cells(outRow, 5).Value = descMat
-            ws.Cells(outRow, 6).Value = familia
-            ws.Cells(outRow, 7).Value = valor
-            ws.Cells(outRow, 8).Value = qtd
-            ws.Cells(outRow, 11).Value = "Material NEGATIVO em PEP " & odTp & " (esperado positivo)"
+            AlertaCel outRow, 1, "MATERIAL NEGATIVO"
+            AlertaCel outRow, 2, pep3
+            AlertaCel outRow, 3, pep4
+            AlertaCel outRow, 4, codMat
+            AlertaCel outRow, 5, descMat
+            AlertaCel outRow, 6, familia
+            AlertaCel outRow, 7, valor
+            AlertaCel outRow, 8, qtd
+            AlertaCel outRow, 11, "Material NEGATIVO em PEP " & odTp & " (esperado positivo)"
             outRow = outRow + 1
         ElseIf odTp = "ODD" And qtd > 0 And codMat <> "" Then
-            ws.Cells(outRow, 1).Value = "MATERIAL POSITIVO EM ODD"
-            ws.Cells(outRow, 2).Value = pep3
-            ws.Cells(outRow, 3).Value = pep4
-            ws.Cells(outRow, 4).Value = codMat
-            ws.Cells(outRow, 5).Value = descMat
-            ws.Cells(outRow, 6).Value = familia
-            ws.Cells(outRow, 7).Value = valor
-            ws.Cells(outRow, 8).Value = qtd
-            ws.Cells(outRow, 11).Value = "Material POSITIVO em PEP ODD (esperado negativo / desmonte)"
+            AlertaCel outRow, 1, "MATERIAL POSITIVO EM ODD"
+            AlertaCel outRow, 2, pep3
+            AlertaCel outRow, 3, pep4
+            AlertaCel outRow, 4, codMat
+            AlertaCel outRow, 5, descMat
+            AlertaCel outRow, 6, familia
+            AlertaCel outRow, 7, valor
+            AlertaCel outRow, 8, qtd
+            AlertaCel outRow, 11, "Material POSITIVO em PEP ODD (esperado negativo / desmonte)"
             outRow = outRow + 1
         End If
 
@@ -1871,39 +1888,39 @@ Private Sub ProcessarAlertaCritico(wsBase As Worksheet, ws As Worksheet)
                     Dim tolSub As Double : tolSub = CfgD("TOL_SUBVAL", 0.9)
                     Dim minDiv As Double : minDiv = CfgD("MIN_DIVERG_RS", 100)
                     If refP > 0 And unit < refP * tolSub And (refP - unit) * qtd >= minDiv Then
-                        ws.Cells(outRow, 1).Value = "UC SUBVALORIZADO"
-                        ws.Cells(outRow, 2).Value = pep3
-                        ws.Cells(outRow, 3).Value = pep4
-                        ws.Cells(outRow, 4).Value = codMat
-                        ws.Cells(outRow, 5).Value = descMat
-                        ws.Cells(outRow, 6).Value = familia
-                        ws.Cells(outRow, 7).Value = valor
-                        ws.Cells(outRow, 8).Value = qtd
-                        ws.Cells(outRow, 9).Value = unit
-                        ws.Cells(outRow, 10).Value = refP
-                        ws.Cells(outRow, 11).Value = "PU " & Format(unit, "#,##0.00") & " abaixo de " & Format(tolSub, "0%") & " da referencia (" & Format(refP, "#,##0.00") & ")"
+                        AlertaCel outRow, 1, "UC SUBVALORIZADO"
+                        AlertaCel outRow, 2, pep3
+                        AlertaCel outRow, 3, pep4
+                        AlertaCel outRow, 4, codMat
+                        AlertaCel outRow, 5, descMat
+                        AlertaCel outRow, 6, familia
+                        AlertaCel outRow, 7, valor
+                        AlertaCel outRow, 8, qtd
+                        AlertaCel outRow, 9, unit
+                        AlertaCel outRow, 10, refP
+                        AlertaCel outRow, 11, "PU " & Format(unit, "#,##0.00") & " abaixo de " & Format(tolSub, "0%") & " da referencia (" & Format(refP, "#,##0.00") & ")"
                         outRow = outRow + 1
                     End If
                 ElseIf codMatNorm <> "" And qtd > 0 And valor > 0 Then
-                    ws.Cells(outRow, 1).Value = "UC - PRECO NAO ENCONTRADO"
-                    ws.Cells(outRow, 2).Value = pep3
-                    ws.Cells(outRow, 3).Value = pep4
-                    ws.Cells(outRow, 4).Value = codMat
-                    ws.Cells(outRow, 5).Value = descMat
-                    ws.Cells(outRow, 6).Value = familia
-                    ws.Cells(outRow, 7).Value = valor
-                    ws.Cells(outRow, 8).Value = qtd
-                    ws.Cells(outRow, 11).Value = "Material nao tem preco referencia cadastrado na aba PRECOS"
+                    AlertaCel outRow, 1, "UC - PRECO NAO ENCONTRADO"
+                    AlertaCel outRow, 2, pep3
+                    AlertaCel outRow, 3, pep4
+                    AlertaCel outRow, 4, codMat
+                    AlertaCel outRow, 5, descMat
+                    AlertaCel outRow, 6, familia
+                    AlertaCel outRow, 7, valor
+                    AlertaCel outRow, 8, qtd
+                    AlertaCel outRow, 11, "Material nao tem preco referencia cadastrado na aba PRECOS"
                     outRow = outRow + 1
                 End If
             Else
-                ws.Cells(outRow, 1).Value = "UC - COD MATERIAL VAZIO"
-                ws.Cells(outRow, 2).Value = pep3
-                ws.Cells(outRow, 3).Value = pep4
-                ws.Cells(outRow, 5).Value = descMat
-                ws.Cells(outRow, 6).Value = familia
-                ws.Cells(outRow, 7).Value = valor
-                ws.Cells(outRow, 11).Value = "Codigo de material nao preenchido"
+                AlertaCel outRow, 1, "UC - COD MATERIAL VAZIO"
+                AlertaCel outRow, 2, pep3
+                AlertaCel outRow, 3, pep4
+                AlertaCel outRow, 5, descMat
+                AlertaCel outRow, 6, familia
+                AlertaCel outRow, 7, valor
+                AlertaCel outRow, 11, "Codigo de material nao preenchido"
                 outRow = outRow + 1
             End If
         End If
@@ -1918,13 +1935,13 @@ ProxLinha2:
         If lacreP4.Exists(kMed) Then qLac = lacreP4(kMed)
         Dim espLac As Double : espLac = 2 * qMed
         If qMed > 0 And qLac <> espLac Then
-            ws.Cells(outRow, 1).Value = "LACRE x MEDIDOR"
-            ws.Cells(outRow, 2).Value = medPep3(kMed)
-            ws.Cells(outRow, 3).Value = kMed
-            ws.Cells(outRow, 6).Value = "MEDIDOR / LACRE"
-            ws.Cells(outRow, 8).Value = qLac
-            ws.Cells(outRow, 10).Value = espLac
-            ws.Cells(outRow, 11).Value = Format(qMed, "#,##0") & " medidor(es) -> esperado " & _
+            AlertaCel outRow, 1, "LACRE x MEDIDOR"
+            AlertaCel outRow, 2, medPep3(kMed)
+            AlertaCel outRow, 3, kMed
+            AlertaCel outRow, 6, "MEDIDOR / LACRE"
+            AlertaCel outRow, 8, qLac
+            AlertaCel outRow, 10, espLac
+            AlertaCel outRow, 11, Format(qMed, "#,##0") & " medidor(es) -> esperado " & _
                 Format(espLac, "#,##0") & " lacres, veio " & Format(qLac, "#,##0") & _
                 IIf(qLac < espLac, " (FALTAM " & Format(espLac - qLac, "#,##0") & ")", _
                                    " (SOBRAM " & Format(qLac - espLac, "#,##0") & ")")
@@ -1935,13 +1952,13 @@ ProxLinha2:
     Dim kLac As Variant
     For Each kLac In lacreP4.Keys
         If Not medP4.Exists(kLac) And lacreP4(kLac) <> 0 Then
-            ws.Cells(outRow, 1).Value = "LACRE x MEDIDOR"
-            ws.Cells(outRow, 2).Value = medPep3(kLac)
-            ws.Cells(outRow, 3).Value = kLac
-            ws.Cells(outRow, 6).Value = "MEDIDOR / LACRE"
-            ws.Cells(outRow, 8).Value = lacreP4(kLac)
-            ws.Cells(outRow, 10).Value = 0
-            ws.Cells(outRow, 11).Value = "Lacre sem medidor no PEP ODM (veio " & Format(lacreP4(kLac), "#,##0") & ")"
+            AlertaCel outRow, 1, "LACRE x MEDIDOR"
+            AlertaCel outRow, 2, medPep3(kLac)
+            AlertaCel outRow, 3, kLac
+            AlertaCel outRow, 6, "MEDIDOR / LACRE"
+            AlertaCel outRow, 8, lacreP4(kLac)
+            AlertaCel outRow, 10, 0
+            AlertaCel outRow, 11, "Lacre sem medidor no PEP ODM (veio " & Format(lacreP4(kLac), "#,##0") & ")"
             outRow = outRow + 1
         End If
     Next kLac
@@ -1960,17 +1977,17 @@ ProxLinha2:
             For rp = 1 To UBound(pD, 1)
                 stP = Trim(CStr(pD(rp, 12)))
                 If stP = "ABAIXO DO MINIMO" Or stP = "ACIMA DO MAXIMO" Then
-                    ws.Cells(outRow, 1).Value = IIf(stP = "ABAIXO DO MINIMO", "PU ABAIXO MIN", "PU ACIMA MAX")
-                    ws.Cells(outRow, 2).Value = pD(rp, 1)   ' PEP3
-                    ws.Cells(outRow, 3).Value = pD(rp, 2)   ' PEP4
-                    ws.Cells(outRow, 4).Value = pD(rp, 4)   ' COD
-                    ws.Cells(outRow, 5).Value = pD(rp, 5)   ' DESC
-                    ws.Cells(outRow, 6).Value = pD(rp, 3)   ' TIPO (na col familia)
-                    ws.Cells(outRow, 7).Value = pD(rp, 8)   ' VALOR
-                    ws.Cells(outRow, 8).Value = pD(rp, 7)   ' QTD
-                    ws.Cells(outRow, 9).Value = pD(rp, 9)   ' PU
-                    ws.Cells(outRow, 10).Value = IIf(stP = "ABAIXO DO MINIMO", pD(rp, 10), pD(rp, 11)) ' ref
-                    ws.Cells(outRow, 11).Value = pD(rp, 13) ' MOTIVO (obs)
+                    AlertaCel outRow, 1, IIf(stP = "ABAIXO DO MINIMO", "PU ABAIXO MIN", "PU ACIMA MAX")
+                    AlertaCel outRow, 2, pD(rp, 1)   ' PEP3
+                    AlertaCel outRow, 3, pD(rp, 2)   ' PEP4
+                    AlertaCel outRow, 4, pD(rp, 4)   ' COD
+                    AlertaCel outRow, 5, pD(rp, 5)   ' DESC
+                    AlertaCel outRow, 6, pD(rp, 3)   ' TIPO (na col familia)
+                    AlertaCel outRow, 7, pD(rp, 8)   ' VALOR
+                    AlertaCel outRow, 8, pD(rp, 7)   ' QTD
+                    AlertaCel outRow, 9, pD(rp, 9)   ' PU
+                    AlertaCel outRow, 10, IIf(stP = "ABAIXO DO MINIMO", pD(rp, 10), pD(rp, 11)) ' ref
+                    AlertaCel outRow, 11, pD(rp, 13) ' MOTIVO (obs)
                     outRow = outRow + 1
                 End If
             Next rp
@@ -1979,6 +1996,20 @@ ProxLinha2:
 
 Finaliza2:
     Dim totAl As Long : totAl = outRow - 2
+
+    ' Despeja o buffer de alertas na planilha numa UNICA atribuicao de Range
+    ' (o restante da formatacao le os dados de volta a partir da planilha)
+    If totAl > 0 Then
+        Dim dumpA() As Variant : ReDim dumpA(1 To totAl, 1 To 11)
+        Dim rDp As Long, cDp As Long
+        For rDp = 1 To totAl
+            For cDp = 1 To 11
+                dumpA(rDp, cDp) = mAlBuf(cDp, rDp)
+            Next cDp
+        Next rDp
+        ws.Range(ws.Cells(2, 1), ws.Cells(outRow - 1, 11)).Value = dumpA
+    End If
+    Erase mAlBuf : mAlCap = 0
     Dim wds As Variant
     wds = Array(22, 24, 26, 12, 46, 18, 12, 9, 12, 12, 42)
     For c = 1 To 11
@@ -2073,6 +2104,16 @@ Finaliza2:
     ActiveWindow.FreezePanes = True
     On Error GoTo 0
     ws.Range("A1").Select
+End Sub
+
+' Escreve uma celula de alerta no buffer (substitui ws.Cells(outRow, c).Value =).
+' Cresce o buffer sob demanda; outRow comeca em 2 (linha 1 = cabecalho).
+Private Sub AlertaCel(outRow As Long, c As Long, v As Variant)
+    Do While outRow - 1 > mAlCap
+        mAlCap = mAlCap * 2
+        ReDim Preserve mAlBuf(1 To 11, 1 To mAlCap)
+    Loop
+    mAlBuf(c, outRow - 1) = v
 End Sub
 
 Private Function Val0(v As Variant) As Double
@@ -2947,7 +2988,7 @@ Private Function AcharBaseInventario(wb As Workbook) As Worksheet
 
     For Each ws In wb.Worksheets
         Select Case ws.Name
-            Case "PAINEL DO GESTOR", "ANALISE SAP x PRJ", "RESUMO SAP x PRJ", "RACIONALIZACAO COM", "ALERTA CRITICO", "PRECO UNITARIO", "RANKING DE RISCO", "CONFIG", "HISTORICO", "LOG EXECUCAO", "TESTES"
+            Case "PAINEL DO GESTOR", "ANALISE SAP x PRJ", "RESUMO SAP x PRJ", "RACIONALIZACAO COM", "ALERTA CRITICO", "PRECO UNITARIO", "RANKING DE RISCO", "CONFIG", "HISTORICO", "LOG EXECUCAO", "TESTES", "DIAGNOSTICO BASE", "DEVOLUCOES"
                 ' aba de saida / apoio - ignora
             Case Else
                 If ws.UsedRange.Rows.Count > 1 Then
@@ -3590,6 +3631,288 @@ Public Sub ExportarDevolucoes()
 End Sub
 
 ' --------- Historico entre execucoes (aba persistente HISTORICO) ---------
+' ===========================================================================
+'  DIAGNOSTICO DA BASE: mede a qualidade dos DADOS antes de confiar na
+'  analise (garbage in, garbage out). Nota de saude 0-100 + verificacoes
+'  com status OK / ATENCAO / CRITICO e recomendacao pratica para cada uma.
+' ===========================================================================
+Private Sub ProcessarDiagnosticoBase(wsBase As Worksheet, wb As Workbook)
+    Dim ws As Worksheet
+    On Error Resume Next
+    Set ws = wb.Worksheets("DIAGNOSTICO BASE")
+    On Error GoTo 0
+    If ws Is Nothing Then
+        Set ws = wb.Worksheets.Add(After:=wb.Worksheets(wb.Worksheets.Count))
+        ws.Name = "DIAGNOSTICO BASE"
+    Else
+        ws.Cells.Clear
+    End If
+
+    ' ---- mapeia colunas da base (tolerante a ausencia) ----
+    Dim lastC As Long : lastC = wsBase.Cells(1, wsBase.Columns.Count).End(xlToLeft).Column
+    Dim iPep3 As Long, iPep4 As Long, iCod As Long, iFam As Long, iTipo As Long
+    Dim iValor As Long, iLib As Long, iPrj As Long, iTipoPep As Long, iUnd As Long
+    Dim c As Long, hb As String
+    For c = 1 To lastC
+        hb = NormStr(CStr(wsBase.Cells(1, c).Value))
+        Select Case hb
+            Case "PEP3NIVEL":   iPep3 = c
+            Case "PEP4NIVEL":   iPep4 = c
+            Case "COD MAT":     iCod = c
+            Case "FAMILIA":     iFam = c
+            Case "TIPO":        iTipo = c
+            Case "VALOR":       iValor = c
+            Case "MAT LIB SAP": iLib = c
+            Case "MAT PRJ CAD": iPrj = c
+            Case "TIPO PEP":    iTipoPep = c
+            Case "UND":         iUnd = c
+        End Select
+    Next c
+
+    Dim refCol As Long : refCol = iPep4 : If refCol = 0 Then refCol = 1
+    Dim lastR As Long : lastR = wsBase.Cells(wsBase.Rows.Count, refCol).End(xlUp).Row
+    Dim n As Long : n = 0
+    Dim d As Variant
+    If lastR >= 2 Then
+        d = wsBase.Range(wsBase.Cells(2, 1), wsBase.Cells(lastR, lastC)).Value
+        n = lastR - 1
+    End If
+
+    ' ---- coleta metricas numa unica passada ----
+    Dim dP3 As Object : Set dP3 = CreateObject("Scripting.Dictionary")
+    Dim dP4 As Object : Set dP4 = CreateObject("Scripting.Dictionary")
+    Dim dDup As Object : Set dDup = CreateObject("Scripting.Dictionary")
+    Dim nFamVazia As Long, nTipoVazio As Long, nCodVazio As Long
+    Dim nQtdInval As Long, nUC As Long, nUC0 As Long, nDup As Long, nValNegODI As Long
+    Dim i As Long, s As String, tp As String, p4 As String, kDup As String
+    For i = 1 To n
+        If iPep3 > 0 Then
+            s = Trim(CStr(d(i, iPep3))) : If s <> "" And Not dP3.Exists(s) Then dP3.Add s, True
+        End If
+        p4 = "" : If iPep4 > 0 Then p4 = Trim(CStr(d(i, iPep4)))
+        If p4 <> "" And Not dP4.Exists(p4) Then dP4.Add p4, True
+        If iFam > 0 Then If Trim(CStr(d(i, iFam))) = "" Then nFamVazia = nFamVazia + 1
+        tp = "" : If iTipo > 0 Then tp = NormStr(CStr(d(i, iTipo)))
+        If iTipo > 0 And tp = "" Then nTipoVazio = nTipoVazio + 1
+        If iCod > 0 Then If Trim(CStr(d(i, iCod))) = "" Then nCodVazio = nCodVazio + 1
+        ' quantidades com texto invalido (nao vazio e nao numerico)
+        If iLib > 0 Then
+            s = Trim(CStr(d(i, iLib)))
+            If s <> "" And Not IsNumeric(d(i, iLib)) Then nQtdInval = nQtdInval + 1
+        End If
+        If iPrj > 0 Then
+            s = Trim(CStr(d(i, iPrj)))
+            If s <> "" And Not IsNumeric(d(i, iPrj)) Then nQtdInval = nQtdInval + 1
+        End If
+        ' UC zerados
+        If tp = "UC" Then
+            nUC = nUC + 1
+            Dim lb As Variant, pj As Variant
+            lb = "" : pj = ""
+            If iLib > 0 Then lb = d(i, iLib)
+            If iPrj > 0 Then pj = d(i, iPrj)
+            If Val0(lb) = 0 And Val0(pj) = 0 Then nUC0 = nUC0 + 1
+        End If
+        ' duplicidade PEP4 + COD MAT (mesmo material lancado 2x na mesma obra)
+        If p4 <> "" And iCod > 0 Then
+            kDup = p4 & "|" & Trim(CStr(d(i, iCod)))
+            If Trim(CStr(d(i, iCod))) <> "" Then
+                dDup(kDup) = dDup(kDup) + 1
+                If dDup(kDup) = 2 Then nDup = nDup + 1
+            End If
+        End If
+        ' valor negativo em ODI (PEP .I - esperado positivo)
+        If iValor > 0 And p4 <> "" Then
+            Dim ehODI As Boolean : ehODI = (Right(p4, 2) = ".I")
+            If iTipoPep > 0 Then If NormStr(CStr(d(i, iTipoPep))) = "I" Then ehODI = True
+            If ehODI And Val0(d(i, iValor)) < 0 Then nValNegODI = nValNegODI + 1
+        End If
+    Next i
+
+    ' ---- monta as verificacoes (nome, resultado, status, recomendacao) ----
+    Dim chk(1 To 12, 1 To 4) As String
+    Dim nChk As Long, nCrit As Long, nAten As Long
+
+    DiagAdd chk, nChk, nCrit, nAten, "Volume da base", _
+        Format(n, "#,##0") & " linhas | " & Format(dP3.Count, "#,##0") & " obras (PEP3) | " & _
+        Format(dP4.Count, "#,##0") & " PEP4", "OK", "Confira se o volume bate com o esperado da extracao."
+
+    DiagAdd chk, nChk, nCrit, nAten, "FAMILIA em branco", _
+        Format(nFamVazia, "#,##0") & " linha(s)" & PctDe(nFamVazia, n), _
+        StatusPct(nFamVazia, n, 0.02, 0.1), _
+        "Sem FAMILIA a linha fica fora das regras de aderencia. Reclassifique na origem."
+
+    DiagAdd chk, nChk, nCrit, nAten, "TIPO em branco (UC/COM)", _
+        Format(nTipoVazio, "#,##0") & " linha(s)" & PctDe(nTipoVazio, n), _
+        StatusPct(nTipoVazio, n, 0.02, 0.1), _
+        "Sem TIPO o item nao entra no veredito APROVADO/REPROVADO."
+
+    DiagAdd chk, nChk, nCrit, nAten, "COD MAT em branco", _
+        Format(nCodVazio, "#,##0") & " linha(s)", _
+        IIf(nCodVazio > 0, "ATENCAO", "OK"), _
+        "Sem codigo nao ha cruzamento NT.006 nem faixa de preco."
+
+    DiagAdd chk, nChk, nCrit, nAten, "Quantidade com texto invalido", _
+        Format(nQtdInval, "#,##0") & " celula(s)", _
+        IIf(nQtdInval > 0, "CRITICO", "OK"), _
+        "Texto em coluna numerica vira 0 na analise e distorce a aderencia. Corrija na base."
+
+    If nUC > 0 Then
+        DiagAdd chk, nChk, nCrit, nAten, "Materiais UC com valores zerados", _
+            Format(nUC0, "#,##0") & " de " & Format(nUC, "#,##0") & " UC" & PctDe(nUC0, nUC), _
+            IIf(nUC > 0 And nUC0 = nUC, "CRITICO", IIf(nUC0 / nUC > 0.2, "ATENCAO", "OK")), _
+            "Zerado isolado e ignorado; obra 100% zerada e devolvida. Muitos zerados = extracao incompleta."
+    End If
+
+    DiagAdd chk, nChk, nCrit, nAten, "Material duplicado na mesma obra", _
+        Format(nDup, "#,##0") & " chave(s) PEP4+material repetida(s)", _
+        IIf(nDup > 0, "ATENCAO", "OK"), _
+        "Duplicidade soma quantidades 2x e pode gerar falso NAO ADERENTE. Consolide os lancamentos."
+
+    DiagAdd chk, nChk, nCrit, nAten, "Valor negativo em obra ODI (.I)", _
+        Format(nValNegODI, "#,##0") & " linha(s)", _
+        IIf(nValNegODI > 0, "ATENCAO", "OK"), _
+        "ODI espera valores positivos; negativo costuma ser estorno lancado na obra errada."
+
+    Dim faltantes As String : faltantes = ""
+    If iTipoPep = 0 Then faltantes = faltantes & "TIPO PEP; "
+    If iUnd = 0 Then faltantes = faltantes & "UND; "
+    If iValor = 0 Then faltantes = faltantes & "VALOR; "
+    DiagAdd chk, nChk, nCrit, nAten, "Colunas opcionais presentes", _
+        IIf(faltantes = "", "Todas presentes", "Faltam: " & Left(faltantes, Len(faltantes) - 2)), _
+        IIf(faltantes = "", "OK", "ATENCAO"), _
+        "Colunas opcionais enriquecem alertas (ODI/ODM, unidade, valores em R$)."
+
+    Dim nota As Double : nota = NotaSaude(nCrit, nAten)
+    Dim rotSaude As String, corSaude As Long
+    If nota >= 90 Then
+        rotSaude = "EXCELENTE" : corSaude = RGB(0, 130, 62)
+    ElseIf nota >= 70 Then
+        rotSaude = "BOA" : corSaude = RGB(46, 117, 62)
+    ElseIf nota >= 50 Then
+        rotSaude = "REQUER ATENCAO" : corSaude = RGB(214, 132, 0)
+    Else
+        rotSaude = "CRITICA" : corSaude = RGB(176, 0, 0)
+    End If
+
+    ' ---- desenha a aba ----
+    With ws.Range("A1:D2")
+        .Merge
+        .Value = ChrW(&H2695) & "  DIAGNOSTICO DA BASE"
+        .Font.Name = "Segoe UI Semibold" : .Font.Size = 18 : .Font.Bold = True
+        .Font.Color = RGB(255, 255, 255) : .Interior.Color = RGB(17, 24, 39)
+        .HorizontalAlignment = xlCenter : .VerticalAlignment = xlCenter
+    End With
+    ws.Rows(1).RowHeight = 22 : ws.Rows(2).RowHeight = 22
+    With ws.Range("A3:D3")
+        .Merge
+        .Value = "Base: " & wsBase.Name & "  |  Gerado: " & Format(Now, "dd/mm/yyyy hh:nn") & _
+                 "  |  A nota mede a CONFIABILIDADE dos dados, nao o resultado das obras"
+        .Font.Name = "Segoe UI" : .Font.Size = 9 : .Font.Italic = True
+        .Font.Color = RGB(255, 255, 255) : .Interior.Color = RGB(46, 62, 92)
+        .HorizontalAlignment = xlCenter : .VerticalAlignment = xlCenter
+    End With
+
+    With ws.Range("A5:A7")
+        .Merge
+        .Value = Format(nota, "0")
+        .Font.Name = "Segoe UI Black" : .Font.Size = 34 : .Font.Bold = True
+        .Font.Color = RGB(255, 255, 255) : .Interior.Color = corSaude
+        .HorizontalAlignment = xlCenter : .VerticalAlignment = xlCenter
+    End With
+    With ws.Range("B5:D7")
+        .Merge
+        .Value = "SAUDE DOS DADOS: " & rotSaude & "   (" & _
+                 nCrit & " critico(s), " & nAten & " atencao(oes))"
+        .Font.Name = "Segoe UI Semibold" : .Font.Size = 14 : .Font.Bold = True
+        .Font.Color = corSaude : .Interior.Color = RGB(244, 247, 250)
+        .HorizontalAlignment = xlLeft : .VerticalAlignment = xlCenter : .IndentLevel = 1
+    End With
+
+    Dim hdr As Variant : hdr = Array("VERIFICACAO", "RESULTADO", "STATUS", "RECOMENDACAO")
+    For c = 1 To 4
+        With ws.Cells(9, c)
+            .Value = hdr(c - 1)
+            .Font.Name = "Segoe UI Semibold" : .Font.Bold = True : .Font.Size = 10
+            .Font.Color = RGB(235, 240, 248) : .Interior.Color = RGB(17, 24, 39)
+            .HorizontalAlignment = xlCenter : .VerticalAlignment = xlCenter
+        End With
+    Next c
+    ws.Rows(9).RowHeight = 24
+
+    Dim outD() As Variant : ReDim outD(1 To nChk, 1 To 4)
+    For i = 1 To nChk
+        For c = 1 To 4
+            outD(i, c) = chk(i, c)
+        Next c
+    Next i
+    ws.Range(ws.Cells(10, 1), ws.Cells(9 + nChk, 4)).Value = outD
+
+    With ws.Range(ws.Cells(10, 1), ws.Cells(9 + nChk, 4))
+        .Font.Name = "Segoe UI" : .Font.Size = 10
+        .VerticalAlignment = xlCenter : .WrapText = False
+        .Borders(xlInsideHorizontal).LineStyle = xlContinuous
+        .Borders(xlInsideHorizontal).Color = RGB(225, 225, 225)
+    End With
+    For i = 1 To nChk
+        With ws.Cells(9 + i, 3)
+            .HorizontalAlignment = xlCenter : .Font.Bold = True : .Font.Size = 9
+            Select Case chk(i, 3)
+                Case "OK":      .Interior.Color = RGB(198, 239, 206) : .Font.Color = RGB(0, 97, 0)
+                Case "ATENCAO": .Interior.Color = RGB(255, 235, 156) : .Font.Color = RGB(156, 101, 0)
+                Case Else:      .Interior.Color = RGB(255, 199, 206) : .Font.Color = RGB(156, 0, 6)
+            End Select
+        End With
+        ws.Rows(9 + i).RowHeight = 20
+    Next i
+
+    ws.Columns(1).ColumnWidth = 34 : ws.Columns(2).ColumnWidth = 38
+    ws.Columns(3).ColumnWidth = 12 : ws.Columns(4).ColumnWidth = 78
+    ws.Tab.Color = corSaude
+
+    On Error Resume Next
+    ws.Activate
+    ActiveWindow.DisplayGridlines = False
+    ws.Range("A1").Select
+    On Error GoTo 0
+End Sub
+
+' Acrescenta uma verificacao ao quadro do diagnostico e contabiliza o status.
+Private Sub DiagAdd(chk() As String, ByRef nChk As Long, ByRef nCrit As Long, _
+                    ByRef nAten As Long, nome As String, resultado As String, _
+                    status As String, recom As String)
+    nChk = nChk + 1
+    chk(nChk, 1) = nome : chk(nChk, 2) = resultado
+    chk(nChk, 3) = status : chk(nChk, 4) = recom
+    If status = "CRITICO" Then nCrit = nCrit + 1
+    If status = "ATENCAO" Then nAten = nAten + 1
+End Sub
+
+' Nota de saude dos dados: 100 - 25 por CRITICO - 10 por ATENCAO (minimo 0).
+Private Function NotaSaude(nCrit As Long, nAten As Long) As Double
+    Dim v As Double : v = 100 - 25 * nCrit - 10 * nAten
+    If v < 0 Then v = 0
+    NotaSaude = v
+End Function
+
+' Status por percentual: CRITICO acima de pCrit, ATENCAO acima de pAten.
+Private Function StatusPct(qtd As Long, total As Long, pAten As Double, pCrit As Double) As String
+    If total <= 0 Or qtd = 0 Then StatusPct = "OK" : Exit Function
+    Dim p As Double : p = qtd / total
+    If p > pCrit Then
+        StatusPct = "CRITICO"
+    ElseIf p > pAten Then
+        StatusPct = "ATENCAO"
+    Else
+        StatusPct = "OK"
+    End If
+End Function
+
+' " (x,x%)" do percentual, ou vazio se o total for 0.
+Private Function PctDe(qtd As Long, total As Long) As String
+    If total > 0 Then PctDe = " (" & Format(qtd / total, "0.0%") & ")" Else PctDe = ""
+End Function
+
 Private Sub AtualizarHistorico(wb As Workbook)
     Dim wsR As Worksheet
     On Error Resume Next
@@ -3725,6 +4048,13 @@ Public Sub TestarLogicaInventario()
     RegTest nomes, oks, det, cnt, "TodosUCZerados 3 de 3 = True (devolve)", (TodosUCZerados(dz1, dz2, "P3A") = True)
     RegTest nomes, oks, det, cnt, "TodosUCZerados 3 de 8 = False (aprova se resto ok)", (TodosUCZerados(dz1, dz2, "P3B") = False)
     RegTest nomes, oks, det, cnt, "TodosUCZerados PEP3 sem UC = False", (TodosUCZerados(dz1, dz2, "P3C") = False)
+    ' Diagnostico da base: nota de saude e status por percentual
+    RegTest nomes, oks, det, cnt, "NotaSaude 0 crit 0 aten = 100", (NotaSaude(0, 0) = 100)
+    RegTest nomes, oks, det, cnt, "NotaSaude 1 crit 2 aten = 55", (NotaSaude(1, 2) = 55)
+    RegTest nomes, oks, det, cnt, "NotaSaude 5 crit = 0 (piso)", (NotaSaude(5, 0) = 0)
+    RegTest nomes, oks, det, cnt, "StatusPct 0 de 100 = OK", (StatusPct(0, 100, 0.02, 0.1) = "OK")
+    RegTest nomes, oks, det, cnt, "StatusPct 5 de 100 = ATENCAO", (StatusPct(5, 100, 0.02, 0.1) = "ATENCAO")
+    RegTest nomes, oks, det, cnt, "StatusPct 15 de 100 = CRITICO", (StatusPct(15, 100, 0.02, 0.1) = "CRITICO")
     avT = AvaliarLinha("COM", "POSTE", 100, 0, "NAO ADERENTE")
     RegTest nomes, oks, det, cnt, "AvaliarLinha COM nao critico: nao avaliavel", (Not avT.Avaliavel)
     avT = AvaliarLinha("COM", "CH FUS", 100, 0, "NAO ADERENTE")
