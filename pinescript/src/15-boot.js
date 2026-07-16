@@ -17,7 +17,8 @@
 // períodos dos indicadores, amostra da IA e som).
 const BOOT_IDS = FILTRO_IDS.concat([
     'fonte', 'timeframe', 'expiracao', 'payout', 'numCandles', 'volatility',
-    'emaRapida', 'emaLenta', 'rsiLen', 'atrLen', 'atrMediaLen', 'iaMinVal', 'somAtivo'
+    'emaRapida', 'emaLenta', 'rsiLen', 'atrLen', 'atrMediaLen', 'iaMinVal', 'somAtivo',
+    'zonasAtivo', 'niveisAtivo'   // marcações do gráfico voltam como você deixou
 ]);
 
 let _bootUltimoEstado = '';

@@ -555,6 +555,20 @@ const am = await p.evaluate(() => {
   const fechou = document.getElementById('analiseModal').style.display === 'none';
   return { temTudo, aberto, temNotas, temPlano, fechou };
 });
+// botões de 1 clique no cabeçalho do gráfico espelham os toggles
+const btnsChart = await p.evaluate(() => {
+  const b = document.getElementById('btnZonasChart');
+  b.click();
+  const ligou = document.getElementById('zonasAtivo').checked && b.classList.contains('is-active')
+    && document.querySelectorAll('#zonasOverlay .zona-faixa').length >= 1;
+  b.click();
+  const desligou = !document.getElementById('zonasAtivo').checked && !document.getElementById('zonasOverlay');
+  const temNiveis = !!document.getElementById('btnNiveisChart');
+  return { ligou, desligou, temNiveis };
+});
+check('botão 🟩 no gráfico liga zonas em 1 clique (e marca ativo)', btnsChart.ligou);
+check('segundo clique desliga e limpa', btnsChart.desligou);
+check('botão 📐 LTA/LTB+Fib presente no gráfico', btnsChart.temNiveis);
 check('Análise Mestre cobre as 13 seções do roteiro', am.temTudo);
 check('modal 🎓 abre com tabela de notas e plano de trade', am.aberto && am.temNotas && am.temPlano);
 check('modal 🎓 fecha no ✕', am.fechou);

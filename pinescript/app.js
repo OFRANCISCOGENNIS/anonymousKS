@@ -5244,7 +5244,8 @@ document.addEventListener('DOMContentLoaded', function () {
 // períodos dos indicadores, amostra da IA e som).
 const BOOT_IDS = FILTRO_IDS.concat([
     'fonte', 'timeframe', 'expiracao', 'payout', 'numCandles', 'volatility',
-    'emaRapida', 'emaLenta', 'rsiLen', 'atrLen', 'atrMediaLen', 'iaMinVal', 'somAtivo'
+    'emaRapida', 'emaLenta', 'rsiLen', 'atrLen', 'atrMediaLen', 'iaMinVal', 'somAtivo',
+    'zonasAtivo', 'niveisAtivo'   // marcações do gráfico voltam como você deixou
 ]);
 
 let _bootUltimoEstado = '';
@@ -6395,6 +6396,24 @@ document.addEventListener('DOMContentLoaded', function () {
         desenharZonasSR(this.checked);
         showToast(this.checked ? '🟩 Zonas de S/R desenhadas — força = nº de toques' : 'Zonas removidas', 'info');
     });
+    // Botões de 1 clique no cabeçalho do gráfico (espelham os toggles do painel)
+    const espelho = (btnId, chkId) => {
+        const b = document.getElementById(btnId), chk = document.getElementById(chkId);
+        if (!b || !chk) return;
+        const pintar = () => b.classList.toggle('is-active', chk.checked);
+        b.addEventListener('click', () => { chk.checked = !chk.checked; chk.dispatchEvent(new Event('change')); pintar(); });
+        chk.addEventListener('change', pintar);
+        pintar();
+    };
+    espelho('btnZonasChart', 'zonasAtivo');
+    espelho('btnNiveisChart', 'niveisAtivo');
+    // Estado persistido (BOOT_IDS): reaplica as zonas assim que os dados chegarem
+    if (tg && tg.checked) {
+        const t = setInterval(() => {
+            if (dados && dados.length >= 30 && computed && computed.atrValues) { clearInterval(t); desenharZonasSR(true); }
+        }, 800);
+        setTimeout(() => clearInterval(t), 60000);
+    }
     const b = document.getElementById('btnAnalise');
     if (b) b.addEventListener('click', abrirAnaliseMestre);
     const x = document.getElementById('analiseFechar');
