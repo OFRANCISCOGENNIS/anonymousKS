@@ -581,6 +581,25 @@ const amTop = await p.evaluate(() => {
   return { existe: true, abriu, naTopbar: !!b.closest('.qo-topbar') };
 });
 check('🎓 Análise na barra superior (perto de Controles/tema/ajuda) abre o modal', amTop.existe && amTop.abriu && amTop.naTopbar);
+// ⛶ Ampliar: gráfico principal 500px ↔ ~72% da janela, persistido
+const amp = await p.evaluate(async () => {
+  const alt = () => document.querySelector('#chartPreco canvas') ? document.getElementById('chartPreco').clientHeight : 0;
+  localStorage.setItem('chartAlto', '0');
+  window.dispatchEvent(new Event('resize'));
+  await new Promise(r => setTimeout(r, 120));
+  const normal = alt();
+  document.getElementById('btnChartMax').click();
+  await new Promise(r => setTimeout(r, 120));
+  const grande = alt();
+  const rotulo = document.getElementById('btnChartMax').textContent;
+  document.getElementById('btnChartMax').click();
+  await new Promise(r => setTimeout(r, 120));
+  const voltou = alt();
+  return { normal, grande, voltou, rotulo, persistiu: localStorage.getItem('chartAlto') === '0' };
+});
+check('gráfico padrão maior (500px)', amp.normal >= 480 && amp.normal <= 520, 'h=' + amp.normal);
+check('⛶ amplia p/ ~72% da janela e vira "Reduzir"', amp.grande > amp.normal + 60 && /Reduzir/.test(amp.rotulo), 'h=' + amp.grande);
+check('segundo clique volta ao padrão e persiste', amp.voltou === amp.normal && amp.persistiu);
 
 // 4.10) Padrões de preço (Fase 2): doji, harami, CHoCH, topo/fundo duplo, triângulo
 const pads = await p.evaluate(() => {

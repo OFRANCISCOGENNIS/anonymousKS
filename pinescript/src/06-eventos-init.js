@@ -364,7 +364,7 @@ document.getElementById('expiracao').addEventListener('change', function () {
 });
 
 window.addEventListener('resize', function () {
-    if (chartPreco) chartPreco.applyOptions({ width: document.getElementById('chartPreco').clientWidth });
+    if (chartPreco) chartPreco.applyOptions({ width: document.getElementById('chartPreco').clientWidth, height: alturaChartPreco() });
     if (chartRsi) chartRsi.applyOptions({ width: document.getElementById('chartRsi').clientWidth });
     if (chartAtr) chartAtr.applyOptions({ width: document.getElementById('chartAtr').clientWidth });
     if (chartEquity) chartEquity.applyOptions({ width: document.getElementById('chartEquity').clientWidth });

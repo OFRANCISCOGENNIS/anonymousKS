@@ -15,10 +15,20 @@ function opcoesBase() {
     };
 }
 
+// Altura do gráfico principal: 500px padrão; no modo ampliado (⛶, persistido)
+// ocupa ~72% da janela — leitura confortável das zonas/LTs/rótulos.
+function alturaChartPreco() {
+    const h = localStorage.getItem('chartAlto') === '1'
+        ? Math.max(520, Math.round(window.innerHeight * 0.72))
+        : 500;
+    document.documentElement.style.setProperty('--chart-h', h + 'px');   // container acompanha
+    return h;
+}
+
 function montarGraficos() {
     if (graficosMontados) return;
 
-    chartPreco = LightweightCharts.createChart(document.getElementById('chartPreco'), { ...opcoesBase(), height: 360 });
+    chartPreco = LightweightCharts.createChart(document.getElementById('chartPreco'), { ...opcoesBase(), height: alturaChartPreco() });
     serieVelas = chartPreco.addCandlestickSeries({
         upColor: '#26a69a', downColor: '#ef5350', borderUpColor: '#26a69a',
         borderDownColor: '#ef5350', wickUpColor: '#26a69a', wickDownColor: '#ef5350'

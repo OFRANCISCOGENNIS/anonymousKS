@@ -793,10 +793,20 @@ function opcoesBase() {
     };
 }
 
+// Altura do gráfico principal: 500px padrão; no modo ampliado (⛶, persistido)
+// ocupa ~72% da janela — leitura confortável das zonas/LTs/rótulos.
+function alturaChartPreco() {
+    const h = localStorage.getItem('chartAlto') === '1'
+        ? Math.max(520, Math.round(window.innerHeight * 0.72))
+        : 500;
+    document.documentElement.style.setProperty('--chart-h', h + 'px');   // container acompanha
+    return h;
+}
+
 function montarGraficos() {
     if (graficosMontados) return;
 
-    chartPreco = LightweightCharts.createChart(document.getElementById('chartPreco'), { ...opcoesBase(), height: 360 });
+    chartPreco = LightweightCharts.createChart(document.getElementById('chartPreco'), { ...opcoesBase(), height: alturaChartPreco() });
     serieVelas = chartPreco.addCandlestickSeries({
         upColor: '#26a69a', downColor: '#ef5350', borderUpColor: '#26a69a',
         borderDownColor: '#ef5350', wickUpColor: '#26a69a', wickDownColor: '#ef5350'
@@ -3862,7 +3872,7 @@ document.getElementById('expiracao').addEventListener('change', function () {
 });
 
 window.addEventListener('resize', function () {
-    if (chartPreco) chartPreco.applyOptions({ width: document.getElementById('chartPreco').clientWidth });
+    if (chartPreco) chartPreco.applyOptions({ width: document.getElementById('chartPreco').clientWidth, height: alturaChartPreco() });
     if (chartRsi) chartRsi.applyOptions({ width: document.getElementById('chartRsi').clientWidth });
     if (chartAtr) chartAtr.applyOptions({ width: document.getElementById('chartAtr').clientWidth });
     if (chartEquity) chartEquity.applyOptions({ width: document.getElementById('chartEquity').clientWidth });
@@ -6418,6 +6428,22 @@ document.addEventListener('DOMContentLoaded', function () {
     if (b) b.addEventListener('click', abrirAnaliseMestre);
     const bT = document.getElementById('btnAnaliseTop');   // atalho na barra superior
     if (bT) bT.addEventListener('click', abrirAnaliseMestre);
+    // ⛶ Ampliar: alterna a altura do gráfico principal (500px ↔ 72% da janela)
+    const bM = document.getElementById('btnChartMax');
+    if (bM) {
+        const pintarM = () => {
+            const on = localStorage.getItem('chartAlto') === '1';
+            bM.classList.toggle('is-active', on);
+            bM.textContent = on ? '⛶ Reduzir' : '⛶ Ampliar';
+        };
+        bM.addEventListener('click', () => {
+            localStorage.setItem('chartAlto', localStorage.getItem('chartAlto') === '1' ? '0' : '1');
+            pintarM();
+            window.dispatchEvent(new Event('resize'));           // reaplica altura/largura
+            if (zonasSRAtivas) requestAnimationFrame(reposicionarZonas);
+        });
+        pintarM();
+    }
     const x = document.getElementById('analiseFechar');
     if (x) x.addEventListener('click', () => document.getElementById('analiseModal').style.display = 'none');
     const m = document.getElementById('analiseModal');
