@@ -7,6 +7,7 @@
 // volume por clipe. Sem servidor, sem chave.
 
 import { isExportSupported, pickCodecs, type ExportProgress, type ExportResult } from "@/lib/export-render";
+import { ensureBgVideoSegmenter, getBgSegFrameFailures, resetBgSegFrameFailures } from "@/lib/ai/video-segmenter";
 import { getMedia } from "@/lib/media-store";
 import { drawComposite, type Drawable } from "./engine";
 import type { Clip, Project } from "./model";
@@ -303,6 +304,30 @@ export async function renderProjectToBlob(
   const fps = opts.fps;
   const totalFrames = Math.max(1, Math.ceil((durationMs / 1000) * fps));
 
+  // --- remoção de fundo por IA: modelo precisa estar pronto antes dos frames ---
+  const usesBgRemove = project.tracks.some((t) => t.clips.some((c) => c.bgRemove));
+  if (usesBgRemove) {
+    report(1, "Carregando a IA de recorte…");
+    // respeita o Cancelar e não trava para sempre num download pendurado
+    let gateTimer: ReturnType<typeof setTimeout> | undefined;
+    try {
+      const ok = await Promise.race([
+        ensureBgVideoSegmenter((m) => report(2, m)),
+        new Promise<never>((_, reject) => {
+          gateTimer = setTimeout(
+            () => reject(new Error("A IA de recorte demorou demais para carregar — verifique a internet e tente de novo")),
+            60_000,
+          );
+          opts.signal?.addEventListener("abort", () => reject(new DOMException("Exportação cancelada", "AbortError")), { once: true });
+        }),
+      ]);
+      if (!ok) throw new Error("A IA de recorte de fundo não carregou — verifique a internet e tente de novo");
+    } finally {
+      clearTimeout(gateTimer);
+    }
+    resetBgSegFrameFailures();
+  }
+
   // --- carrega os elementos visuais usados -----------------------------------
   report(1, "Carregando as mídias…");
   const videoEls = new Map<string, HTMLVideoElement>();
@@ -526,6 +551,21 @@ export async function renderProjectToBlob(
         await new Promise((r) => setTimeout(r, 4));
       }
     }
+  }
+
+  // honestidade: se a IA de recorte falhou em quadros, o arquivo sairia COM
+  // fundo — melhor falhar claramente do que entregar o resultado errado
+  if (usesBgRemove && getBgSegFrameFailures() > 0) {
+    try {
+      videoEncoder.close();
+      audioEncoder?.close();
+    } catch {
+      /* já fechados */
+    }
+    cleanup();
+    throw new Error(
+      `A IA de recorte falhou em ${getBgSegFrameFailures()} quadro(s) durante a exportação — o vídeo sairia com o fundo. Feche outras abas (ou use uma resolução menor) e tente de novo.`,
+    );
   }
 
   report(92, "Finalizando o arquivo…");

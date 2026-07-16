@@ -10,8 +10,8 @@ import {
   Aperture,
   AudioLines,
   Captions,
-  CircleDashed,
   Clapperboard,
+  Eraser,
   Gauge,
   HardDrive,
   Mic2,
@@ -26,6 +26,7 @@ import {
   ZoomIn,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { ensureBgVideoSegmenter, isBgVideoReady } from "@/lib/ai/video-segmenter";
 import { CLIP_FILTERS, OVERLAY_EFFECTS } from "@/lib/video-editor/filters";
 import { TRANSITIONS } from "@/lib/video-editor/transitions";
 import { projectDurationMs } from "@/lib/video-editor/timeline-math";
@@ -130,17 +131,6 @@ export function ToolsPanel({ onNavigate }: { onNavigate: (panel: RailPanel) => v
       });
   }
 
-  function vinheta() {
-    if (!found) return needClipToast();
-    const has = found.clip.effects.some((e) => e.id === "vignette");
-    updateClip(found.clip.id, {
-      effects: has
-        ? found.clip.effects.filter((e) => e.id !== "vignette")
-        : [...found.clip.effects, { id: "vignette", intensity: 0.6 }],
-    });
-    toast(has ? "Vinheta removida" : "Vinheta aplicada", { description: "Ajuste a intensidade em Propriedades → Ajustes." });
-  }
-
   function colorGrading() {
     if (!found) return needClipToast();
     openProps("video");
@@ -149,6 +139,25 @@ export function ToolsPanel({ onNavigate }: { onNavigate: (panel: RailPanel) => v
 
   function congelar() {
     freezeAtPlayhead();
+  }
+
+  function removerFundo() {
+    if (!found) return needClipToast();
+    updateClip(found.clip.id, { bgRemove: true });
+    if (!isBgVideoReady()) {
+      toast("Baixando a IA de recorte (~3 MB)…", {
+        description: "O fundo some assim que o modelo carregar. Fica em cache para as próximas vezes.",
+        important: true,
+      });
+    }
+    void ensureBgVideoSegmenter().then((ok) => {
+      if (!ok)
+        toast("A IA de recorte não carregou", {
+          description: "Verifique a internet e tente de novo — o clipe fica com o fundo até a IA carregar.",
+          variant: "error",
+        });
+    });
+    openProps("video");
   }
 
   function marcaDagua() {
@@ -172,7 +181,7 @@ export function ToolsPanel({ onNavigate }: { onNavigate: (panel: RailPanel) => v
     { icon: Aperture, title: "Filtros", sub: "Ajuste a cor do seu vídeo", onClick: () => onNavigate("filtros") },
     { icon: TypeIcon, title: "Texto", sub: "Adicione textos e títulos", onClick: () => onNavigate("texto") },
     { icon: Captions, title: "Legendas", sub: "Gere e edite legendas", onClick: () => onNavigate("legendas") },
-    { icon: CircleDashed, title: "Vinhetas", sub: "Aplique vinhetas profissionais", onClick: vinheta },
+    { icon: Eraser, title: "Remover Fundo", sub: "IA sem tela verde (novo!)", onClick: removerFundo, accent: "bg-emerald-400/10 text-emerald-300" },
     { icon: Stamp, title: "Marca d'água", sub: "Adicione sua marca d'água", onClick: marcaDagua },
     { icon: Palette, title: "Color Grading", sub: "Ajuste cores como um pro", onClick: colorGrading },
     { icon: Gauge, title: "Velocidade", sub: "Altere a velocidade do vídeo", onClick: velocidade },

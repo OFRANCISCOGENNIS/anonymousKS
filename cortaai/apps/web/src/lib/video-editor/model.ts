@@ -84,6 +84,8 @@ export interface Clip {
   audioFx?: { denoise?: boolean; voice?: boolean };
   /** Chroma key: remove a cor (fundo verde/azul) do clipe de vídeo. */
   chroma?: { color: string; tolerance: number; softness: number };
+  /** Remoção de fundo por IA (segmentação de pessoa, sem tela verde). */
+  bgRemove?: boolean;
   /** Color grading por clipe (estilo Lumetri): valores -100..100 / hue -180..180. */
   colorAdjust?: { brightness: number; contrast: number; saturation: number; hue: number };
   // Texto (só para clips em trilha 'text'): conteúdo e estilo básico.
@@ -272,6 +274,7 @@ function sanitizeClip(c: Clip, trackId: string): Clip {
         ? { denoise: c.audioFx.denoise === true || undefined, voice: c.audioFx.voice === true || undefined }
         : undefined,
     chroma: sanitizeChroma(c.chroma),
+    bgRemove: c.bgRemove === true ? true : undefined,
     colorAdjust: sanitizeColorAdjust(c.colorAdjust),
     animIn: sanitizeAnim(c.animIn),
     animOut: sanitizeAnim(c.animOut),
