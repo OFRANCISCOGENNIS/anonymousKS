@@ -1790,3 +1790,185 @@ body.tem-registro #detalheModal .det-card { right: var(--reg-w); border-radius: 
     padding: 7px 10px; font-size: 12.5px;
 }
 .filtros-row .btn-mini { flex: 0 0 auto; }
+
+/* ============================================================================
+   CAMADA IMPACTO — visual vívido de alto impacto (neon ciano/violeta/magenta)
+   Gradientes animados, aurora de fundo, brilhos e micro-interações. Toda
+   animação nova respeita prefers-reduced-motion (desligada no fim do bloco).
+   ============================================================================ */
+:root {
+    --neon-1: #22D3EE;   /* ciano elétrico */
+    --neon-2: #8B5CF6;   /* violeta */
+    --neon-3: #EC4899;   /* magenta */
+    --grad-brand: linear-gradient(100deg, #22D3EE, #8B5CF6 48%, #EC4899 100%);
+    --grad-call: linear-gradient(100deg, #34D399, #22D3EE);
+    --grad-put: linear-gradient(100deg, #F87171, #EC4899);
+}
+
+/* ---- Aurora viva no fundo (blobs de cor em órbita lenta) ---- */
+@keyframes qoAurora {
+    0% { transform: translate3d(-4%, -2%, 0) rotate(0deg) scale(1); }
+    50% { transform: translate3d(4%, 3%, 0) rotate(180deg) scale(1.12); }
+    100% { transform: translate3d(-4%, -2%, 0) rotate(360deg) scale(1); }
+}
+body::before {
+    content: ''; position: fixed; inset: -22%; z-index: -1; pointer-events: none;
+    background:
+        radial-gradient(38% 30% at 22% 28%, rgba(34, 211, 238, 0.11), transparent 70%),
+        radial-gradient(32% 28% at 78% 18%, rgba(139, 92, 246, 0.12), transparent 70%),
+        radial-gradient(30% 26% at 62% 82%, rgba(236, 72, 153, 0.08), transparent 70%);
+    filter: blur(30px);
+    animation: qoAurora 46s linear infinite;
+}
+:root[data-theme="light"] body::before { opacity: 0.5; }
+
+/* ---- Topbar: linha de energia + marca em gradiente vivo ---- */
+.qo-topbar { position: relative; }
+@keyframes qoFlow { to { background-position: 220% 0; } }
+.qo-topbar::after {
+    content: ''; position: absolute; left: 0; right: 0; bottom: -1px; height: 2px;
+    background: linear-gradient(90deg, transparent, var(--neon-1), var(--neon-2), var(--neon-3), transparent);
+    background-size: 220% 100%;
+    animation: qoFlow 7s linear infinite;
+    opacity: 0.9; pointer-events: none;
+}
+@keyframes qoGradShift { to { background-position: 200% center; } }
+@keyframes qoLogoPulse {
+    50% { filter: drop-shadow(0 0 18px rgba(34, 211, 238, 0.85)); transform: scale(1.07); }
+}
+.qo-logo {
+    font-size: 24px;
+    background: var(--grad-brand);
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+    filter: drop-shadow(0 0 10px rgba(139, 92, 246, 0.55));
+    animation: qoLogoPulse 3.2s ease-in-out infinite;
+}
+.qo-brand strong {
+    background: var(--grad-brand); background-size: 200% auto;
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+    animation: qoGradShift 8s linear infinite;
+}
+:root[data-theme="light"] .qo-brand strong,
+:root[data-theme="light"] .qo-logo { --grad-brand: linear-gradient(100deg, #0891B2, #7C3AED 48%, #DB2777 100%); }
+
+/* ---- Tiles da topbar: vida no hover (linha de energia + flutuação) ---- */
+.qo-stat { position: relative; overflow: hidden; transition: var(--transition); }
+.qo-stat::before {
+    content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px;
+    background: var(--grad-brand); opacity: 0; transition: opacity 0.25s;
+}
+.qo-stat:hover { transform: translateY(-2px); border-color: rgba(34, 211, 238, 0.45); box-shadow: 0 8px 22px rgba(34, 211, 238, 0.12); }
+.qo-stat:hover::before { opacity: 1; }
+
+/* ---- Botão primário: gradiente vivo + varredura de brilho ---- */
+.btn-primary {
+    position: relative; overflow: hidden;
+    background: linear-gradient(100deg, #2563EB, #7C3AED 55%, #DB2777);
+    background-size: 180% 100%;
+    box-shadow: 0 6px 20px rgba(124, 58, 237, 0.35);
+    transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.btn-primary:hover { background-position: 90% 0; transform: translateY(-1px); box-shadow: 0 10px 30px rgba(34, 211, 238, 0.35); }
+.btn-primary::after {
+    content: ''; position: absolute; top: 0; bottom: 0; left: -70%; width: 45%;
+    background: linear-gradient(105deg, transparent, rgba(255, 255, 255, 0.35), transparent);
+    transform: skewX(-18deg); transition: left 0.5s ease; pointer-events: none;
+}
+.btn-primary:hover::after { left: 130%; }
+
+/* ---- Botões secundários e presets: levitação + halo neon ---- */
+.btn-mini:hover, .btn-ghost:hover { transform: translateY(-1px); box-shadow: 0 4px 14px rgba(34, 211, 238, 0.18); border-color: var(--neon-1); color: var(--neon-1); }
+.btn-preset:hover { transform: translateY(-1px); border-color: var(--neon-2); box-shadow: 0 6px 16px rgba(139, 92, 246, 0.22); }
+.btn-preset.is-active {
+    background: linear-gradient(100deg, rgba(34, 211, 238, 0.16), rgba(139, 92, 246, 0.16));
+    border-color: var(--neon-2);
+    box-shadow: inset 0 0 0 1px rgba(139, 92, 246, 0.35), 0 6px 18px rgba(139, 92, 246, 0.18);
+}
+
+/* ---- Cards: levitação com aura ao passar o mouse ---- */
+.chart-container { transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.25s, border-color 0.25s; }
+.chart-container:hover {
+    transform: translateY(-2px);
+    border-color: rgba(34, 211, 238, 0.28);
+    box-shadow: var(--elev-2), 0 0 0 1px rgba(34, 211, 238, 0.10), 0 12px 34px rgba(34, 211, 238, 0.08);
+}
+
+/* ---- Painel de decisão: pulso neon vivo quando vira CALL/PUT ---- */
+@keyframes qoPulseCall { 50% { box-shadow: 0 0 0 1px rgba(34, 197, 94, 0.45), 0 14px 54px rgba(34, 197, 94, 0.30); } }
+@keyframes qoPulsePut { 50% { box-shadow: 0 0 0 1px rgba(239, 68, 68, 0.45), 0 14px 54px rgba(239, 68, 68, 0.30); } }
+.decision-panel { transition: box-shadow 0.3s, border-color 0.3s; }
+.decision-panel:has(.verdict-call) { box-shadow: 0 0 0 1px rgba(34, 197, 94, 0.25), 0 10px 40px rgba(34, 197, 94, 0.16); animation: qoPulseCall 2.2s ease-in-out infinite; }
+.decision-panel:has(.verdict-put) { box-shadow: 0 0 0 1px rgba(239, 68, 68, 0.25), 0 10px 40px rgba(239, 68, 68, 0.16); animation: qoPulsePut 2.2s ease-in-out infinite; }
+.decision-verdict.verdict-call {
+    background: var(--grad-call); -webkit-background-clip: text; background-clip: text; color: transparent;
+    text-shadow: none; filter: drop-shadow(0 0 14px rgba(52, 211, 153, 0.45));
+}
+.decision-verdict.verdict-put {
+    background: var(--grad-put); -webkit-background-clip: text; background-clip: text; color: transparent;
+    text-shadow: none; filter: drop-shadow(0 0 14px rgba(248, 113, 113, 0.45));
+}
+
+/* ---- Rail: ícones maiores, salto elástico e estado ativo em gradiente ---- */
+.rail::after {
+    content: ''; position: absolute; top: 0; bottom: 0; right: 0; width: 1px;
+    background: linear-gradient(180deg, rgba(34, 211, 238, 0.5), rgba(139, 92, 246, 0.35), transparent);
+    pointer-events: none;
+}
+.rail-btn { font-size: 18px; transition: transform 0.18s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.18s, background 0.18s; }
+.rail-btn:hover {
+    transform: scale(1.16) rotate(-4deg);
+    background: rgba(34, 211, 238, 0.10);
+    box-shadow: 0 0 0 1px rgba(34, 211, 238, 0.45), 0 6px 16px rgba(34, 211, 238, 0.25);
+}
+.rail-btn[aria-pressed="true"] {
+    background: linear-gradient(140deg, rgba(34, 211, 238, 0.18), rgba(139, 92, 246, 0.18));
+    box-shadow: inset 0 0 0 1px rgba(139, 92, 246, 0.4);
+}
+
+/* ---- Funil: elo fechado ganha brilho de conquista ---- */
+.funil-elo.funil-ok { box-shadow: 0 0 10px rgba(34, 197, 94, 0.22), inset 0 0 0 1px rgba(34, 197, 94, 0.30); }
+.funil-elo.funil-no { box-shadow: inset 0 0 0 1px rgba(239, 68, 68, 0.28); }
+
+/* ---- Selo A: varredura de brilho contínua (é o troféu do app) ---- */
+@keyframes qoShine { 0%, 55% { left: -80%; } 100% { left: 160%; } }
+.reg-grade.grade-A, .decision-grade.grade-A { position: relative; overflow: hidden; }
+.reg-grade.grade-A::after, .decision-grade.grade-A::after {
+    content: ''; position: absolute; top: 0; bottom: 0; left: -80%; width: 50%;
+    background: linear-gradient(105deg, transparent, rgba(255, 255, 255, 0.5), transparent);
+    transform: skewX(-20deg); animation: qoShine 3.4s ease-in-out infinite; pointer-events: none;
+}
+
+/* ---- Horários do detalhe: pulso suave (ENTRAR verde · SAIR âmbar) ---- */
+@keyframes qoInGlow { 50% { box-shadow: 0 0 18px rgba(34, 197, 94, 0.30); } }
+@keyframes qoOutGlow { 50% { box-shadow: 0 0 18px rgba(234, 179, 8, 0.28); } }
+.det-hbox.det-in { animation: qoInGlow 2.6s ease-in-out infinite; }
+.det-hbox.det-out { animation: qoOutGlow 2.6s ease-in-out infinite; }
+
+/* ---- Títulos de seção: marcador em gradiente ---- */
+.control-group h3 { position: relative; padding-left: 12px; }
+.control-group h3::before {
+    content: ''; position: absolute; left: 0; top: 50%; transform: translateY(-50%);
+    width: 4px; height: 14px; border-radius: 3px;
+    background: var(--grad-brand); box-shadow: 0 0 8px rgba(139, 92, 246, 0.5);
+}
+
+/* ---- Toasts com aura, scrollbar neon, seleção e foco vivos ---- */
+.toast { -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); box-shadow: 0 12px 34px rgba(0, 0, 0, 0.45), 0 0 0 1px rgba(34, 211, 238, 0.14); }
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb {
+    background: linear-gradient(180deg, rgba(34, 211, 238, 0.45), rgba(139, 92, 246, 0.45));
+    border-radius: 8px; border: 2px solid var(--page);
+}
+::-webkit-scrollbar-thumb:hover { background: linear-gradient(180deg, rgba(34, 211, 238, 0.7), rgba(139, 92, 246, 0.7)); }
+::selection { background: rgba(139, 92, 246, 0.45); color: #fff; }
+:focus-visible { outline: 2px solid var(--neon-1); outline-offset: 2px; }
+
+/* ---- Reduced motion: toda a camada de impacto fica estática ---- */
+@media (prefers-reduced-motion: reduce) {
+    body::before, .qo-logo, .qo-brand strong, .qo-topbar::after,
+    .decision-panel, .reg-grade.grade-A::after, .decision-grade.grade-A::after,
+    .det-hbox.det-in, .det-hbox.det-out { animation: none !important; }
+    .btn-primary::after { display: none; }
+    .rail-btn:hover, .qo-stat:hover, .chart-container:hover, .btn-primary:hover, .btn-mini:hover, .btn-preset:hover { transform: none; }
+}
