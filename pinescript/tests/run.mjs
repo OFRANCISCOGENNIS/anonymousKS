@@ -497,6 +497,27 @@ check('elo do funil → popover "Elo:"', infos.eloOk);
 check('Escape fecha o popover', infos.fechou);
 check('ícones clicáveis nos títulos (10+ painéis)', infos.qtdIcones >= 10, 'n=' + infos.qtdIcones);
 
+// 4.9.8) Definição da estrutura de Price Action (Dow/SMC + virada CHoCH)
+const estr = await p.evaluate(() => {
+  const d = (rotulos, uH, uL) => definirEstrutura({ rotulos, uH, uL });
+  return {
+    alta: d(['HL', 'HH', 'HL', 'HH'], 'HH', 'HL'),
+    baixa: d(['LH', 'LL', 'LH', 'LL'], 'LH', 'LL'),
+    viradaBaixa: d(['HL', 'HH', 'LH', 'LL'], 'LH', 'LL'),   // o caso do print: era "Indefinida"
+    viradaAlta: d(['LH', 'LL', 'HL', 'HH'], 'HH', 'HL'),
+    compressao: d(['HH', 'HL', 'LH', 'HL'], 'LH', 'HL'),
+    indef: d([], null, null),
+    naTela: document.getElementById('qoPA') ? document.getElementById('qoPA').textContent : ''
+  };
+});
+check('HH+HL define Alta', /Alta/.test(estr.alta.nome) && estr.alta.dir === 1, estr.alta.nome);
+check('LH+LL define Baixa', /Baixa/.test(estr.baixa.nome) && estr.baixa.dir === -1, estr.baixa.nome);
+check('HL·HH → LH·LL = Virando p/ baixa (CHoCH), não Indefinida', /Virando p\/ baixa/.test(estr.viradaBaixa.nome) && estr.viradaBaixa.dir === -1, estr.viradaBaixa.nome);
+check('LH·LL → HL·HH = Virando p/ alta (CHoCH)', /Virando p\/ alta/.test(estr.viradaAlta.nome) && estr.viradaAlta.dir === 1, estr.viradaAlta.nome);
+check('LH+HL = Compressão (triângulo)', /Compressão/.test(estr.compressao.nome) && estr.compressao.dir === 0, estr.compressao.nome);
+check('sem swings suficientes = Indefinida', estr.indef.nome === 'Indefinida');
+check('card PRICE ACTION renderiza a estrutura definida', /Estrutura/.test(estr.naTela) && !/Altista|Baixista/.test(estr.naTela));
+
 // 4.10) Padrões de preço (Fase 2): doji, harami, CHoCH, topo/fundo duplo, triângulo
 const pads = await p.evaluate(() => {
   const doji = ehDoji(10, 10.5, 9.5, 10.02) && !ehDoji(10, 10.5, 9.5, 10.4);

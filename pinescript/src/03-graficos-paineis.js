@@ -390,12 +390,37 @@ function estruturaSwings() {
         ...piv.sup.map(p => ({ i: p.i, price: p.price, tipo: 'L' }))
     ].sort((a, b) => a.i - b.i).slice(-6);
     const rotulos = [];
-    let prevH = null, prevL = null;
+    let prevH = null, prevL = null, uH = null, uL = null;
     todos.forEach(p => {
-        if (p.tipo === 'H') { rotulos.push(prevH == null ? 'H' : p.price > prevH ? 'HH' : 'LH'); prevH = p.price; }
-        else { rotulos.push(prevL == null ? 'L' : p.price > prevL ? 'HL' : 'LL'); prevL = p.price; }
+        if (p.tipo === 'H') { uH = prevH == null ? null : p.price > prevH ? 'HH' : 'LH'; if (uH) rotulos.push(uH); prevH = p.price; }
+        else { uL = prevL == null ? null : p.price > prevL ? 'HL' : 'LL'; if (uL) rotulos.push(uL); prevL = p.price; }
     });
-    return { rotulos: rotulos.slice(-4), todos };
+    // uH/uL = rótulo do ÚLTIMO topo e do ÚLTIMO fundo — quem define a estrutura
+    return { rotulos: rotulos.slice(-4), todos, uH, uL };
+}
+
+// ---- Definição da ESTRUTURA de price action (Dow/SMC) ----
+// Mandam os rótulos MAIS RECENTES de topo (uH) e fundo (uL):
+//   HH + HL = Alta · LH + LL = Baixa · LH + HL = Compressão · HH + LL = Expansão.
+// Se o swing mais novo CONTRADIZ a maioria anterior, é virada em curso (CHoCH):
+// ex.: HL·HH (alta) seguidos de LH·LL = "Virando p/ baixa", não "indefinida".
+function definirEstrutura(sw) {
+    let nome = 'Indefinida', dir = 0;
+    if (sw.uH && sw.uL) {
+        if (sw.uH === 'HH' && sw.uL === 'HL') { nome = 'Alta (HH+HL)'; dir = 1; }
+        else if (sw.uH === 'LH' && sw.uL === 'LL') { nome = 'Baixa (LH+LL)'; dir = -1; }
+        else if (sw.uH === 'LH' && sw.uL === 'HL') { nome = 'Compressão (LH+HL)'; dir = 0; }
+        else if (sw.uH === 'HH' && sw.uL === 'LL') { nome = 'Expansão (HH+LL)'; dir = 0; }
+    }
+    const rots = sw.rotulos;
+    if (rots.length >= 3) {
+        const novo = rots[rots.length - 1], antes = rots.slice(0, -1);
+        const bullAntes = antes.filter(r => r === 'HH' || r === 'HL').length;
+        const bearAntes = antes.filter(r => r === 'LH' || r === 'LL').length;
+        if ((novo === 'LH' || novo === 'LL') && bullAntes > bearAntes) { nome = 'Virando p/ baixa (CHoCH)'; dir = -1; }
+        else if ((novo === 'HH' || novo === 'HL') && bearAntes > bullAntes) { nome = 'Virando p/ alta (CHoCH)'; dir = 1; }
+    }
+    return { nome, dir };
 }
 
 function atualizarQuantOps() {
@@ -436,9 +461,8 @@ function atualizarQuantOps() {
     // ---- PRICE ACTION ----
     const sw = estruturaSwings();
     const seq = sw.rotulos.join(' · ') || '—';
-    const altaSeq = sw.rotulos.filter(r => r === 'HH' || r === 'HL').length;
-    const baixaSeq = sw.rotulos.filter(r => r === 'LH' || r === 'LL').length;
-    const estrut = altaSeq > baixaSeq ? 'Altista' : baixaSeq > altaSeq ? 'Baixista' : 'Indefinida';
+    const ed = definirEstrutura(sw);
+    const estrut = ed.nome;
     // BOS: rompimento de estrutura nas últimas 5 velas (sinal E presente)
     const bosRecente = [...sinaisLong, ...sinaisShort].some(s => s.index >= last - 5 && /E/.test(s.fatores));
     // correção: retração desde o último extremo relevante
@@ -447,14 +471,14 @@ function atualizarQuantOps() {
     const ultL = sw.todos.filter(p => p.tipo === 'L').slice(-1)[0];
     if (ultH && ultL && ultH.price !== ultL.price) {
         const c = computed.closes[last];
-        correcao = estrut === 'Altista'
+        correcao = ed.dir === 1
             ? Math.round((ultH.price - c) / (ultH.price - ultL.price) * 100)
             : Math.round((c - ultL.price) / (ultH.price - ultL.price) * 100);
         correcao = Math.max(0, Math.min(100, correcao));
     }
-    const pullOk = correcao != null && correcao >= 20 && correcao <= 62;
+    const pullOk = ed.dir !== 0 && correcao != null && correcao >= 20 && correcao <= 62;
     document.getElementById('qoPA').innerHTML =
-        kv('Estrutura', estrut, estrut === 'Altista' ? 'kv-good' : estrut === 'Baixista' ? 'kv-bad' : '') +
+        kv('Estrutura', estrut, ed.dir === 1 ? 'kv-good' : ed.dir === -1 ? 'kv-bad' : /Compressão|Expansão/.test(estrut) ? 'kv-warn' : '') +
         kv('Últimos swings', seq) +
         kv('BOS', bosRecente ? 'Confirmado' : '—', bosRecente ? 'kv-good' : '') +
         kv('Força da tendência', conf + '%', conf >= 70 ? 'kv-good' : conf >= 50 ? 'kv-warn' : 'kv-bad') +
