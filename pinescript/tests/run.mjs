@@ -572,6 +572,15 @@ check('botão 📐 LTA/LTB+Fib presente no gráfico', btnsChart.temNiveis);
 check('Análise Mestre cobre as 13 seções do roteiro', am.temTudo);
 check('modal 🎓 abre com tabela de notas e plano de trade', am.aberto && am.temNotas && am.temPlano);
 check('modal 🎓 fecha no ✕', am.fechou);
+const amTop = await p.evaluate(() => {
+  const b = document.getElementById('btnAnaliseTop');
+  if (!b) return { existe: false };
+  b.click();
+  const abriu = document.getElementById('analiseModal').style.display === 'flex';
+  document.getElementById('analiseFechar').click();
+  return { existe: true, abriu, naTopbar: !!b.closest('.qo-topbar') };
+});
+check('🎓 Análise na barra superior (perto de Controles/tema/ajuda) abre o modal', amTop.existe && amTop.abriu && amTop.naTopbar);
 
 // 4.10) Padrões de preço (Fase 2): doji, harami, CHoCH, topo/fundo duplo, triângulo
 const pads = await p.evaluate(() => {

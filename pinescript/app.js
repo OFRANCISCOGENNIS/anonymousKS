@@ -6416,6 +6416,8 @@ document.addEventListener('DOMContentLoaded', function () {
     }
     const b = document.getElementById('btnAnalise');
     if (b) b.addEventListener('click', abrirAnaliseMestre);
+    const bT = document.getElementById('btnAnaliseTop');   // atalho na barra superior
+    if (bT) bT.addEventListener('click', abrirAnaliseMestre);
     const x = document.getElementById('analiseFechar');
     if (x) x.addEventListener('click', () => document.getElementById('analiseModal').style.display = 'none');
     const m = document.getElementById('analiseModal');
