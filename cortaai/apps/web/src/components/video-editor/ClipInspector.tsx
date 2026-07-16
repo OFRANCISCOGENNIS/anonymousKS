@@ -387,7 +387,14 @@ export function ClipInspector() {
                         important: true,
                       });
                     }
-                    if (on) void ensureBgVideoSegmenter();
+                    if (on)
+                      void ensureBgVideoSegmenter().then((ok) => {
+                        if (!ok)
+                          toast("A IA de recorte não carregou", {
+                            description: "Verifique a internet e tente de novo — o clipe fica com o fundo até a IA carregar.",
+                            variant: "error",
+                          });
+                      });
                   }}
                 />
                 <p className="text-[10px] leading-relaxed text-zinc-600">

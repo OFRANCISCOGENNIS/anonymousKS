@@ -150,7 +150,13 @@ export function ToolsPanel({ onNavigate }: { onNavigate: (panel: RailPanel) => v
         important: true,
       });
     }
-    void ensureBgVideoSegmenter();
+    void ensureBgVideoSegmenter().then((ok) => {
+      if (!ok)
+        toast("A IA de recorte não carregou", {
+          description: "Verifique a internet e tente de novo — o clipe fica com o fundo até a IA carregar.",
+          variant: "error",
+        });
+    });
     openProps("video");
   }
 

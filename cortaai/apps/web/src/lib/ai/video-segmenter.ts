@@ -23,6 +23,7 @@ declare global {
 let segmenter: any = null;
 let loadPromise: Promise<boolean> | null = null;
 let lastTs = 0;
+let lastFailAt = 0;
 
 let workCanvas: HTMLCanvasElement | null = null;
 let maskCanvas: HTMLCanvasElement | null = null;
@@ -44,11 +45,22 @@ function fakeMask(mode: "left" | "right", w: number, h: number): HTMLCanvasEleme
   return maskCanvas;
 }
 
+/** Falhas de segmentação POR FRAME (runtime) — a exportação confere no final. */
+let frameFailures = 0;
+export function resetBgSegFrameFailures(): void {
+  frameFailures = 0;
+}
+export function getBgSegFrameFailures(): number {
+  return frameFailures;
+}
+
 function registerProvider(): void {
   setBgMaskProvider((el, srcW, srcH) => {
     const fake = typeof window !== "undefined" ? window.__CORTAAI_FAKE_BGSEG__ : undefined;
     if (fake) return fakeMask(fake, 64, 64);
     if (!segmenter || typeof document === "undefined") return null;
+    // eslint-disable-next-line
+    let result: any = null;
     try {
       // frame reduzido para a IA (velocidade); a máscara volta esticada no draw
       const W = 256;
@@ -58,13 +70,17 @@ function registerProvider(): void {
         workCanvas.width = W;
         workCanvas.height = H;
       }
-      const wctx = workCanvas.getContext("2d", { willReadFrequently: true })!;
+      const wctx = workCanvas.getContext("2d", { willReadFrequently: true });
+      if (!wctx) {
+        frameFailures++;
+        return null;
+      }
       wctx.drawImage(el, 0, 0, W, H);
       lastTs = Math.max(lastTs + 1, Math.round(performance.now()));
-      const result = segmenter.segmentForVideo(workCanvas, lastTs);
+      result = segmenter.segmentForVideo(workCanvas, lastTs);
       const masks = result?.confidenceMasks;
       if (!masks || masks.length === 0) {
-        result?.close?.();
+        frameFailures++;
         return null;
       }
       // escolhe a máscara da PESSOA pelos rótulos (defensivo entre versões)
@@ -80,7 +96,11 @@ function registerProvider(): void {
       if (!maskCanvas) maskCanvas = document.createElement("canvas");
       maskCanvas.width = mw;
       maskCanvas.height = mh;
-      const mctx = maskCanvas.getContext("2d")!;
+      const mctx = maskCanvas.getContext("2d");
+      if (!mctx) {
+        frameFailures++;
+        return null;
+      }
       const img = mctx.createImageData(mw, mh);
       for (let i = 0; i < data.length; i++) {
         const v = Math.max(0, Math.min(1, data[i]));
@@ -92,10 +112,17 @@ function registerProvider(): void {
         img.data[o + 3] = a;
       }
       mctx.putImageData(img, 0, 0);
-      result?.close?.();
       return maskCanvas;
     } catch {
+      frameFailures++;
       return null;
+    } finally {
+      // MPMask é dono de recursos WASM/GPU — sempre liberar, mesmo com exceção
+      try {
+        result?.close?.();
+      } catch {
+        /* já fechado */
+      }
     }
   });
 }
@@ -111,6 +138,8 @@ export async function ensureBgVideoSegmenter(onProgress?: (message: string) => v
     return true;
   }
   if (segmenter) return true;
+  // cooldown pós-falha: evita re-baixar o modelo a cada edição enquanto offline
+  if (!loadPromise && Date.now() - lastFailAt < 15_000) return false;
   if (!loadPromise) {
     loadPromise = (async () => {
       try {
@@ -137,6 +166,7 @@ export async function ensureBgVideoSegmenter(onProgress?: (message: string) => v
         return true;
       } catch {
         loadPromise = null;
+        lastFailAt = Date.now();
         return false;
       }
     })();

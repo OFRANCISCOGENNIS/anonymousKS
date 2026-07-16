@@ -185,19 +185,22 @@ export function PreviewStage() {
   }, []);
 
   // --- remoção de fundo por IA: carrega o modelo quando algum clipe usa --------
+  // (deps mínimas: o ensure NÃO roda a cada edição da timeline — só quando o
+  // projeto passa a usar a IA; falhas têm cooldown interno de 15s)
   const needsBgSeg = useMemo(() => project.tracks.some((t) => t.clips.some((c) => c.bgRemove)), [project.tracks]);
   useEffect(() => {
     if (!needsBgSeg) return;
     void ensureBgVideoSegmenter();
     function onReady() {
-      // redesenha o frame atual assim que o modelo carregar
+      // redesenha o frame atual assim que o modelo carregar (estado via store)
       const canvas = canvasRef.current;
       const c = canvas?.getContext("2d");
-      if (canvas && c) drawComposite(c, pw, ph, project, useVideoEditor.getState().playheadMs, resolve);
+      const st = useVideoEditor.getState();
+      if (canvas && c) drawComposite(c, st.project.resolution.w, st.project.resolution.h, st.project, st.playheadMs, resolve);
     }
     window.addEventListener("cortaai-bgseg-ready", onReady);
     return () => window.removeEventListener("cortaai-bgseg-ready", onReady);
-  }, [needsBgSeg, project, pw, ph, resolve]);
+  }, [needsBgSeg, resolve]);
 
   const fit = useMemo(() => {
     if (!stageSize) return { w: 320, h: 320 * (ph / pw) };
