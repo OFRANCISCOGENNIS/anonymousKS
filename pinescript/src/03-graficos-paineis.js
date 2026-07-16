@@ -18,9 +18,7 @@ function opcoesBase() {
 // Altura do gráfico principal: 500px padrão; no modo ampliado (⛶, persistido)
 // ocupa ~72% da janela — leitura confortável das zonas/LTs/rótulos.
 function alturaChartPreco() {
-    const h = localStorage.getItem('chartAlto') === '1'
-        ? Math.max(520, Math.round(window.innerHeight * 0.72))
-        : 500;
+    const h = localStorage.getItem('chartAlto') === '1' ? 1000 : 500;
     document.documentElement.style.setProperty('--chart-h', h + 'px');   // container acompanha
     return h;
 }
