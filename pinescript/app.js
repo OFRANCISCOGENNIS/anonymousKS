@@ -4836,6 +4836,12 @@ function renderPriceAction() {
     const pat = padraoVela(n - 1);
     const dec = close < 10 ? 5 : 2;
     const rot = d => d === 1 ? '📈 alta' : d === -1 ? '📉 baixa' : '↔ neutra';
+    // Padrões clássicos (doji/harami/CHoCH/topo-fundo duplo/triângulo-canal)
+    let pads = [];
+    try { if (typeof padroesAtuais === 'function') pads = padroesAtuais(); } catch (e) { }
+    const padsTxt = pads.length ? pads.map(p => (p.dir === 1 ? '📈 ' : p.dir === -1 ? '📉 ' : '◇ ') + p.nome).join(' · ') : '—';
+    const padsCls = pads.some(p => p.dir === 1) && !pads.some(p => p.dir === -1) ? 'kv-good'
+        : pads.some(p => p.dir === -1) && !pads.some(p => p.dir === 1) ? 'kv-bad' : '';
     body.innerHTML =
         kv('Macro (TF maior / EMA200)', rot(macro), macro === 1 ? 'kv-good' : macro === -1 ? 'kv-bad' : '') +
         kv('Micro (estrutura do TF)', rot(micro) + (micro === 1 ? ' · HH+HL' : micro === -1 ? ' · LH+LL' : ''), micro === 1 ? 'kv-good' : micro === -1 ? 'kv-bad' : '') +
@@ -4843,7 +4849,8 @@ function renderPriceAction() {
         kv('LTA (fundos ascendentes)', lta ? lta.toques + ' toques · ' + lta.atual.toFixed(dec) : '—', lta ? 'kv-good' : '') +
         kv('LTB (topos descendentes)', ltb ? ltb.toques + ' toques · ' + ltb.atual.toFixed(dec) : '—', ltb ? 'kv-bad' : '') +
         kv('Zona de confluência', zPerto ? zPerto.n + '× em ' + zPerto.preco.toFixed(dec) + ' (' + zPerto.itens.join(' + ') + ')' : 'nenhuma a ≤0.8 ATR', zPerto && zPerto.n >= 2 ? 'kv-good' : '') +
-        kv('Vela atual', pat.up ? 'reversão de alta' : pat.down ? 'reversão de baixa' : '—', pat.up ? 'kv-good' : pat.down ? 'kv-bad' : '');
+        kv('Vela atual', pat.up ? 'reversão de alta' : pat.down ? 'reversão de baixa' : '—', pat.up ? 'kv-good' : pat.down ? 'kv-bad' : '') +
+        kv('Padrões de preço', padsTxt, padsCls);
 
     // Leitura da ENTRADA (estudo descritivo, nunca ordem)
     let leitura;
@@ -4895,8 +4902,11 @@ function snapshotEntrada(verdictKey, gFull, fn) {
         const comVelas = registro.filter(r => r.det && r.det.velas);
         if (comVelas.length > 19) comVelas.slice(0, comVelas.length - 19).forEach(r => { delete r.det.velas; });
     } catch (e) { }
+    // padrões de preço presentes no instante da virada (leitura de estudo)
+    let padroes = [];
+    try { if (typeof padroesAtuais === 'function') padroes = padroesAtuais().map(p => ({ nome: p.nome, dir: p.dir })); } catch (e) { }
     return {
-        veredito: verdictKey, entryPrice,
+        veredito: verdictKey, entryPrice, padroes,
         grade: gFull ? gFull.grade : null,
         score: gFull ? gFull.score : null,
         pEst: gFull ? gFull.pEst : null,
@@ -4951,7 +4961,10 @@ function abrirDetalheEntrada(idx) {
         const aFavor = f.dir === 2 || (up ? f.dir === 1 : f.dir === -1);
         return `<span class="det-chip ${aFavor ? 'det-chip-ok' : 'det-chip-nt'}">${f.nome} ${ic}</span>`;
     }).join('');
-    document.getElementById('detFatores').innerHTML = chips || '<span class="det-vazio">sem fatores gravados</span>';
+    // padrões de preço do instante (doji/harami/CHoCH/topo-fundo duplo/triângulo)
+    const pats = (d.padroes || []).map(pt =>
+        `<span class="det-chip det-chip-pat">${pt.dir === 1 ? '📈' : pt.dir === -1 ? '📉' : '◇'} ${pt.nome}</span>`).join('');
+    document.getElementById('detFatores').innerHTML = (chips + pats) || '<span class="det-vazio">sem fatores gravados</span>';
 
     // Funil de qualidade (6 elos) no momento da entrada
     document.getElementById('detFunil').innerHTML = (d.funil || []).map(e => {
@@ -5260,3 +5273,95 @@ document.addEventListener('DOMContentLoaded', function () {
     aquecerIAsePreciso();
     salvarEstadoControles();
 });
+// ============================================================================
+// BLOCO 21 — PADRÕES DE PREÇO (doji, harami, CHoCH, topo/fundo duplo, triângulo/canal)
+// ============================================================================
+// Fase 2 do endurecimento: detecção DESCRITIVA de padrões clássicos. Eles NÃO
+// entram na pontuação de confluência (decisão da auditoria: padrão sem contexto
+// vira ruído) — aparecem no painel 🧭 e no retrato da entrada como leitura de
+// estudo, para o operador confirmar o contexto com os olhos.
+
+// ---- Doji: corpo ≤10% do range da vela (indecisão) ----
+function ehDoji(o, h, l, c) {
+    const range = h - l;
+    if (range <= 0) return false;
+    return Math.abs(c - o) <= range * 0.1;
+}
+
+// ---- Harami: corpo atual pequeno (≤60%) DENTRO do corpo anterior grande ----
+// prev de baixa + atual de alta = harami de alta (1); o inverso = de baixa (-1)
+function ehHarami(prev, cur) {
+    const corpoPrev = Math.abs(prev.close - prev.open);
+    const corpoCur = Math.abs(cur.close - cur.open);
+    if (corpoPrev <= 0 || corpoCur > corpoPrev * 0.6) return 0;
+    const hiPrev = Math.max(prev.open, prev.close), loPrev = Math.min(prev.open, prev.close);
+    if (Math.max(cur.open, cur.close) > hiPrev || Math.min(cur.open, cur.close) < loPrev) return 0;
+    if (prev.close < prev.open && cur.close > cur.open) return 1;
+    if (prev.close > prev.open && cur.close < cur.open) return -1;
+    return 0;
+}
+
+// ---- Topo/fundo duplo: 2 últimos pivôs do mesmo lado no MESMO nível (±tol) ----
+// Exige distância mínima de 5 barras entre os pivôs (senão é o mesmo teste).
+function topoFundoDuplo(piv, tol) {
+    const r = piv.res.slice(-2), s = piv.sup.slice(-2);
+    if (r.length === 2 && Math.abs(r[1].price - r[0].price) <= tol && r[1].i - r[0].i >= 5)
+        return { tipo: 'topo duplo', dir: -1, preco: (r[0].price + r[1].price) / 2 };
+    if (s.length === 2 && Math.abs(s[1].price - s[0].price) <= tol && s[1].i - s[0].i >= 5)
+        return { tipo: 'fundo duplo', dir: 1, preco: (s[0].price + s[1].price) / 2 };
+    return null;
+}
+
+// ---- CHoCH (change of character): a estrutura vigente quebra ----
+// Alta (HH+HL) + fechamento ABAIXO do último fundo ascendente → CHoCH de baixa.
+// Baixa (LH+LL) + fechamento ACIMA do último topo descendente → CHoCH de alta.
+function detectarCHoCH(piv, close) {
+    const tops = piv.res.slice(-2), funds = piv.sup.slice(-2);
+    if (tops.length < 2 || funds.length < 2) return 0;
+    const hh = tops[1].price > tops[0].price, hl = funds[1].price > funds[0].price;
+    if (hh && hl && close < funds[1].price) return -1;
+    if (!hh && !hl && close > tops[1].price) return 1;
+    return 0;
+}
+
+// ---- Triângulo / canal (sobre as LTs do bloco 17) ----
+// LTA (fundos sobem) + LTB (topos caem) juntas = convergência → triângulo.
+// Só LTA com topos também subindo em inclinação parecida (±50%) → canal de alta;
+// espelho para canal de baixa.
+function trianguloOuCanal(piv, nBarras, atrV) {
+    const lta = calcularLT(piv.sup, nBarras, 'LTA', 0.35, atrV);
+    const ltb = calcularLT(piv.res, nBarras, 'LTB', 0.35, atrV);
+    if (lta && ltb) return { tipo: 'triângulo (convergência)', dir: 0 };
+    const slope2 = ps => ps.length >= 2 ? (ps[ps.length - 1].price - ps[ps.length - 2].price) / (ps[ps.length - 1].i - ps[ps.length - 2].i) : null;
+    if (lta) {
+        const st = slope2(piv.res);
+        if (st != null && st > 0 && Math.abs(st - lta.slope) <= Math.max(st, lta.slope) * 0.5)
+            return { tipo: 'canal de alta', dir: 1 };
+    }
+    if (ltb) {
+        const sf = slope2(piv.sup);
+        if (sf != null && sf < 0 && Math.abs(sf - ltb.slope) <= Math.abs(Math.min(sf, ltb.slope)) * 0.5)
+            return { tipo: 'canal de baixa', dir: -1 };
+    }
+    return null;
+}
+
+// ---- Padrões na última vela (agrega tudo p/ painel 🧭 e retrato da entrada) ----
+function padroesAtuais() {
+    if (!dados || dados.length < 30 || !computed || !computed.atrValues) return [];
+    const n = dados.length, cur = dados[n - 1], prev = dados[n - 2];
+    const atrV = computed.atrValues[n - 1] || cur.close * 0.002;
+    const piv = acharPivotsSR();
+    const out = [];
+    if (ehDoji(cur.open, cur.high, cur.low, cur.close))
+        out.push({ nome: 'Doji', dir: 0, dica: 'indecisão — espere a vela de confirmação' });
+    const h = ehHarami(prev, cur);
+    if (h) out.push({ nome: h === 1 ? 'Harami de alta' : 'Harami de baixa', dir: h, dica: 'corpo pequeno dentro do corpo anterior — possível reversão' });
+    const td = topoFundoDuplo(piv, atrV * 0.5);
+    if (td) out.push({ nome: td.tipo === 'topo duplo' ? 'Topo duplo' : 'Fundo duplo', dir: td.dir, dica: '2 pivôs no mesmo nível (±0.5 ATR) — nível defendido' });
+    const ch = detectarCHoCH(piv, cur.close);
+    if (ch) out.push({ nome: ch === 1 ? 'CHoCH de alta' : 'CHoCH de baixa', dir: ch, dica: 'quebra de caráter — a estrutura vigente falhou' });
+    const tc = trianguloOuCanal(piv, n, atrV);
+    if (tc) out.push({ nome: tc.tipo, dir: tc.dir, dica: 'formação de linhas de tendência — espere o rompimento/teste' });
+    return out;
+}

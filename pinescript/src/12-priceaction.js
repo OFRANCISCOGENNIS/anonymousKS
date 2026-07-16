@@ -105,6 +105,12 @@ function renderPriceAction() {
     const pat = padraoVela(n - 1);
     const dec = close < 10 ? 5 : 2;
     const rot = d => d === 1 ? '📈 alta' : d === -1 ? '📉 baixa' : '↔ neutra';
+    // Padrões clássicos (doji/harami/CHoCH/topo-fundo duplo/triângulo-canal)
+    let pads = [];
+    try { if (typeof padroesAtuais === 'function') pads = padroesAtuais(); } catch (e) { }
+    const padsTxt = pads.length ? pads.map(p => (p.dir === 1 ? '📈 ' : p.dir === -1 ? '📉 ' : '◇ ') + p.nome).join(' · ') : '—';
+    const padsCls = pads.some(p => p.dir === 1) && !pads.some(p => p.dir === -1) ? 'kv-good'
+        : pads.some(p => p.dir === -1) && !pads.some(p => p.dir === 1) ? 'kv-bad' : '';
     body.innerHTML =
         kv('Macro (TF maior / EMA200)', rot(macro), macro === 1 ? 'kv-good' : macro === -1 ? 'kv-bad' : '') +
         kv('Micro (estrutura do TF)', rot(micro) + (micro === 1 ? ' · HH+HL' : micro === -1 ? ' · LH+LL' : ''), micro === 1 ? 'kv-good' : micro === -1 ? 'kv-bad' : '') +
@@ -112,7 +118,8 @@ function renderPriceAction() {
         kv('LTA (fundos ascendentes)', lta ? lta.toques + ' toques · ' + lta.atual.toFixed(dec) : '—', lta ? 'kv-good' : '') +
         kv('LTB (topos descendentes)', ltb ? ltb.toques + ' toques · ' + ltb.atual.toFixed(dec) : '—', ltb ? 'kv-bad' : '') +
         kv('Zona de confluência', zPerto ? zPerto.n + '× em ' + zPerto.preco.toFixed(dec) + ' (' + zPerto.itens.join(' + ') + ')' : 'nenhuma a ≤0.8 ATR', zPerto && zPerto.n >= 2 ? 'kv-good' : '') +
-        kv('Vela atual', pat.up ? 'reversão de alta' : pat.down ? 'reversão de baixa' : '—', pat.up ? 'kv-good' : pat.down ? 'kv-bad' : '');
+        kv('Vela atual', pat.up ? 'reversão de alta' : pat.down ? 'reversão de baixa' : '—', pat.up ? 'kv-good' : pat.down ? 'kv-bad' : '') +
+        kv('Padrões de preço', padsTxt, padsCls);
 
     // Leitura da ENTRADA (estudo descritivo, nunca ordem)
     let leitura;

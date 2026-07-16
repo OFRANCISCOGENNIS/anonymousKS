@@ -280,6 +280,34 @@ check('IA aquece sozinha quando o par não tem parâmetros', aqueceu.rodou && aq
 check('com cache existente a IA não re-treina no boot', aqueceu.repetiu === false);
 check('auto-reotimização vem ligada de fábrica', await p.evaluate(() => document.getElementById('autoReopt').checked));
 
+// 4.10) Padrões de preço (Fase 2): doji, harami, CHoCH, topo/fundo duplo, triângulo
+const pads = await p.evaluate(() => {
+  const doji = ehDoji(10, 10.5, 9.5, 10.02) && !ehDoji(10, 10.5, 9.5, 10.4);
+  const haramiAlta = ehHarami({ open: 10, high: 10.1, low: 8.9, close: 9 }, { open: 9.3, high: 9.6, low: 9.2, close: 9.5 }) === 1;
+  const haramiFora = ehHarami({ open: 10, high: 10.1, low: 8.9, close: 9 }, { open: 9.3, high: 10.9, low: 9.2, close: 10.8 }) === 0;
+  const topo = topoFundoDuplo({ res: [{ i: 10, price: 100 }, { i: 20, price: 100.1 }], sup: [] }, 0.5);
+  const fundo = topoFundoDuplo({ res: [], sup: [{ i: 10, price: 90 }, { i: 20, price: 90.2 }] }, 0.5);
+  const chochBaixa = detectarCHoCH({ res: [{ i: 5, price: 101 }, { i: 15, price: 102 }], sup: [{ i: 10, price: 99 }, { i: 20, price: 99.8 }] }, 99.0);
+  const chochAlta = detectarCHoCH({ res: [{ i: 5, price: 102 }, { i: 15, price: 101 }], sup: [{ i: 10, price: 99.8 }, { i: 20, price: 99 }] }, 101.5);
+  const tri = trianguloOuCanal({ sup: [{ i: 0, price: 10 }, { i: 10, price: 11 }], res: [{ i: 5, price: 20 }, { i: 15, price: 19 }] }, 20, 0.5);
+  const canal = trianguloOuCanal({ sup: [{ i: 0, price: 10 }, { i: 10, price: 11 }], res: [{ i: 5, price: 15 }, { i: 15, price: 16.1 }] }, 20, 0.5);
+  const atuais = padroesAtuais();   // dados simulados: só não pode quebrar
+  const painel = document.getElementById('paBody') ? document.getElementById('paBody').textContent : '';
+  return {
+    doji, haramiAlta, haramiFora,
+    topoOk: !!topo && topo.dir === -1, fundoOk: !!fundo && fundo.dir === 1,
+    chochBaixa, chochAlta,
+    triOk: !!tri && /triângulo/.test(tri.tipo), canalOk: !!canal && canal.tipo === 'canal de alta',
+    atuaisArr: Array.isArray(atuais), painelTemLinha: /Padrões de preço/.test(painel)
+  };
+});
+check('doji: corpo ≤10% do range (e não-doji rejeitado)', pads.doji);
+check('harami de alta detectado · corpo fora rejeitado', pads.haramiAlta && pads.haramiFora);
+check('topo duplo (dir -1) e fundo duplo (dir +1)', pads.topoOk && pads.fundoOk, JSON.stringify([pads.topoOk, pads.fundoOk]));
+check('CHoCH: quebra de alta = -1 · quebra de baixa = +1', pads.chochBaixa === -1 && pads.chochAlta === 1, `baixa=${pads.chochBaixa} alta=${pads.chochAlta}`);
+check('LTA+LTB = triângulo · fundos e topos subindo = canal de alta', pads.triOk && pads.canalOk);
+check('painel 🧭 mostra a linha "Padrões de preço"', pads.atuaisArr && pads.painelTemLinha);
+
 // 4.5) Métricas de assertividade: Wilson LB penaliza amostra pequena; expectativa
 const stat = await p.evaluate(() => ({
   lbPequena: wilsonLB(5, 6), lbGrande: wilsonLB(55, 80),
@@ -740,7 +768,7 @@ const paT = await p.evaluate(() => {
 check('calcularLT: LTA com 3 toques e inclinação positiva', paT.ltaOk, JSON.stringify(paT));
 check('calcularLT: LTB descendente ok · direção errada rejeitada', paT.ltbOk && paT.ltbErrada);
 check('zonasConfluencia agrupa níveis próximos (S+fib)', paT.zonaN === 2 && /S\+fib/.test(paT.zonaItens), paT.zonaItens);
-check('painel Price Action renderiza 7 linhas + leitura da entrada', paT.linhas === 7 && paT.temLeitura, 'linhas=' + paT.linhas);
+check('painel Price Action renderiza 8 linhas + leitura da entrada', paT.linhas === 8 && paT.temLeitura, 'linhas=' + paT.linhas);
 check('LTA/LTB traçadas no gráfico seguem o toggle 📐', paT.comLT && paT.semLT);
 
 // 8) PWA manifest

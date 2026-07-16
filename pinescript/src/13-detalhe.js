@@ -32,8 +32,11 @@ function snapshotEntrada(verdictKey, gFull, fn) {
         const comVelas = registro.filter(r => r.det && r.det.velas);
         if (comVelas.length > 19) comVelas.slice(0, comVelas.length - 19).forEach(r => { delete r.det.velas; });
     } catch (e) { }
+    // padrões de preço presentes no instante da virada (leitura de estudo)
+    let padroes = [];
+    try { if (typeof padroesAtuais === 'function') padroes = padroesAtuais().map(p => ({ nome: p.nome, dir: p.dir })); } catch (e) { }
     return {
-        veredito: verdictKey, entryPrice,
+        veredito: verdictKey, entryPrice, padroes,
         grade: gFull ? gFull.grade : null,
         score: gFull ? gFull.score : null,
         pEst: gFull ? gFull.pEst : null,
@@ -88,7 +91,10 @@ function abrirDetalheEntrada(idx) {
         const aFavor = f.dir === 2 || (up ? f.dir === 1 : f.dir === -1);
         return `<span class="det-chip ${aFavor ? 'det-chip-ok' : 'det-chip-nt'}">${f.nome} ${ic}</span>`;
     }).join('');
-    document.getElementById('detFatores').innerHTML = chips || '<span class="det-vazio">sem fatores gravados</span>';
+    // padrões de preço do instante (doji/harami/CHoCH/topo-fundo duplo/triângulo)
+    const pats = (d.padroes || []).map(pt =>
+        `<span class="det-chip det-chip-pat">${pt.dir === 1 ? '📈' : pt.dir === -1 ? '📉' : '◇'} ${pt.nome}</span>`).join('');
+    document.getElementById('detFatores').innerHTML = (chips + pats) || '<span class="det-vazio">sem fatores gravados</span>';
 
     // Funil de qualidade (6 elos) no momento da entrada
     document.getElementById('detFunil').innerHTML = (d.funil || []).map(e => {
