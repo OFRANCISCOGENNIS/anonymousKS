@@ -675,6 +675,31 @@ check('seletor do gráfico lista cripto e forex', quick.temCripto && quick.temFo
 check('botões de timeframe no gráfico trocam o TF (M15)', quick.tfMudou);
 check('trocar moeda cripto pelo gráfico muda o símbolo', quick.symMudou);
 check('escolher forex pelo gráfico ajusta o par', quick.forexMudou);
+// Roteamento robusto: forex sem chave TD real vai p/ Yahoo (keyless), cripto p/ Binance
+const rota = await p.evaluate(() => {
+  const bakC = window.carregar, bakW = window.montarWidgetTV, bakN = window.renderNoticias;
+  window.carregar = () => {}; window.montarWidgetTV = () => {}; window.renderNoticias = () => {};
+  const sel = document.getElementById('chartSym'), fEl = document.getElementById('fonte'), tdEl = document.getElementById('tdKey');
+  // demo key + par forex não-EURUSD → Yahoo (não Twelve Data)
+  tdEl.value = 'demo'; fEl.value = 'binance';
+  sel.value = 'GBPUSD'; sel.dispatchEvent(new Event('change'));
+  const forexKeyless = fEl.value === 'yahoo';
+  // chave real → mantém/усa Twelve Data
+  tdEl.value = 'MINHACHAVE123'; fEl.value = 'binance';
+  sel.value = 'GBPUSD'; sel.dispatchEvent(new Event('change'));
+  const forexComChave = fEl.value === 'twelvedata';
+  // cripto estando em yahoo → volta p/ binance
+  fEl.value = 'yahoo';
+  sel.value = 'BTCUSDT'; sel.dispatchEvent(new Event('change'));
+  const criptoBinance = fEl.value === 'binance';
+  // restaura
+  window.carregar = bakC; window.montarWidgetTV = bakW; window.renderNoticias = bakN;
+  tdEl.value = 'demo'; fEl.value = 'sim'; document.getElementById('symbol').value = 'BTCUSDT';
+  return { forexKeyless, forexComChave, criptoBinance };
+});
+check('forex sem chave → Yahoo keyless (evita o branco do demo)', rota.forexKeyless);
+check('forex com chave real → Twelve Data', rota.forexComChave);
+check('cripto sempre volta p/ Binance', rota.criptoBinance);
 // Volume no gráfico principal (estilo TradingView): histograma no rodapé
 const vol = await p.evaluate(() => {
   const alta = barraVolume({ time: 1, open: 10, high: 12, low: 9, close: 11, volume: 500 });

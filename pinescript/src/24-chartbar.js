@@ -44,16 +44,27 @@ document.addEventListener('DOMContentLoaded', function () {
     const sel = document.getElementById('chartSym');
     if (sel) sel.addEventListener('change', function () {
         const v = this.value;
+        const fonteEl = document.getElementById('fonte');
         if (PARES_YAHOO[v]) {
-            // forex/índice/ouro: mesma rota do seletor de pares da sidebar
-            const pp = document.getElementById('parPopular');
-            if (pp) { pp.value = v; pp.dispatchEvent(new Event('change')); return; }
+            // forex/índice/ouro: escolhe a fonte que REALMENTE funciona para o par.
+            // Sem chave própria do Twelve Data (vazia/"demo", que só serve EUR/USD),
+            // vai direto pro Yahoo — keyless e cobre todos os pares — evitando o
+            // gráfico em branco durante o fallback lento.
+            const key = (document.getElementById('tdKey').value || '').trim().toLowerCase();
+            const temChaveReal = key && key !== 'demo';
+            if (!['twelvedata', 'yahoo', 'ambos', 'ambos3'].includes(fonteEl.value)) {
+                fonteEl.value = temChaveReal ? 'twelvedata' : 'yahoo';
+            } else if (fonteEl.value === 'twelvedata' && !temChaveReal) {
+                fonteEl.value = 'yahoo';   // corrige demo → keyless
+            }
+        } else {
+            // cripto: garante fonte que serve cripto (nunca fica preso no forex/sim)
+            if (['yahoo', 'twelvedata', 'sim'].includes(fonteEl.value)) fonteEl.value = 'binance';
         }
-        // cripto: garante fonte que serve cripto e recarrega
-        if (fonte() === 'yahoo' || fonte() === 'twelvedata') document.getElementById('fonte').value = 'binance';
         const symEl = document.getElementById('symbol');
         symEl.value = v;
-        symEl.dispatchEvent(new Event('change'));
+        montarWidgetTV(); renderNoticias();
+        carregar();   // recarrega já com a fonte certa (não depende do listener antigo)
     });
 
     document.getElementById('chartTf').addEventListener('click', function (e) {

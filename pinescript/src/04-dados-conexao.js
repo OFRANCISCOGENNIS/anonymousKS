@@ -510,7 +510,8 @@ async function carregar() {
         setStatus('err', 'Falha: ' + (err.message || err));
         console.error('Erro ao carregar Binance:', err);
         // fallback visual: gera simulado para não deixar a tela vazia
-        dados = gerarDadosSim(parseInt(document.getElementById('numCandles').value), 2);
+        // (|| 500: campo vazio/inválido não pode virar NaN → gráfico em branco)
+        dados = gerarDadosSim(parseInt(document.getElementById('numCandles').value) || 500, 2);
         refPares = gerarRefParesSim(dados);
         redesenharTudo(true);
     }
