@@ -2249,3 +2249,29 @@ button:not(.rail-btn):not(:disabled):active { transform: scale(0.95); transition
     padding: 2px 8px; border-radius: 6px; background: var(--surface-2);
     border: 1px solid var(--hairline); vertical-align: middle;
 }
+
+/* ---- Barra de troca rápida do gráfico (moeda + timeframe) ---- */
+.chart-quickbar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 8px; }
+#chartSym {
+    background: var(--surface-2); color: var(--ink); font-weight: 700; font-size: 13px;
+    border: 1px solid var(--hairline); border-radius: 10px; padding: 7px 12px;
+    cursor: pointer; min-width: 150px;
+    transition: border-color 0.2s, box-shadow 0.2s;
+}
+#chartSym:hover { border-color: var(--neon-1); }
+#chartSym:focus { border-color: var(--neon-1); box-shadow: 0 0 0 3px rgba(34, 211, 238, 0.12); outline: none; }
+.tf-seg { display: inline-flex; background: var(--surface-2); border: 1px solid var(--hairline); border-radius: 10px; padding: 3px; gap: 2px; }
+.tf-seg button {
+    background: transparent; color: var(--ink-2); border: none; cursor: pointer;
+    font-size: 12.5px; font-weight: 700; padding: 5px 12px; border-radius: 7px;
+    transition: transform 0.14s var(--spring), background 0.2s, color 0.2s;
+}
+.tf-seg button:hover { color: var(--ink); }
+.tf-seg button.is-active {
+    background: linear-gradient(100deg, var(--neon-1), var(--neon-2));
+    color: #fff; box-shadow: 0 2px 8px rgba(34, 211, 238, 0.35);
+}
+@media (max-width: 620px) {
+    #chartSym { min-width: 120px; flex: 1; }
+    .tf-seg button { padding: 5px 9px; }
+}

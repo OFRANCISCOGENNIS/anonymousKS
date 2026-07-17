@@ -473,6 +473,18 @@
                     <div class="train-stats" id="trainStats"></div>
                 </div>
 
+                <!-- Barra de troca rápida: moeda + timeframe direto no gráfico -->
+                <div class="chart-quickbar" id="chartQuickbar">
+                    <select id="chartSym" title="Trocar a moeda/ativo analisado"></select>
+                    <div class="tf-seg" id="chartTf">
+                        <button type="button" data-tf="1">M1</button>
+                        <button type="button" data-tf="5">M5</button>
+                        <button type="button" data-tf="15">M15</button>
+                        <button type="button" data-tf="30">M30</button>
+                        <button type="button" data-tf="60">H1</button>
+                    </div>
+                </div>
+
                 <!-- Gráfico de Velas (Candlestick) + EMAs (com meus sinais) -->
                 <div class="chart-container" id="chartPanel">
                     <h2>💹 <span id="chartTitulo">Preço (Velas) & EMAs + sinais</span> <span id="liveBadge" class="live-badge">● AO VIVO</span>
@@ -768,6 +780,7 @@
     <script src="src/21-backup.js"></script>
     <script src="src/22-infos.js"></script>
     <script src="src/23-zonas.js"></script>
+    <script src="src/24-chartbar.js"></script>
     <!-- APP:END -->
 </body>
 </html>

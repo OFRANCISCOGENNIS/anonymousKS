@@ -645,6 +645,36 @@ const titulo = await p.evaluate(() => {
 });
 check('título do gráfico mostra o par em análise (ETHUSDT)', titulo.par === 'ETHUSDT', 'par=' + titulo.par);
 check('título traz TF e fonte (M5 · Binance)', /M5/.test(titulo.meta) && /Binance/.test(titulo.meta), 'meta=' + titulo.meta);
+// Troca rápida no gráfico: seletor de moeda + botões de timeframe
+const quick = await p.evaluate(() => {
+  // neutraliza os efeitos de rede (carregar/widget) — testamos só a fiação da UI
+  const bakC = window.carregar, bakW = window.montarWidgetTV, bakN = window.renderNoticias;
+  window.carregar = () => {}; window.montarWidgetTV = () => {}; window.renderNoticias = () => {};
+  const sel = document.getElementById('chartSym');
+  const temCripto = [...sel.options].some(o => o.value === 'BTCUSDT');
+  const temForex = [...sel.options].some(o => o.value === 'EURUSD');
+  // trocar timeframe pelo gráfico reflete no #timeframe e marca ativo
+  const btnM15 = [...document.querySelectorAll('#chartTf button')].find(b => b.dataset.tf === '15');
+  btnM15.click();
+  const tfMudou = document.getElementById('timeframe').value === '15' && btnM15.classList.contains('is-active');
+  // trocar a moeda cripto pelo seletor escreve no #symbol
+  document.getElementById('fonte').value = 'binance';
+  sel.value = 'SOLUSDT'; sel.dispatchEvent(new Event('change'));
+  const symMudou = document.getElementById('symbol').value === 'SOLUSDT';
+  // escolher forex ajusta o par (via parPopular)
+  sel.value = 'EURUSD'; sel.dispatchEvent(new Event('change'));
+  const forexMudou = document.getElementById('symbol').value === 'EURUSD';
+  // restaura estado e funções p/ não vazar pros próximos testes
+  window.carregar = bakC; window.montarWidgetTV = bakW; window.renderNoticias = bakN;
+  document.getElementById('fonte').value = 'sim';
+  document.getElementById('symbol').value = 'BTCUSDT';
+  document.getElementById('timeframe').value = '5';
+  return { temCripto, temForex, tfMudou, symMudou, forexMudou };
+});
+check('seletor do gráfico lista cripto e forex', quick.temCripto && quick.temForex);
+check('botões de timeframe no gráfico trocam o TF (M15)', quick.tfMudou);
+check('trocar moeda cripto pelo gráfico muda o símbolo', quick.symMudou);
+check('escolher forex pelo gráfico ajusta o par', quick.forexMudou);
 check('toggles viram switches estilo iOS (36×21, appearance none)', ios.switchOk);
 check('lupa do Dock: ícone sob o cursor cresce ~1.5×', ios.cresceu);
 check('aba oculta pausa animações · voltar retoma', fluido.pausou && fluido.voltouAnim);
