@@ -105,6 +105,6 @@ document.addEventListener('DOMContentLoaded', function () {
     });
     const bR = document.getElementById('watchRefresh');
     if (bR) bR.addEventListener('click', atualizarWatchlist);
-    _watchTimer = setInterval(atualizarWatchlist, 30000);
+    _watchTimer = setInterval(() => { if (!document.hidden) atualizarWatchlist(); }, 30000);
     setTimeout(atualizarWatchlist, 2500);
 });

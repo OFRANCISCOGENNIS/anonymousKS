@@ -86,5 +86,5 @@ document.addEventListener('DOMContentLoaded', function () {
         if (el) el.addEventListener('input', renderRisco);
     });
     renderRisco();
-    setInterval(renderRisco, 10000);   // acompanha o placar do dia
+    setInterval(() => { if (!document.hidden) renderRisco(); }, 10000);   // acompanha o placar; pausa oculto
 });

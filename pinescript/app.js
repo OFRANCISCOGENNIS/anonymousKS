@@ -6829,7 +6829,7 @@ document.addEventListener('DOMContentLoaded', function () {
         const x = e.target.closest('button[data-preco]');
         if (x) removerAlertaPreco(+x.dataset.preco);
     });
-    setInterval(atualizarExecucaoUI, 1000);
+    setInterval(() => { if (!document.hidden) atualizarExecucaoUI(); }, 1000);   // pausa com aba oculta
 });
 // ============================================================================
 // BLOCO 31 — PLACAR DO DIA · SESSÕES NO GRÁFICO · MODO FOCO
@@ -6871,7 +6871,7 @@ function renderPlacarDia() {
     el.className = p.wr == null ? '' : p.wr >= 0.55 ? 'qo-good' : p.wr < 0.5 ? 'qo-bad' : '';
     el.title = `hoje: ${p.total} entrada(s) · ${p.w} WIN · ${p.l} LOSS` + (p.seq > 1 ? ` · ${p.seq} vitórias seguidas` : p.seq < -1 ? ` · ${-p.seq} derrotas seguidas — respire` : '');
 }
-setInterval(renderPlacarDia, 15000);
+setInterval(() => { if (!document.hidden) renderPlacarDia(); }, 15000);   // pausa com aba oculta
 
 // ---- 🕐 Sessões pintadas no gráfico ----
 const SESSAO_COR = {
@@ -7207,7 +7207,7 @@ document.addEventListener('DOMContentLoaded', function () {
         if (el) el.addEventListener('input', renderRisco);
     });
     renderRisco();
-    setInterval(renderRisco, 10000);   // acompanha o placar do dia
+    setInterval(() => { if (!document.hidden) renderRisco(); }, 10000);   // acompanha o placar; pausa oculto
 });
 // ============================================================================
 // BLOCO 35 — WATCHLIST (lista de observação multi-ativo ao vivo)
@@ -7316,7 +7316,7 @@ document.addEventListener('DOMContentLoaded', function () {
     });
     const bR = document.getElementById('watchRefresh');
     if (bR) bR.addEventListener('click', atualizarWatchlist);
-    _watchTimer = setInterval(atualizarWatchlist, 30000);
+    _watchTimer = setInterval(() => { if (!document.hidden) atualizarWatchlist(); }, 30000);
     setTimeout(atualizarWatchlist, 2500);
 });
 // ============================================================================

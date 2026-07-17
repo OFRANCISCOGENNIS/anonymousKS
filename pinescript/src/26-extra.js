@@ -38,7 +38,7 @@ function renderPlacarDia() {
     el.className = p.wr == null ? '' : p.wr >= 0.55 ? 'qo-good' : p.wr < 0.5 ? 'qo-bad' : '';
     el.title = `hoje: ${p.total} entrada(s) · ${p.w} WIN · ${p.l} LOSS` + (p.seq > 1 ? ` · ${p.seq} vitórias seguidas` : p.seq < -1 ? ` · ${-p.seq} derrotas seguidas — respire` : '');
 }
-setInterval(renderPlacarDia, 15000);
+setInterval(() => { if (!document.hidden) renderPlacarDia(); }, 15000);   // pausa com aba oculta
 
 // ---- 🕐 Sessões pintadas no gráfico ----
 const SESSAO_COR = {

@@ -139,5 +139,5 @@ document.addEventListener('DOMContentLoaded', function () {
         const x = e.target.closest('button[data-preco]');
         if (x) removerAlertaPreco(+x.dataset.preco);
     });
-    setInterval(atualizarExecucaoUI, 1000);
+    setInterval(() => { if (!document.hidden) atualizarExecucaoUI(); }, 1000);   // pausa com aba oculta
 });
