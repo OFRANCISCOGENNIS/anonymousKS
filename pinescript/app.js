@@ -937,6 +937,14 @@ function agendarTick(fechou) {
     }), espera);
 }
 document.addEventListener('visibilitychange', () => { if (!document.hidden && dados && dados.length) agendarTick(false); });
+// Título do gráfico reflete par/TF/fonte na hora que qualquer um deles muda
+document.addEventListener('DOMContentLoaded', function () {
+    ['symbol', 'timeframe', 'fonte', 'parPopular'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.addEventListener('change', () => { try { atualizarTituloGrafico(); } catch (e) { } });
+    });
+    try { atualizarTituloGrafico(); } catch (e) { }
+});
 
 function atualizarUltimoCandle(fechou) {
     if (!dados || !dados.length || !serieVelas) return;   // feed vazio: nada a atualizar
@@ -980,7 +988,23 @@ function atualizarMarcadores() {
     serieVelas.setMarkers(marc.sort((a, b) => a.time - b.time));
 }
 
+// Título do gráfico: QUAL par/TF/fonte está sendo analisado (atualiza no topo)
+function atualizarTituloGrafico() {
+    const el = document.getElementById('chartTitulo');
+    if (!el) return;
+    const sym = symbolAtual();
+    const lbl = PARES_YAHOO[sym] ? PARES_YAHOO[sym].label : sym;
+    const tf = typeof rotTf === 'function' ? rotTf(tfMinutes()) : 'M' + tfMinutes();
+    const fMap = { binance: 'Binance', twelvedata: 'Twelve Data', yahoo: 'Yahoo', ambos: 'Binance+TD', ambos3: 'Binance+TD+Yahoo', sim: 'Simulado' };
+    const src = fMap[fonte()] || fonte();
+    const txt = `${lbl} · ${tf} · ${src}`;
+    if (el.dataset.txt === txt) return;   // evita reescrever a cada tick
+    el.dataset.txt = txt;
+    el.innerHTML = `<strong class="ct-par">${lbl}</strong><span class="ct-meta">${tf} · ${src}</span>`;
+}
+
 function atualizarLegenda() {
+    atualizarTituloGrafico();
     const last = dados.length - 1;
     if (last < 0) return;
     const fmt = v => (v === null || v === undefined) ? '–' : (+v).toFixed(4);

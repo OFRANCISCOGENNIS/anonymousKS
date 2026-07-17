@@ -634,6 +634,17 @@ const ios = await p.evaluate(() => {
     requestAnimationFrame(() => res({ switchOk, cresceu, limpou: b0.style.transform === '' || true }));
   })));
 });
+// Título do gráfico mostra o par/TF/fonte em análise
+const titulo = await p.evaluate(() => {
+  document.getElementById('symbol').value = 'ETHUSDT';
+  document.getElementById('timeframe').value = '5';
+  document.getElementById('fonte').value = 'binance';
+  atualizarTituloGrafico();
+  const t = document.getElementById('chartTitulo');
+  return { par: t.querySelector('.ct-par') ? t.querySelector('.ct-par').textContent : '', meta: t.querySelector('.ct-meta') ? t.querySelector('.ct-meta').textContent : '' };
+});
+check('título do gráfico mostra o par em análise (ETHUSDT)', titulo.par === 'ETHUSDT', 'par=' + titulo.par);
+check('título traz TF e fonte (M5 · Binance)', /M5/.test(titulo.meta) && /Binance/.test(titulo.meta), 'meta=' + titulo.meta);
 check('toggles viram switches estilo iOS (36×21, appearance none)', ios.switchOk);
 check('lupa do Dock: ícone sob o cursor cresce ~1.5×', ios.cresceu);
 check('aba oculta pausa animações · voltar retoma', fluido.pausou && fluido.voltouAnim);
