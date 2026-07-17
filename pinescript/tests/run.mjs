@@ -876,6 +876,37 @@ check('linhaWatch: preço 105, variação +5%, tendência de alta', wl.price ===
 check('watchlist: adiciona (sanitiza), sem duplicata, persiste', wl.add2 && wl.semDup && wl.persistiu);
 check('watchlist ordena por variação (BTC +3.4% no topo)', wl.ordenou);
 check('watchlist remove e tem painel', wl.removeu && wl.temPanel);
+// Divergências RSI × preço (função pura)
+const div = await p.evaluate(() => {
+  // topos: preço sobe (100→105) mas RSI cai (70→60) → REGULAR de baixa
+  const topos = [{ i: 5, price: 100 }, { i: 15, price: 105 }];
+  const rsi = []; rsi[5] = 70; rsi[15] = 60;
+  const regBaixa = _divLado(topos, rsi, 'topo', 0.4);
+  // fundos: preço cai (50→45) mas RSI sobe (30→40) → REGULAR de alta
+  const fundos = [{ i: 6, price: 50 }, { i: 16, price: 45 }];
+  const r2 = []; r2[6] = 30; r2[16] = 40;
+  const regAlta = _divLado(fundos, r2, 'fundo', 0.4);
+  // oculta de baixa: topo mais baixo (105→102) com RSI mais alto (60→68)
+  const t3 = [{ i: 5, price: 105 }, { i: 15, price: 102 }];
+  const r3 = []; r3[5] = 60; r3[15] = 68;
+  const ocultaBaixa = _divLado(t3, r3, 'topo', 0.4);
+  // sem divergência: preço e RSI sobem juntos
+  const t4 = [{ i: 5, price: 100 }, { i: 15, price: 105 }];
+  const r4 = []; r4[5] = 60; r4[15] = 70;
+  const semDiv = _divLado(t4, r4, 'topo', 0.4);
+  return {
+    regBaixa: regBaixa && regBaixa.dir === -1 && !regBaixa.oculta && /REGULAR de baixa/.test(regBaixa.tipo),
+    regAlta: regAlta && regAlta.dir === 1 && /REGULAR de alta/.test(regAlta.tipo),
+    ocultaBaixa: ocultaBaixa && ocultaBaixa.oculta && /OCULTA de baixa/.test(ocultaBaixa.tipo),
+    semDiv: semDiv === null,
+    integra: typeof detectarDivergencias === 'function'
+  };
+});
+check('divergência regular de baixa (preço↑ RSI↓)', div.regBaixa);
+check('divergência regular de alta (preço↓ RSI↑)', div.regAlta);
+check('divergência oculta de baixa (topo↓ RSI↑)', div.ocultaBaixa);
+check('preço e RSI juntos = sem divergência', div.semDiv);
+check('detectarDivergencias integrado aos padrões', div.integra);
 // Volume no gráfico principal (estilo TradingView): histograma no rodapé
 const vol = await p.evaluate(() => {
   const alta = barraVolume({ time: 1, open: 10, high: 12, low: 9, close: 11, volume: 500 });

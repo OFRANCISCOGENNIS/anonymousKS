@@ -88,5 +88,10 @@ function padroesAtuais() {
     if (ch) out.push({ nome: ch === 1 ? 'CHoCH de alta' : 'CHoCH de baixa', dir: ch, dica: 'quebra de caráter — a estrutura vigente falhou' });
     const tc = trianguloOuCanal(piv, n, atrV);
     if (tc) out.push({ nome: tc.tipo, dir: tc.dir, dica: 'formação de linhas de tendência — espere o rompimento/teste' });
+    // Divergências RSI × preço (bloco 36) — entram na mesma leitura descritiva
+    try {
+        if (typeof detectarDivergencias === 'function') detectarDivergencias().forEach(dv =>
+            out.push({ nome: dv.tipo, dir: dv.dir, dica: dv.oculta ? 'RSI diverge — sinal de CONTINUAÇÃO da tendência' : 'RSI não confirma o novo extremo — possível reversão' }));
+    } catch (e) { }
     return out;
 }
