@@ -2075,3 +2075,41 @@ body.anim-pausa *, body.anim-pausa::before, body.anim-pausa::after,
 body.anim-pausa *::before, body.anim-pausa *::after {
     animation-play-state: paused !important;
 }
+
+/* ============================================================================
+   CAMADA FLUIDEZ 2 + POLIMENTO DE INTERFACE
+   ============================================================================ */
+/* Flash sutil quando um valor da topbar MUDA (transform/filter = composited) */
+@keyframes qoValFlash { 0% { transform: scale(1.14); filter: brightness(1.6); } 100% { transform: none; filter: none; } }
+.qo-flash { display: inline-block; animation: qoValFlash 0.45s ease; }
+
+/* Listas roláveis isoladas do resto do layout (repaint local, não global) */
+.reg-list, #agentesLog, #iaList, #scanList { contain: content; }
+
+/* Legenda do gráfico em chips (antes texto solto) */
+.chart-legend .lg {
+    display: inline-flex; align-items: center; gap: 4px;
+    background: var(--surface-2); border: 1px solid var(--hairline);
+    border-radius: 6px; padding: 2px 8px; margin: 2px 4px 0 0; font-size: 11.5px;
+}
+
+/* Títulos dos cards: sublinhado em gradiente que cresce no hover (transform) */
+.chart-container > h2 { position: relative; }
+.chart-container > h2::after {
+    content: ''; position: absolute; left: 0; right: 40%; bottom: -3px; height: 2px;
+    background: var(--grad-brand); border-radius: 2px;
+    transform: scaleX(0); transform-origin: left; transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+    pointer-events: none;
+}
+.chart-container:hover > h2::after { transform: scaleX(1); }
+
+/* Botões do cabeçalho do gráfico: respiro entre eles quando quebram de linha */
+.chart-container > h2 .btn-ghost { margin-top: 2px; margin-bottom: 2px; }
+
+/* Selects e inputs: foco com halo suave (consistência com o resto) */
+.sidebar select:focus, .sidebar input:focus { border-color: var(--neon-1); box-shadow: 0 0 0 3px rgba(34, 211, 238, 0.12); outline: none; }
+
+@media (prefers-reduced-motion: reduce) {
+    .qo-flash { animation: none; }
+    .chart-container > h2::after { transition: none; }
+}

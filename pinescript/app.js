@@ -928,10 +928,15 @@ function agendarTick(fechou) {
     setTimeout(() => requestAnimationFrame(() => {
         _tickPend = false; _tickUltimoT = Date.now();
         const f = _tickFechou; _tickFechou = false;
+        // Aba oculta: tick intra-vela nem desenha (os dados já estão em `dados`;
+        // ao voltar, o listener abaixo redesenha). Fechamento de vela SEMPRE roda
+        // (registro/alertas dependem dele).
+        if (document.hidden && !f) return;
         // Guarda: um erro no tick não pode derrubar o gráfico ao vivo.
         try { atualizarUltimoCandle(f); } catch (e) { QLOG.erro('tick:', e); }
     }), espera);
 }
+document.addEventListener('visibilitychange', () => { if (!document.hidden && dados && dados.length) agendarTick(false); });
 
 function atualizarUltimoCandle(fechou) {
     if (!dados || !dados.length || !serieVelas) return;   // feed vazio: nada a atualizar
@@ -1233,6 +1238,16 @@ function definirEstrutura(sw) {
     return { nome, dir };
 }
 
+// Escreve o texto e pisca sutilmente quando o VALOR mudou (feedback "vivo" da
+// topbar; transform+brightness num span minúsculo = custo desprezível)
+function _setFlash(el, txt) {
+    if (!el || el.textContent === txt) return;
+    el.textContent = txt;
+    el.classList.remove('qo-flash');
+    void el.offsetWidth;   // reinicia a animação
+    el.classList.add('qo-flash');
+}
+
 function atualizarQuantOps() {
     if (!computed || !computed.closes || !computed.closes.length) return;
     const last = computed.closes.length - 1;
@@ -1244,23 +1259,23 @@ function atualizarQuantOps() {
     // ---- topbar ----
     const mercado = document.getElementById('qoMercado');
     const biasTxt = cl.long > cl.short ? 'BULLISH' : cl.short > cl.long ? 'BEARISH' : 'NEUTRO';
-    mercado.textContent = biasTxt;
+    _setFlash(mercado, biasTxt);
     mercado.className = 'qo-big ' + (biasTxt === 'BULLISH' ? 'qo-good' : biasTxt === 'BEARISH' ? 'qo-bad' : '');
-    document.getElementById('qoConf').textContent = conf + '%';
+    _setFlash(document.getElementById('qoConf'), conf + '%');
     document.getElementById('qoRing').style.background =
         `conic-gradient(${dirDom === 1 ? 'var(--call)' : 'var(--put)'} ${conf * 3.6}deg, var(--grid) 0deg)`;
     const regs = regimePorBarra();
-    document.getElementById('qoRegime').textContent = REGIME_ROTULO[regs[last]] || '—';
+    _setFlash(document.getElementById('qoRegime'), REGIME_ROTULO[regs[last]] || '—');
     const atrR = (computed.atrValues[last] != null && computed.atrMedia[last] != null)
         ? computed.atrValues[last] / computed.atrMedia[last] : null;
-    document.getElementById('qoVolat').textContent = atrR == null ? '—' : atrR >= 1.3 ? 'Alta' : atrR <= 0.75 ? 'Baixa' : 'Média';
-    document.getElementById('qoSessao').textContent = dados.length ? sessaoDe(dados[last].time) : '—';
+    _setFlash(document.getElementById('qoVolat'), atrR == null ? '—' : atrR >= 1.3 ? 'Alta' : atrR <= 0.75 ? 'Baixa' : 'Média');
+    _setFlash(document.getElementById('qoSessao'), dados.length ? sessaoDe(dados[last].time) : '—');
     // aprovadas/bloqueadas: entradas do histórico fora/dentro da janela de notícia
     const newsOn = document.getElementById('useNewsFilter').checked;
     const newsJan = lerNum('newsJanela');
     const bloqueadas = newsOn ? entradas.filter(e => noticiaProxima(e.entryTime, newsJan)).length : 0;
-    document.getElementById('qoAprov').textContent = entradas.length - bloqueadas;
-    document.getElementById('qoBloq').textContent = bloqueadas;
+    _setFlash(document.getElementById('qoAprov'), String(entradas.length - bloqueadas));
+    _setFlash(document.getElementById('qoBloq'), String(bloqueadas));
     const exEl = document.getElementById('qoExpect');
     if (metricasAtuais) {
         const v = parseFloat(metricasAtuais.expect);
