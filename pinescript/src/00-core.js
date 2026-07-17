@@ -65,7 +65,7 @@ let computed = {};           // indicadores calculados (emaR, emaL, ema200, rsi,
 
 // Instâncias dos gráficos (Lightweight Charts) — criadas UMA vez
 let chartPreco = null, chartRsi = null, chartAtr = null;
-let serieVelas = null, serieEma9 = null, serieEma21 = null, serieEma200 = null;
+let serieVelas = null, serieEma9 = null, serieEma21 = null, serieEma200 = null, serieVolume = null;
 let serieRsi = null, serieAtr = null, serieAtrMedia = null;
 let chartEquity = null, serieEquity = null;
 let chartFluxo = null, serieFluxo = null;

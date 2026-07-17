@@ -32,6 +32,13 @@ function montarGraficos() {
         upColor: '#26a69a', downColor: '#ef5350', borderUpColor: '#26a69a',
         borderDownColor: '#ef5350', wickUpColor: '#26a69a', wickDownColor: '#ef5350'
     });
+    // Volume no rodapé do gráfico (estilo TradingView): histograma verde/vermelho
+    // num eixo próprio invisível, comprimido no 1/4 inferior (não atrapalha as velas).
+    serieVolume = chartPreco.addHistogramSeries({
+        priceFormat: { type: 'volume' }, priceScaleId: 'vol',
+        priceLineVisible: false, lastValueVisible: false
+    });
+    chartPreco.priceScale('vol').applyOptions({ scaleMargins: { top: 0.78, bottom: 0 } });
     // Séries EMA — paleta escura validada (dataviz): azul, amarelo, violeta
     serieEma9 = chartPreco.addLineSeries({ color: '#3987e5', lineWidth: 2, priceLineVisible: false, lastValueVisible: false });
     serieEma21 = chartPreco.addLineSeries({ color: '#c98500', lineWidth: 2, priceLineVisible: false, lastValueVisible: false });
@@ -70,6 +77,14 @@ function barraFluxo(c) {
     return { time: c.time, value: d, color: d >= 0 ? 'rgba(38,166,154,0.75)' : 'rgba(239,83,80,0.75)' };
 }
 
+// Barra de volume no rodapé do gráfico (verde = vela de alta · vermelho = baixa),
+// como no TradingView. Usa o volume real da vela; sem volume, cai p/ o range.
+function barraVolume(c) {
+    const alta = c.close >= c.open;
+    const v = c.volume != null && c.volume > 0 ? c.volume : Math.abs(c.high - c.low);
+    return { time: c.time, value: v, color: alta ? 'rgba(38,166,154,0.5)' : 'rgba(239,83,80,0.5)' };
+}
+
 let sincronizando = false;
 function sincronizarTempo(charts) {
     charts.forEach(src => {
@@ -104,6 +119,7 @@ function redesenharTudo(ajustarZoom) {
     serieRsi.setData(toLine(times, computed.rsiValues));
     serieAtr.setData(toLine(times, computed.atrValues));
     serieAtrMedia.setData(toLine(times, computed.atrMedia));
+    serieVolume.setData(dados.map(barraVolume));
     serieFluxo.setData(dados.map(barraFluxo));
 
     atualizarMarcadores();
@@ -161,6 +177,7 @@ function atualizarUltimoCandle(fechou) {
     const last = dados.length - 1;
     const t = dados[last].time;
     serieVelas.update({ time: t, open: dados[last].open, high: dados[last].high, low: dados[last].low, close: dados[last].close });
+    if (serieVolume) serieVolume.update(barraVolume(dados[last]));
     const upd = (serie, val) => { if (val !== null && val !== undefined) serie.update({ time: t, value: val }); };
     upd(serieEma9, computed.emaR[last]);
     upd(serieEma21, computed.emaL[last]);

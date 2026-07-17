@@ -675,6 +675,21 @@ check('seletor do gráfico lista cripto e forex', quick.temCripto && quick.temFo
 check('botões de timeframe no gráfico trocam o TF (M15)', quick.tfMudou);
 check('trocar moeda cripto pelo gráfico muda o símbolo', quick.symMudou);
 check('escolher forex pelo gráfico ajusta o par', quick.forexMudou);
+// Volume no gráfico principal (estilo TradingView): histograma no rodapé
+const vol = await p.evaluate(() => {
+  const alta = barraVolume({ time: 1, open: 10, high: 12, low: 9, close: 11, volume: 500 });
+  const baixa = barraVolume({ time: 2, open: 11, high: 11.5, low: 8, close: 9, volume: 300 });
+  const semVol = barraVolume({ time: 3, open: 10, high: 12, low: 8, close: 11 });
+  return {
+    temSerie: !!serieVolume,
+    altaVerde: alta.value === 500 && /38,166,154/.test(alta.color),
+    baixaVermelha: baixa.value === 300 && /239,83,80/.test(baixa.color),
+    fallbackRange: Math.abs(semVol.value - 4) < 0.001   // sem volume usa (high-low)
+  };
+});
+check('série de volume existe no gráfico principal', vol.temSerie);
+check('barra de volume: alta=verde · baixa=vermelho, valor = volume', vol.altaVerde && vol.baixaVermelha);
+check('sem volume, barra cai para o range (high-low)', vol.fallbackRange);
 check('toggles viram switches estilo iOS (36×21, appearance none)', ios.switchOk);
 check('lupa do Dock: ícone sob o cursor cresce ~1.5×', ios.cresceu);
 check('aba oculta pausa animações · voltar retoma', fluido.pausou && fluido.voltouAnim);
