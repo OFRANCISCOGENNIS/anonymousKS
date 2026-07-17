@@ -414,6 +414,17 @@
                     <p class="group-note">Registra sozinho as entradas que passam no gatilho como operações simuladas e acompanha saldo/WR/drawdown. Payout usa o campo <strong>Payout (%)</strong>. Não executa nada na corretora — a operação real, se quiser, é manual.</p>
                 </div>
 
+                <!-- WATCHLIST (lista de observação multi-ativo) -->
+                <div class="chart-container" id="watchPanel">
+                    <h2>⭐ Watchlist <button id="watchRefresh" class="btn-ghost" type="button" style="float:right;font-size:12px;" title="Atualizar agora">↻</button></h2>
+                    <div class="watch-add">
+                        <input type="text" id="watchAddSym" placeholder="BTCUSDT / EURUSD / XAUUSD" spellcheck="false" autocomplete="off">
+                        <button id="watchAddBtn" class="btn-mini" type="button">+ Adicionar</button>
+                    </div>
+                    <div id="watchBody" class="watch-list"></div>
+                    <p class="group-note">Preço + variação da janela, atualizado a cada 30s. Clique numa linha para abrir o ativo no gráfico. Ordenada pela maior variação.</p>
+                </div>
+
                 <!-- GESTÃO DE RISCO + GUARDIÃO DE BANCA -->
                 <div class="chart-container" id="riscoPanel">
                     <h2>🛡 Gestão de Risco <span id="riscoTag" class="tv-sync-tag">—</span></h2>
@@ -838,6 +849,7 @@
     <script src="src/27-ferramentas.js"></script>
     <script src="src/28-toolsmenu.js"></script>
     <script src="src/29-risco.js"></script>
+    <script src="src/30-watchlist.js"></script>
     <!-- APP:END -->
 </body>
 </html>

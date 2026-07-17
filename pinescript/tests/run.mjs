@@ -852,6 +852,30 @@ const seg = await p.evaluate(() => {
 });
 check('escHTML neutraliza tags e aspas', seg.semTag);
 check('nome de filtro perigoso não injeta no seletor', !seg.injetou);
+// Watchlist: linha pura, add/remove/persist, render e clique abre no gráfico
+const wl = await p.evaluate(() => {
+  const ln = linhaWatch([{ close: 100 }, { close: 101 }, { close: 99 }, { close: 105 }]);
+  // add/remove
+  localStorage.removeItem('watchlist'); watchlist = [];
+  watchlistAdd('sol usdt!!');           // sanitiza → SOLUSDT
+  watchlistAdd('BTCUSDT');
+  const add2 = watchlist.length === 2 && watchlist[0] === 'SOLUSDT';
+  watchlistAdd('BTCUSDT');              // duplicado ignorado
+  const semDup = watchlist.length === 2;
+  const persistiu = JSON.parse(localStorage.getItem('watchlist')).length === 2;
+  // render com dados injetados → ordena por variação desc
+  _watchCache = { SOLUSDT: { price: 150, pct: -1.2, dir: -1 }, BTCUSDT: { price: 64000, pct: 3.4, dir: 1 } };
+  renderWatchlist();
+  const linhas = [...document.querySelectorAll('#watchBody .watch-row')].map(r => r.dataset.sym);
+  const ordenou = linhas[0] === 'BTCUSDT';   // +3.4% acima de -1.2%
+  watchlistRemove('SOLUSDT');
+  const removeu = watchlist.length === 1 && !watchlist.includes('SOLUSDT');
+  return { price: ln.price, pct: ln.pct, dir: ln.dir, add2, semDup, persistiu, ordenou, removeu, temPanel: !!document.getElementById('watchPanel') };
+});
+check('linhaWatch: preço 105, variação +5%, tendência de alta', wl.price === 105 && Math.abs(wl.pct - 5) < 0.01 && wl.dir === 1);
+check('watchlist: adiciona (sanitiza), sem duplicata, persiste', wl.add2 && wl.semDup && wl.persistiu);
+check('watchlist ordena por variação (BTC +3.4% no topo)', wl.ordenou);
+check('watchlist remove e tem painel', wl.removeu && wl.temPanel);
 // Volume no gráfico principal (estilo TradingView): histograma no rodapé
 const vol = await p.evaluate(() => {
   const alta = barraVolume({ time: 1, open: 10, high: 12, low: 9, close: 11, volume: 500 });
@@ -1331,7 +1355,7 @@ const rail = await p.evaluate(() => {
   document.querySelector('.rail-btn[data-p="painelFluxo"]').click();   // fecha de volta
   return { botoes, fluxoOculto, decisaoVisivel, precoVisivel, abriu, salvo, iconeAtivo, scanRevelado };
 });
-check('rail tem 18 painéis + botão "todos"', rail.botoes === 19, 'botoes=' + rail.botoes);
+check('rail tem 19 painéis + botão "todos"', rail.botoes === 20, 'botoes=' + rail.botoes);
 check('minimalista: secundários ocultos, decisão+gráfico visíveis', rail.fluxoOculto && rail.decisaoVisivel && rail.precoVisivel, JSON.stringify(rail));
 check('clique no ícone abre o painel, persiste e marca o ícone', rail.abriu && rail.salvo && rail.iconeAtivo);
 check('railMostrar revela painel auto-aberto (scanner)', rail.scanRevelado);

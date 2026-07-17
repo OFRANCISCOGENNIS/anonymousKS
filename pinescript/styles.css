@@ -2380,3 +2380,19 @@ body.modo-foco .cmp-bar { display: none; }
 .guard-stop .guard-msg { color: var(--put); font-weight: 700; }
 @keyframes guardPisca { 50% { box-shadow: 0 0 0 1px rgba(239, 68, 68, 0.5), 0 0 22px rgba(239, 68, 68, 0.25); } }
 @media (prefers-reduced-motion: reduce) { .guard-stop { animation: none; } }
+
+/* ---- Watchlist ---- */
+.watch-add { display: flex; gap: 6px; margin-bottom: 8px; }
+#watchAddSym { flex: 1; min-width: 0; background: var(--surface-2); color: var(--ink); border: 1px solid var(--hairline); border-radius: 8px; padding: 7px 10px; font-size: 12.5px; text-transform: uppercase; }
+#watchAddSym:focus { border-color: var(--neon-1); box-shadow: 0 0 0 3px rgba(34,211,238,0.12); outline: none; }
+.watch-list { display: flex; flex-direction: column; gap: 2px; }
+.watch-row { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-radius: 8px; cursor: pointer; transition: background 0.15s; }
+.watch-row:hover { background: var(--surface-2); }
+.watch-atual { box-shadow: inset 0 0 0 1px rgba(34,211,238,0.4); }
+.watch-par { flex: 1; min-width: 0; font-weight: 700; font-size: 12.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.watch-preco { font-variant-numeric: tabular-nums; font-size: 12.5px; color: var(--ink); }
+.watch-var { font-size: 12px; font-weight: 700; min-width: 58px; text-align: right; }
+.watch-load { font-size: 12px; color: var(--ink-muted); }
+.watch-x { background: transparent; border: none; color: var(--ink-muted); cursor: pointer; font-size: 11px; padding: 2px 5px; border-radius: 6px; opacity: 0; transition: opacity 0.15s; }
+.watch-row:hover .watch-x { opacity: 1; }
+.watch-x:hover { background: rgba(239,68,68,0.18); color: var(--put); }
