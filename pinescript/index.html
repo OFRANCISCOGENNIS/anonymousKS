@@ -474,17 +474,6 @@
                 </div>
 
                 <!-- Barra de troca rápida: moeda + timeframe direto no gráfico -->
-                <div class="chart-quickbar" id="chartQuickbar">
-                    <select id="chartSym" title="Trocar a moeda/ativo analisado"></select>
-                    <div class="tf-seg" id="chartTf">
-                        <button type="button" data-tf="1">M1</button>
-                        <button type="button" data-tf="5">M5</button>
-                        <button type="button" data-tf="15">M15</button>
-                        <button type="button" data-tf="30">M30</button>
-                        <button type="button" data-tf="60">H1</button>
-                    </div>
-                </div>
-
                 <!-- Gráfico de Velas (Candlestick) + EMAs (com meus sinais) -->
                 <div class="chart-container" id="chartPanel">
                     <h2>💹 <span id="chartTitulo">Preço (Velas) & EMAs + sinais</span> <span id="liveBadge" class="live-badge">● AO VIVO</span>
@@ -492,7 +481,20 @@
                         <button id="btnZonasChart" class="btn-ghost" style="float:right;margin-right:6px;" title="Zonas de suporte/resistência (faixas por nº de toques) + rótulos HH/HL/LH/LL nos pivôs">🟩 Zonas</button>
                         <button id="btnNiveisChart" class="btn-ghost" style="float:right;margin-right:6px;" title="LTA/LTB + Fibonacci automático + linhas de S/R">📐 LTA/LTB + Fib</button>
                         <button id="btnChartMax" class="btn-ghost" style="float:right;margin-right:6px;" title="Ampliar/reduzir a altura do gráfico">⛶ Ampliar</button></h2>
-                    <div id="chartPreco" class="tv-chart tv-chart-main"></div>
+                    <div class="chart-wrap">
+                        <!-- Barra flutuante SOBRE o gráfico: par + timeframe (estilo TradingView) -->
+                        <div class="chart-quickbar" id="chartQuickbar">
+                            <select id="chartSym" title="Trocar a moeda/ativo analisado"></select>
+                            <div class="tf-seg" id="chartTf">
+                                <button type="button" data-tf="1">M1</button>
+                                <button type="button" data-tf="5">M5</button>
+                                <button type="button" data-tf="15">M15</button>
+                                <button type="button" data-tf="30">M30</button>
+                                <button type="button" data-tf="60">H1</button>
+                            </div>
+                        </div>
+                        <div id="chartPreco" class="tv-chart tv-chart-main"></div>
+                    </div>
                     <div class="chart-legend" id="legendPreco"></div>
                 </div>
 
