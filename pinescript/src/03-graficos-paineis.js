@@ -87,12 +87,23 @@ function barraVolume(c) {
 
 let sincronizando = false;
 function sincronizarTempo(charts) {
+    // FLUIDEZ: o arrasto dispara dezenas de eventos/s e cada um redesenhava os
+    // 4 gráficos. Coalesce em rAF: aplica só o range mais recente, 1×/frame.
+    let syncPend = null, syncRaf = false;
     charts.forEach(src => {
         src.timeScale().subscribeVisibleLogicalRangeChange(range => {
             if (sincronizando || !range) return;
-            sincronizando = true;
-            charts.forEach(t => { if (t !== src) t.timeScale().setVisibleLogicalRange(range); });
-            sincronizando = false;
+            syncPend = { src, range };
+            if (syncRaf) return;
+            syncRaf = true;
+            requestAnimationFrame(() => {
+                syncRaf = false;
+                if (!syncPend) return;
+                const { src: s, range: r } = syncPend; syncPend = null;
+                sincronizando = true;
+                charts.forEach(t => { if (t !== s) t.timeScale().setVisibleLogicalRange(r); });
+                sincronizando = false;
+            });
         });
     });
 }
@@ -197,12 +208,18 @@ function atualizarUltimoCandle(fechou) {
 }
 
 function atualizarMarcadores() {
-    const marc = entradas.map(e => ({
+    // FLUIDEZ: o gráfico redesenha TODOS os marcadores a cada frame (tick, zoom,
+    // crosshair). Centenas de textos deixavam tudo lento e ilegível: mantemos os
+    // 150 sinais mais recentes e SÓ os últimos 40 carregam texto (os antigos
+    // ficam como setas — a tabela 🔔 Avisos continua com o histórico completo).
+    const rec = entradas.slice(-150);
+    const comTexto = rec.length - 40;
+    const marc = rec.map((e, i) => ({
         time: dados[e.index].time,
         position: e.dir === 'CALL' ? 'belowBar' : 'aboveBar',
         color: e.dir === 'CALL' ? '#26a69a' : '#ef5350',
         shape: e.dir === 'CALL' ? 'arrowUp' : 'arrowDown',
-        text: `${e.dir} ${e.score}/${e.enabled} • ${e.expMin}m`
+        text: i >= comTexto ? `${e.dir} ${e.score}/${e.enabled}` : undefined
     }));
     // Zonas S/R ligadas (bloco 28): rótulos HH/HL/LH/LL nos pivôs + reposiciona as faixas
     try {

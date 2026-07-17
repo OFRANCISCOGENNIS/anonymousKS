@@ -700,6 +700,18 @@ const rota = await p.evaluate(() => {
 check('forex sem chave → Yahoo keyless (evita o branco do demo)', rota.forexKeyless);
 check('forex com chave real → Twelve Data', rota.forexComChave);
 check('cripto sempre volta p/ Binance', rota.criptoBinance);
+// Dieta de marcadores: ≤150 no gráfico, texto só nos 40 mais recentes
+const md = await p.evaluate(() => {
+  const bak = serieVelas.setMarkers.bind(serieVelas);
+  let captura = null;
+  serieVelas.setMarkers = m => { captura = m; bak(m); };
+  atualizarMarcadores();
+  serieVelas.setMarkers = bak;
+  const setas = captura.filter(m => m.shape === 'arrowUp' || m.shape === 'arrowDown');
+  return { total: setas.length, comTexto: setas.filter(m => m.text).length, entradas: entradas.length };
+});
+check('marcadores no gráfico limitados a 150 sinais', md.total <= 150 && md.total === Math.min(150, md.entradas), JSON.stringify(md));
+check('texto só nos 40 marcadores mais recentes', md.comTexto <= 40);
 // Volume no gráfico principal (estilo TradingView): histograma no rodapé
 const vol = await p.evaluate(() => {
   const alta = barraVolume({ time: 1, open: 10, high: 12, low: 9, close: 11, volume: 500 });

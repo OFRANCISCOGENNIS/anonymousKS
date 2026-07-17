@@ -89,12 +89,12 @@ async function historicoParaIA(sym, tf, frescas, cap) {
     if (!frescas || !frescas.length) return frescas;
     await historicoGravar(sym, tf, frescas);
     _histPodar(sym, tf);
-    const antigas = await historicoCarregar(sym, tf, cap || 3000);
+    const antigas = await historicoCarregar(sym, tf, cap || 2000);
     const corte = frescas[0].time;
     const merged = antigas.filter(v => v.time < corte)
         .map(v => ({ time: v.time, open: v.open, high: v.high, low: v.low, close: v.close, volume: v.volume }))
         .concat(frescas);
-    const capN = cap || 3000;
+    const capN = cap || 2000;   // 2000 velas: estatística robusta sem sufocar CPUs fracas
     return merged.length > capN ? merged.slice(-capN) : merged;
 }
 

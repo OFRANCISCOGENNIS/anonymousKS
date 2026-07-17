@@ -2257,8 +2257,9 @@ button:not(.rail-btn):not(:disabled):active { transform: scale(0.95); transition
     position: absolute; top: 8px; left: 8px; z-index: 6;
     display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
     padding: 5px 6px; border-radius: 12px;
-    background: color-mix(in srgb, var(--surface) 78%, transparent);
-    -webkit-backdrop-filter: blur(10px) saturate(1.2); backdrop-filter: blur(10px) saturate(1.2);
+    /* SEM backdrop-blur: o canvas repinta a cada tick e o blur re-amostraria
+       tudo de novo por frame (custo alto). Fundo quase-sólido dá o mesmo look. */
+    background: color-mix(in srgb, var(--surface) 92%, transparent);
     border: 1px solid var(--glass-brd); box-shadow: 0 6px 18px rgba(0,0,0,0.3);
 }
 #chartSym {
@@ -2284,3 +2285,7 @@ button:not(.rail-btn):not(:disabled):active { transform: scale(0.95); transition
     #chartSym { min-width: 120px; flex: 1; }
     .tf-seg button { padding: 5px 9px; }
 }
+
+/* ---- FLUIDEZ 3: isola o repaint do canvas do resto da página ---- */
+#chartPreco { contain: layout paint; }
+#chartRsi, #chartAtr, #chartFluxo, #chartEquity { contain: layout paint; }
