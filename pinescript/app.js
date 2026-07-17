@@ -6572,7 +6572,7 @@ document.addEventListener('DOMContentLoaded', function () {
         const pintarM = () => {
             const grande = localStorage.getItem('chartAlto') !== '0';
             bM.classList.toggle('is-active', grande);
-            bM.textContent = grande ? '⛶ Reduzir' : '⛶ Ampliar';
+            bM.textContent = grande ? '⛶ Reduzir gráfico' : '⛶ Ampliar gráfico';
         };
         bM.addEventListener('click', () => {
             localStorage.setItem('chartAlto', localStorage.getItem('chartAlto') === '0' ? '1' : '0');
@@ -6976,7 +6976,7 @@ function registrarAlertaDisparado(sym, price, precoAtual) {
     if (alertasHist.length > 100) alertasHist = alertasHist.slice(0, 100);
     localStorage.setItem('alertasHist', JSON.stringify(alertasHist));
     const b = document.getElementById('btnAlertaHist');
-    if (b) { const n = alertasHist.length; b.textContent = '📜' + (n ? ' ' + n : ''); }
+    if (b) { const n = alertasHist.length; b.textContent = '📜 Histórico de alertas' + (n ? ' (' + n + ')' : ''); }
 }
 
 function abrirHistAlertas() {
@@ -7035,7 +7035,13 @@ document.addEventListener('DOMContentLoaded', function () {
     const bP = document.getElementById('btnExportPNG');
     if (bP) bP.addEventListener('click', exportarGraficoPNG);
     const bH = document.getElementById('btnAlertaHist');
-    if (bH) { bH.addEventListener('click', abrirHistAlertas); if (alertasHist.length) bH.textContent = '📜 ' + alertasHist.length; }
+    if (bH) { bH.addEventListener('click', abrirHistAlertas); bH.textContent = '📜 Histórico de alertas' + (alertasHist.length ? ' (' + alertasHist.length + ')' : ''); }
+    const bCmp = document.getElementById('btnComparar2');
+    if (bCmp) bCmp.addEventListener('click', () => {
+        const bar = document.querySelector('.cmp-bar');
+        if (bar) { bar.scrollIntoView({ behavior: 'smooth', block: 'center' }); }
+        const ci = document.getElementById('cmpSym'); if (ci) ci.focus();
+    });
     const hx = document.getElementById('histAlertaFechar');
     if (hx) hx.addEventListener('click', () => document.getElementById('histAlertaModal').style.display = 'none');
     const hm = document.getElementById('histAlertaModal');
@@ -7044,4 +7050,51 @@ document.addEventListener('DOMContentLoaded', function () {
     if (bC) bC.addEventListener('click', compararAtivos);
     const ci = document.getElementById('cmpSym');
     if (ci) ci.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); compararAtivos(); } });
+});
+// ============================================================================
+// BLOCO 33 — MENU ⋯ FERRAMENTAS (agrupa as ferramentas do gráfico)
+// ============================================================================
+// Abre/fecha o menu; fecha ao clicar num item, clicar fora ou Esc. Um ponto no
+// botão ⋯ acende quando alguma ferramenta de exibição está LIGADA (zonas, LTs,
+// sessões, ampliar, foco, alerta armado) — o estado não some quando o menu fecha.
+
+function _algumaFerramentaAtiva() {
+    return ['btnZonasChart', 'btnNiveisChart', 'btnSessoes', 'btnChartMax', 'btnFoco', 'btnAlerta']
+        .some(id => { const b = document.getElementById(id); return b && b.classList.contains('is-active'); });
+}
+function atualizarIndicadorFerramentas() {
+    const b = document.getElementById('btnFerramentas');
+    if (b) b.classList.toggle('tem-ativo', _algumaFerramentaAtiva());
+}
+
+function abrirMenuFerramentas(mostrar) {
+    const menu = document.getElementById('toolsMenu');
+    const btn = document.getElementById('btnFerramentas');
+    if (!menu || !btn) return;
+    const abrir = mostrar == null ? menu.style.display === 'none' : mostrar;
+    menu.style.display = abrir ? 'flex' : 'none';
+    btn.setAttribute('aria-expanded', abrir ? 'true' : 'false');
+    btn.classList.toggle('is-open', abrir);
+}
+
+document.addEventListener('DOMContentLoaded', function () {
+    const btn = document.getElementById('btnFerramentas');
+    const menu = document.getElementById('toolsMenu');
+    if (!btn || !menu) return;
+    btn.addEventListener('click', e => { e.stopPropagation(); abrirMenuFerramentas(); });
+    // clicar num item de ação (não-toggle) fecha o menu; toggles deixam aberto
+    // pra ver o efeito, mas atualizam o indicador
+    menu.addEventListener('click', e => {
+        const it = e.target.closest('.tools-item');
+        if (!it) return;
+        setTimeout(atualizarIndicadorFerramentas, 0);
+        if (['btnExportPNG', 'btnAlertaHist', 'btnComparar2'].includes(it.id)) abrirMenuFerramentas(false);
+    });
+    document.addEventListener('click', e => {
+        if (menu.style.display !== 'none' && !e.target.closest('#chartTools')) abrirMenuFerramentas(false);
+    });
+    document.addEventListener('keydown', e => { if (e.key === 'Escape') abrirMenuFerramentas(false); });
+    // indicador acompanha ações que mudam estado por atalho/tecla (F, etc.)
+    setInterval(atualizarIndicadorFerramentas, 1200);
+    atualizarIndicadorFerramentas();
 });

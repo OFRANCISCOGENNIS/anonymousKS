@@ -789,6 +789,28 @@ check('força relativa: A +10% vs B +4% → A vence', ferr.frOk);
 check('exportar PNG: takeScreenshot disponível', ferr.exportApi);
 check('alerta disparado entra no histórico e persiste', ferr.histOk);
 check('modal do histórico abre com os disparos', ferr.modalOk);
+// Menu ⋯ Ferramentas: agrupa os botões, abre/fecha, indica ferramenta ativa
+const menu = await p.evaluate(() => {
+  const btn = document.getElementById('btnFerramentas'), m = document.getElementById('toolsMenu');
+  const dentro = ['btnZonasChart', 'btnNiveisChart', 'btnSessoes', 'btnAlerta', 'btnAlertaHist', 'btnChartMax', 'btnFoco', 'btnExportPNG']
+    .every(id => { const b = document.getElementById(id); return b && m.contains(b); });
+  const foraDaBarra = !document.querySelector('#chartQuickbar > #btnZonasChart'); // não solto na barra
+  btn.click();
+  const abriu = m.style.display !== 'none';
+  // liga zonas por dentro do menu → indicador do ⋯ acende
+  document.getElementById('btnZonasChart').click();
+  atualizarIndicadorFerramentas();
+  const indicador = btn.classList.contains('tem-ativo');
+  document.getElementById('btnZonasChart').click(); // desliga
+  atualizarIndicadorFerramentas();
+  // item de ação fecha o menu
+  document.getElementById('btnExportPNG').click();
+  const fechou = m.style.display === 'none';
+  return { dentro, foraDaBarra, abriu, indicador, fechou };
+});
+check('⋯ Ferramentas agrupa os 8 botões (nenhum solto na barra)', menu.dentro && menu.foraDaBarra);
+check('menu ⋯ abre e fecha após ação', menu.abriu && menu.fechou);
+check('indicador do ⋯ acende com ferramenta ativa', menu.indicador);
 // Volume no gráfico principal (estilo TradingView): histograma no rodapé
 const vol = await p.evaluate(() => {
   const alta = barraVolume({ time: 1, open: 10, high: 12, low: 9, close: 11, volume: 500 });

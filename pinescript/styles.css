@@ -2345,3 +2345,26 @@ body.modo-foco .main-content { padding-left: var(--spacing); padding-right: var(
 #cmpSym:focus { border-color: var(--neon-1); box-shadow: 0 0 0 3px rgba(34,211,238,0.12); outline: none; }
 .cmp-res { font-size: 12.5px; font-weight: 600; color: var(--ink-2); }
 body.modo-foco .cmp-bar { display: none; }
+
+/* ---- Menu ⋯ Ferramentas do gráfico ---- */
+.chart-tools { position: relative; display: inline-block; }
+#btnFerramentas.is-open { background: rgba(34, 211, 238, 0.14); border-color: var(--neon-1); color: var(--neon-1); }
+#btnFerramentas.tem-ativo::after {
+    content: ''; position: absolute; top: 3px; right: 3px; width: 7px; height: 7px;
+    border-radius: 50%; background: var(--neon-1); box-shadow: 0 0 6px var(--neon-1);
+}
+.tools-menu {
+    position: absolute; top: calc(100% + 6px); left: 0; z-index: 20;
+    display: flex; flex-direction: column; gap: 2px; min-width: 210px; padding: 6px;
+    background: var(--surface); border: 1px solid var(--glass-brd); border-radius: 12px;
+    box-shadow: 0 14px 40px rgba(0, 0, 0, 0.5);
+    animation: iosSheet 0.2s var(--spring);
+}
+.tools-grp { font-size: 10px; font-weight: 800; letter-spacing: 0.6px; text-transform: uppercase; color: var(--ink-muted); padding: 6px 8px 2px; }
+.tools-item {
+    text-align: left; justify-content: flex-start; width: 100%;
+    padding: 8px 10px; border-radius: 8px; font-size: 12.5px; border-color: transparent;
+}
+.tools-item:hover { background: var(--surface-2); }
+.tools-item.is-active { background: rgba(34, 211, 238, 0.12); border-color: var(--neon-1); color: var(--neon-1); }
+@media (prefers-reduced-motion: reduce) { .tools-menu { animation: none; } }

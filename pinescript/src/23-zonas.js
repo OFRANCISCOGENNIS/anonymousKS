@@ -255,7 +255,7 @@ document.addEventListener('DOMContentLoaded', function () {
         const pintarM = () => {
             const grande = localStorage.getItem('chartAlto') !== '0';
             bM.classList.toggle('is-active', grande);
-            bM.textContent = grande ? '⛶ Reduzir' : '⛶ Ampliar';
+            bM.textContent = grande ? '⛶ Reduzir gráfico' : '⛶ Ampliar gráfico';
         };
         bM.addEventListener('click', () => {
             localStorage.setItem('chartAlto', localStorage.getItem('chartAlto') === '0' ? '1' : '0');

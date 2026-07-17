@@ -478,10 +478,7 @@
                 <!-- Gráfico de Velas (Candlestick) + EMAs (com meus sinais) -->
                 <div class="chart-container" id="chartPanel">
                     <h2>💹 <span id="chartTitulo">Preço (Velas) & EMAs + sinais</span> <span id="liveBadge" class="live-badge">● AO VIVO</span>
-                        <button id="btnAnalise" class="btn-ghost" style="float:right;" title="Leitura completa do gráfico: estrutura, zonas, liquidez, plano de trade, cenários e notas">🎓 Análise Mestre</button>
-                        <button id="btnZonasChart" class="btn-ghost" style="float:right;margin-right:6px;" title="Zonas de suporte/resistência (faixas por nº de toques) + rótulos HH/HL/LH/LL nos pivôs">🟩 Zonas</button>
-                        <button id="btnNiveisChart" class="btn-ghost" style="float:right;margin-right:6px;" title="LTA/LTB + Fibonacci automático + linhas de S/R">📐 LTA/LTB + Fib</button>
-                        <button id="btnChartMax" class="btn-ghost" style="float:right;margin-right:6px;" title="Ampliar/reduzir a altura do gráfico">⛶ Ampliar</button></h2>
+                        <button id="btnAnalise" class="btn-ghost" style="float:right;" title="Leitura completa do gráfico: estrutura, zonas, liquidez, plano de trade, cenários e notas">🎓 Análise Mestre</button></h2>
                     <div class="chart-wrap">
                         <!-- Barra flutuante SOBRE o gráfico: par + timeframe (estilo TradingView) -->
                         <div class="chart-quickbar" id="chartQuickbar">
@@ -496,11 +493,24 @@
                             <span id="tickPreco" class="tick-preco" title="preço atual">—</span>
                             <span id="tickVar" class="tick-var">—</span>
                             <span id="velaTimer" class="vela-timer"></span>
-                            <button id="btnAlerta" class="btn-ghost" type="button" title="Alerta de preço: arme e clique no gráfico no nível desejado — som + notificação quando o preço cruzar">🔔+</button>
-                            <button id="btnSessoes" class="btn-ghost" type="button" title="Pintar as sessões no fundo do gráfico: Londres (azul), NY (violeta) e a sobreposição Londres+NY (ciano — o horário de mais volume)">🕐</button>
-                            <button id="btnFoco" class="btn-ghost" type="button" title="Modo foco: só decisão + gráfico (tecla F · Esc sai)">🖥</button>
-                            <button id="btnExportPNG" class="btn-ghost" type="button" title="Exportar o gráfico atual como imagem PNG">📷</button>
-                            <button id="btnAlertaHist" class="btn-ghost" type="button" title="Histórico de alertas de preço disparados">📜</button>
+                            <!-- MENU ⋯ FERRAMENTAS: agrupa as ferramentas do gráfico -->
+                            <div class="chart-tools" id="chartTools">
+                                <button id="btnFerramentas" class="btn-ghost" type="button" title="Ferramentas do gráfico" aria-expanded="false">⋯ Ferramentas</button>
+                                <div class="tools-menu" id="toolsMenu" style="display:none;">
+                                    <div class="tools-grp">Desenho</div>
+                                    <button id="btnZonasChart" class="btn-ghost tools-item" type="button" title="Zonas de suporte/resistência (faixas por nº de toques) + rótulos HH/HL/LH/LL nos pivôs">🟩 Zonas de S/R</button>
+                                    <button id="btnNiveisChart" class="btn-ghost tools-item" type="button" title="LTA/LTB + Fibonacci automático + linhas de S/R">📐 LTA/LTB + Fibonacci</button>
+                                    <button id="btnSessoes" class="btn-ghost tools-item" type="button" title="Pintar as sessões no fundo do gráfico: Londres (azul), NY (violeta) e a sobreposição Londres+NY (ciano — o horário de mais volume)">🕐 Sessões (Londres/NY)</button>
+                                    <div class="tools-grp">Preço</div>
+                                    <button id="btnAlerta" class="btn-ghost tools-item" type="button" title="Alerta de preço: arme e clique no gráfico no nível desejado — som + notificação quando o preço cruzar">🔔 Alerta de preço</button>
+                                    <button id="btnAlertaHist" class="btn-ghost tools-item" type="button" title="Histórico de alertas de preço disparados">📜 Histórico de alertas</button>
+                                    <button id="btnComparar2" class="btn-ghost tools-item" type="button" title="Comparar a força com outro ativo">⚖ Comparar ativos</button>
+                                    <div class="tools-grp">Tela</div>
+                                    <button id="btnChartMax" class="btn-ghost tools-item" type="button" title="Ampliar/reduzir a altura do gráfico">⛶ Ampliar gráfico</button>
+                                    <button id="btnFoco" class="btn-ghost tools-item" type="button" title="Modo foco: só decisão + gráfico (tecla F · Esc sai)">🖥 Modo foco (F)</button>
+                                    <button id="btnExportPNG" class="btn-ghost tools-item" type="button" title="Exportar o gráfico atual como imagem PNG">📷 Exportar PNG</button>
+                                </div>
+                            </div>
                             <span id="alertaChips" class="alerta-chips"></span>
                         </div>
                         <div id="chartPreco" class="tv-chart tv-chart-main"></div>
@@ -811,6 +821,7 @@
     <script src="src/25-execucao.js"></script>
     <script src="src/26-extra.js"></script>
     <script src="src/27-ferramentas.js"></script>
+    <script src="src/28-toolsmenu.js"></script>
     <!-- APP:END -->
 </body>
 </html>

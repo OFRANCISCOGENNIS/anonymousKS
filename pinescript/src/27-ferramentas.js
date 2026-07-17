@@ -33,7 +33,7 @@ function registrarAlertaDisparado(sym, price, precoAtual) {
     if (alertasHist.length > 100) alertasHist = alertasHist.slice(0, 100);
     localStorage.setItem('alertasHist', JSON.stringify(alertasHist));
     const b = document.getElementById('btnAlertaHist');
-    if (b) { const n = alertasHist.length; b.textContent = '📜' + (n ? ' ' + n : ''); }
+    if (b) { const n = alertasHist.length; b.textContent = '📜 Histórico de alertas' + (n ? ' (' + n + ')' : ''); }
 }
 
 function abrirHistAlertas() {
@@ -92,7 +92,13 @@ document.addEventListener('DOMContentLoaded', function () {
     const bP = document.getElementById('btnExportPNG');
     if (bP) bP.addEventListener('click', exportarGraficoPNG);
     const bH = document.getElementById('btnAlertaHist');
-    if (bH) { bH.addEventListener('click', abrirHistAlertas); if (alertasHist.length) bH.textContent = '📜 ' + alertasHist.length; }
+    if (bH) { bH.addEventListener('click', abrirHistAlertas); bH.textContent = '📜 Histórico de alertas' + (alertasHist.length ? ' (' + alertasHist.length + ')' : ''); }
+    const bCmp = document.getElementById('btnComparar2');
+    if (bCmp) bCmp.addEventListener('click', () => {
+        const bar = document.querySelector('.cmp-bar');
+        if (bar) { bar.scrollIntoView({ behavior: 'smooth', block: 'center' }); }
+        const ci = document.getElementById('cmpSym'); if (ci) ci.focus();
+    });
     const hx = document.getElementById('histAlertaFechar');
     if (hx) hx.addEventListener('click', () => document.getElementById('histAlertaModal').style.display = 'none');
     const hm = document.getElementById('histAlertaModal');
