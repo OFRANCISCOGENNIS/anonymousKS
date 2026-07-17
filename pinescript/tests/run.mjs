@@ -712,6 +712,31 @@ const md = await p.evaluate(() => {
 });
 check('marcadores no gráfico limitados a 150 sinais', md.total <= 150 && md.total === Math.min(150, md.entradas), JSON.stringify(md));
 check('texto só nos 40 marcadores mais recentes', md.comTexto <= 40);
+// Ferramentas de execução: countdown da vela, alerta de preço e ticker
+const exec = await p.evaluate(() => {
+  // countdown puro: vela M5 aberta há 90s → faltam 210s
+  const faltam = contagemVela(1000, 5, 1090);
+  // alerta: cria no preço médio, cruza e consome
+  localStorage.removeItem('alertasPreco'); alertasPreco = [];
+  const c0 = dados[dados.length - 1].close;
+  criarAlertaPreco(c0 + 1);
+  const criou = alertasPreco.length === 1 && JSON.parse(localStorage.getItem('alertasPreco')).length === 1;
+  const chip = document.querySelectorAll('#alertaChips .alerta-chip').length === 1;
+  _alertaPrevClose = c0;
+  dados[dados.length - 1].close = c0 + 2;   // cruzou p/ cima
+  alertasVerificar();
+  const consumiu = alertasPreco.length === 0 && document.querySelectorAll('#alertaChips .alerta-chip').length === 0;
+  dados[dados.length - 1].close = c0;
+  // ticker
+  atualizarExecucaoUI();
+  const tp = document.getElementById('tickPreco').textContent;
+  const tv = document.getElementById('tickVar').textContent;
+  return { faltam, criou, chip, consumiu, tickOk: tp !== '—' && /%$/.test(tv), temBtn: !!document.getElementById('btnAlerta') };
+});
+check('countdown da vela: M5 aberta há 90s → faltam 210s', exec.faltam === 210);
+check('alerta de preço: cria linha+chip e persiste', exec.criou && exec.chip && exec.temBtn);
+check('preço cruza → alerta dispara e se consome', exec.consumiu);
+check('ticker mostra preço e variação %', exec.tickOk);
 // Volume no gráfico principal (estilo TradingView): histograma no rodapé
 const vol = await p.evaluate(() => {
   const alta = barraVolume({ time: 1, open: 10, high: 12, low: 9, close: 11, volume: 500 });

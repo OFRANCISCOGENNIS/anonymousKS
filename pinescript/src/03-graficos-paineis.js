@@ -136,6 +136,8 @@ function redesenharTudo(ajustarZoom) {
     atualizarMarcadores();
     atualizarPaineis();
     atualizarLegenda();
+    // alertas de preço do símbolo aberto voltam ao gráfico (bloco 30)
+    try { if (typeof alertasRedesenhar === 'function') alertasRedesenhar(); } catch (e) { }
 
     if (ajustarZoom) {
         chartPreco.timeScale().fitContent();
@@ -198,6 +200,8 @@ function atualizarUltimoCandle(fechou) {
     upd(serieAtrMedia, computed.atrMedia[last]);
     serieFluxo.update(barraFluxo(dados[last]));
     atualizarLegenda();
+    // alertas de preço: dispara quando o preço cruza um nível marcado (bloco 30)
+    try { if (typeof alertasVerificar === 'function') alertasVerificar(); } catch (e) { }
 
     if (fechou) {
         recomputarSinais();

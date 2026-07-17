@@ -492,6 +492,11 @@
                                 <button type="button" data-tf="30">M30</button>
                                 <button type="button" data-tf="60">H1</button>
                             </div>
+                            <span id="tickPreco" class="tick-preco" title="preço atual">—</span>
+                            <span id="tickVar" class="tick-var">—</span>
+                            <span id="velaTimer" class="vela-timer"></span>
+                            <button id="btnAlerta" class="btn-ghost" type="button" title="Alerta de preço: arme e clique no gráfico no nível desejado — som + notificação quando o preço cruzar">🔔+</button>
+                            <span id="alertaChips" class="alerta-chips"></span>
                         </div>
                         <div id="chartPreco" class="tv-chart tv-chart-main"></div>
                     </div>
@@ -783,6 +788,7 @@
     <script src="src/22-infos.js"></script>
     <script src="src/23-zonas.js"></script>
     <script src="src/24-chartbar.js"></script>
+    <script src="src/25-execucao.js"></script>
     <!-- APP:END -->
 </body>
 </html>
