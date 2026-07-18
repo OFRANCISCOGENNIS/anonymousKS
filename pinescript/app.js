@@ -3954,10 +3954,21 @@ document.addEventListener('click', function desbloquear() {
     document.removeEventListener('click', desbloquear);
 }, { once: true });
 document.getElementById('newsSoMoeda').addEventListener('change', renderNoticias);
-// Confluência: mudar modo/pontuação/janela recalcula os sinais na hora
-['confMode', 'minScore', 'confJanela', 'useFluxo', 'fluxoJanela',
-    'usePadrao', 'useSessao', 'useSR', 'srAtr', 'usePA', 'paAtr', 'usePesoIA', 'useGrade', 'useMacd', 'useBollinger'].forEach(id =>
-    document.getElementById(id).addEventListener('change', recalcularSinaisApenas));
+// TODO controle de análise recalcula os sinais na hora (senão o gráfico "não
+// volta ao normal" até clicar em Recarregar): fatores, períodos e parâmetros.
+[
+    // modo/pontuação/janela da confluência
+    'confMode', 'minScore', 'confJanela',
+    // fatores principais (estavam SEM listener — o gráfico não respondia a eles)
+    'useTendencia', 'useEma200', 'useMomentum', 'useVolatilidade', 'useEstrutura',
+    // fatores extras / portões que recalculam
+    'useFluxo', 'fluxoJanela', 'usePadrao', 'useSessao', 'useSR', 'srAtr',
+    'usePA', 'paAtr', 'usePesoIA', 'useGrade', 'useMacd', 'useBollinger',
+    // períodos dos indicadores (mudam as EMAs/RSI/ATR e, com isso, os sinais)
+    'emaRapida', 'emaLenta', 'rsiLen', 'atrLen', 'atrMediaLen',
+    // parâmetros dos fatores
+    'rsiSobrevenda', 'rsiSobrecompra', 'estruturaLookback', 'cooldownVelas'
+].forEach(id => { const el = document.getElementById(id); if (el) el.addEventListener('change', recalcularSinaisApenas); });
 // Correlação/pares de referência: recarrega os pares e recalcula
 ['useCorrelacao', 'refPairs'].forEach(id =>
     document.getElementById(id).addEventListener('change', async function () {

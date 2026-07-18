@@ -689,6 +689,26 @@ const idx = await p.evaluate(() => {
 });
 check('Crypto IDX (Binomo) no seletor do gráfico', idx.temIdx);
 check('escolher Crypto IDX roteia p/ Binance', idx.symOk && idx.fonteOk);
+// Controles de análise recalculam o gráfico AO VIVO (sem precisar recarregar)
+const ctrl = await p.evaluate(() => {
+  const chipTend = () => { const c = [...document.querySelectorAll('#decisionChips .decision-chip')].find(e => e.textContent.startsWith('Tendência')); return c ? c.textContent.trim() : '?'; };
+  // fator principal: desligar "Ativar EMA" reflete na hora
+  const t = document.getElementById('useTendencia');
+  const on0 = t.checked;
+  t.checked = false; t.dispatchEvent(new Event('change', { bubbles: true }));
+  const desligou = /off/.test(chipTend());
+  t.checked = true; t.dispatchEvent(new Event('change', { bubbles: true }));
+  const religou = !/off/.test(chipTend());
+  // período do indicador: mudar RSI recomputa
+  const rsi = document.getElementById('rsiLen'), r0 = computed.rsiValues[computed.rsiValues.length - 1];
+  const v0 = rsi.value; rsi.value = String((parseInt(v0) === 5 ? 14 : 5));
+  rsi.dispatchEvent(new Event('change', { bubbles: true }));
+  const recomputou = computed.rsiValues[computed.rsiValues.length - 1] !== r0;
+  rsi.value = v0; rsi.dispatchEvent(new Event('change', { bubbles: true }));
+  return { desligou, religou, recomputou };
+});
+check('desligar fator principal reflete no chip na hora', ctrl.desligou && ctrl.religou);
+check('mudar período do indicador recomputa ao vivo', ctrl.recomputou);
 check('botões de timeframe no gráfico trocam o TF (M15)', quick.tfMudou);
 check('trocar moeda cripto pelo gráfico muda o símbolo', quick.symMudou);
 check('escolher forex pelo gráfico ajusta o par', quick.forexMudou);
