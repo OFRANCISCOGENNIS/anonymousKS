@@ -1033,7 +1033,7 @@ function atualizarTituloGrafico() {
     const el = document.getElementById('chartTitulo');
     if (!el) return;
     const sym = symbolAtual();
-    const lbl = PARES_YAHOO[sym] ? PARES_YAHOO[sym].label : sym;
+    const lbl = sym === 'CRYPTOIDX' ? 'Crypto IDX (proxy Binomo)' : PARES_YAHOO[sym] ? PARES_YAHOO[sym].label : sym;
     const tf = typeof rotTf === 'function' ? rotTf(tfMinutes()) : 'M' + tfMinutes();
     const fMap = { binance: 'Binance', twelvedata: 'Twelve Data', yahoo: 'Yahoo', ambos: 'Binance+TD', ambos3: 'Binance+TD+Yahoo', sim: 'Simulado' };
     const src = fMap[fonte()] || fonte();
@@ -6623,6 +6623,7 @@ function montarSeletorMoeda() {
     const opt = (v, txt) => `<option value="${v}"${v === atual ? ' selected' : ''}>${txt}</option>`;
     sel.innerHTML =
         (extra.length ? `<optgroup label="Atual">${extra.map(s => opt(s, s)).join('')}</optgroup>` : '') +
+        `<optgroup label="📊 Índice">${opt('CRYPTOIDX', 'Crypto IDX (proxy Binomo)')}</optgroup>` +
         `<optgroup label="₿ Cripto (Binance)">${CHART_CRIPTO.map(s => opt(s, s.replace('USDT', '/USDT'))).join('')}</optgroup>` +
         `<optgroup label="💱 Forex / Índices / Ouro">${forex.map(s => opt(s, PARES_YAHOO[s].label)).join('')}</optgroup>`;
 }
@@ -6662,6 +6663,8 @@ document.addEventListener('DOMContentLoaded', function () {
             } else if (fonteEl.value === 'twelvedata' && !temChaveReal) {
                 fonteEl.value = 'yahoo';   // corrige demo → keyless
             }
+        } else if (v === 'CRYPTOIDX') {
+            fonteEl.value = 'binance';   // o índice é uma cesta Binance normalizada
         } else {
             // cripto: garante fonte que serve cripto (nunca fica preso no forex/sim)
             if (['yahoo', 'twelvedata', 'sim'].includes(fonteEl.value)) fonteEl.value = 'binance';

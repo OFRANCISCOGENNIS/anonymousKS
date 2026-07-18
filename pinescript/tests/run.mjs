@@ -672,6 +672,23 @@ const quick = await p.evaluate(() => {
   return { temCripto, temForex, tfMudou, symMudou, forexMudou };
 });
 check('seletor do gráfico lista cripto e forex', quick.temCripto && quick.temForex);
+// Crypto IDX (proxy Binomo) selecionável no gráfico → roteia p/ Binance
+const idx = await p.evaluate(() => {
+  const sel = document.getElementById('chartSym');
+  const temIdx = [...sel.options].some(o => o.value === 'CRYPTOIDX');
+  const bakC = window.carregar; window.carregar = () => {};
+  const bakW = window.montarWidgetTV; window.montarWidgetTV = () => {};
+  const bakN = window.renderNoticias; window.renderNoticias = () => {};
+  document.getElementById('fonte').value = 'yahoo';
+  sel.value = 'CRYPTOIDX'; sel.dispatchEvent(new Event('change'));
+  const symOk = document.getElementById('symbol').value === 'CRYPTOIDX';
+  const fonteOk = document.getElementById('fonte').value === 'binance';
+  window.carregar = bakC; window.montarWidgetTV = bakW; window.renderNoticias = bakN;
+  document.getElementById('fonte').value = 'sim'; document.getElementById('symbol').value = 'BTCUSDT';
+  return { temIdx, symOk, fonteOk };
+});
+check('Crypto IDX (Binomo) no seletor do gráfico', idx.temIdx);
+check('escolher Crypto IDX roteia p/ Binance', idx.symOk && idx.fonteOk);
 check('botões de timeframe no gráfico trocam o TF (M15)', quick.tfMudou);
 check('trocar moeda cripto pelo gráfico muda o símbolo', quick.symMudou);
 check('escolher forex pelo gráfico ajusta o par', quick.forexMudou);

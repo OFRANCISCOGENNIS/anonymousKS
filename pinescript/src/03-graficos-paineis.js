@@ -240,7 +240,7 @@ function atualizarTituloGrafico() {
     const el = document.getElementById('chartTitulo');
     if (!el) return;
     const sym = symbolAtual();
-    const lbl = PARES_YAHOO[sym] ? PARES_YAHOO[sym].label : sym;
+    const lbl = sym === 'CRYPTOIDX' ? 'Crypto IDX (proxy Binomo)' : PARES_YAHOO[sym] ? PARES_YAHOO[sym].label : sym;
     const tf = typeof rotTf === 'function' ? rotTf(tfMinutes()) : 'M' + tfMinutes();
     const fMap = { binance: 'Binance', twelvedata: 'Twelve Data', yahoo: 'Yahoo', ambos: 'Binance+TD', ambos3: 'Binance+TD+Yahoo', sim: 'Simulado' };
     const src = fMap[fonte()] || fonte();
