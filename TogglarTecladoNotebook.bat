@@ -22,7 +22,7 @@ echo ============================================================
 echo.
 
 :: Filtro dos teclados internos (PS/2 e ACPI). Ignora teclados USB.
-set "FILTRO=($_.Class -eq 'Keyboard') -and ($_.InstanceId -match 'ACPI\\\\|\\bPS/2\\b|\\\\PS2') -and ($_.InstanceId -notmatch 'USB')"
+set "FILTRO=($_.Class -eq 'Keyboard') -and (($_.FriendlyName -match 'PS/2') -or ($_.InstanceId -like 'ACPI\*')) -and ($_.InstanceId -notlike '*USB*')"
 
 :: --- Descobre estado atual ---
 for /f "delims=" %%S in ('powershell -NoProfile -Command ^
