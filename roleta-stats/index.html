@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Plataforma de análise estatística de resultados históricos de roleta — ferramenta de estudo matemático, sem previsão de resultados.">
+  <meta name="color-scheme" content="dark">
+  <title>Roleta Stats — Análise Estatística</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Ccircle cx='8' cy='8' r='7' fill='%234f8cff'/%3E%3Ccircle cx='8' cy='8' r='3' fill='%230f1420'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="css/estilo.css">
+</head>
+<body>
+  <a class="pular-link" href="#conteudo">Pular para o conteúdo</a>
+
+  <header class="cabecalho" role="banner">
+    <div class="cabecalho__marca">
+      <span class="cabecalho__logo" aria-hidden="true">◐</span>
+      <h1 class="cabecalho__titulo">Roleta Stats</h1>
+      <span class="cabecalho__subtitulo">análise estatística histórica</span>
+    </div>
+    <div class="cabecalho__status" id="status-persistencia" role="status" aria-live="polite"></div>
+  </header>
+
+  <!--
+    Aviso permanente (requisito de enquadramento):
+    a roleta é um jogo de eventos independentes; análise histórica
+    NÃO confere vantagem em jogadas futuras (falácia do apostador).
+  -->
+  <div class="aviso-legal" role="note" aria-label="Aviso sobre independência dos resultados">
+    ⚠ Ferramenta de <strong>estudo estatístico</strong>. Cada giro é um evento
+    independente: análises históricas <strong>não preveem</strong> resultados
+    futuros (falácia do apostador) e a casa mantém vantagem matemática em
+    qualquer estratégia.
+  </div>
+
+  <div class="app">
+    <nav class="navegacao" aria-label="Seções da aplicação">
+      <ul class="navegacao__lista">
+        <li><a href="#/painel" data-rota="painel" class="navegacao__item">📊 <span>Painel</span></a></li>
+        <li><a href="#/registros" data-rota="registros" class="navegacao__item">📝 <span>Registros</span></a></li>
+        <li><a href="#/estatisticas" data-rota="estatisticas" class="navegacao__item">📈 <span>Estatísticas</span></a></li>
+        <li><a href="#/simulador" data-rota="simulador" class="navegacao__item">🎲 <span>Simulador</span></a></li>
+        <li><a href="#/configuracoes" data-rota="configuracoes" class="navegacao__item">⚙️ <span>Configurações</span></a></li>
+      </ul>
+    </nav>
+
+    <main id="conteudo" class="conteudo" role="main">
+      <!-- Cada seção é uma "visão"; o roteador alterna o atributo hidden -->
+
+      <section id="visao-painel" class="visao" data-visao="painel" aria-labelledby="titulo-painel">
+        <h2 id="titulo-painel">Painel</h2>
+        <div class="grade-cartoes">
+          <article class="cartao">
+            <h3 class="cartao__titulo">Giros registrados</h3>
+            <p class="cartao__valor" id="painel-total-giros">0</p>
+          </article>
+          <article class="cartao">
+            <h3 class="cartao__titulo">Tipo de roleta</h3>
+            <p class="cartao__valor" id="painel-tipo-roleta">—</p>
+          </article>
+          <article class="cartao">
+            <h3 class="cartao__titulo">Armazenamento</h3>
+            <p class="cartao__valor" id="painel-armazenamento">—</p>
+          </article>
+        </div>
+        <p class="texto-suave">
+          Fase 1 (fundação) ativa. Cadastro de giros, motor estatístico,
+          visualizações e simulador chegam nas próximas fases.
+        </p>
+      </section>
+
+      <section id="visao-registros" class="visao" data-visao="registros" aria-labelledby="titulo-registros" hidden>
+        <h2 id="titulo-registros">Registros</h2>
+        <p class="texto-suave">Entrada manual de giros e import/export (Fase 2).</p>
+      </section>
+
+      <section id="visao-estatisticas" class="visao" data-visao="estatisticas" aria-labelledby="titulo-estatisticas" hidden>
+        <h2 id="titulo-estatisticas">Estatísticas</h2>
+        <p class="texto-suave">Motor estatístico descritivo e testes de aleatoriedade (Fase 3).</p>
+      </section>
+
+      <section id="visao-simulador" class="visao" data-visao="simulador" aria-labelledby="titulo-simulador" hidden>
+        <h2 id="titulo-simulador">Simulador</h2>
+        <p class="texto-suave">
+          Simulações Monte Carlo de estratégias (Fase 5). Os resultados sempre
+          evidenciarão o valor esperado negativo a longo prazo.
+        </p>
+      </section>
+
+      <section id="visao-configuracoes" class="visao" data-visao="configuracoes" aria-labelledby="titulo-configuracoes" hidden>
+        <h2 id="titulo-configuracoes">Configurações</h2>
+        <form id="form-config" class="formulario">
+          <fieldset class="formulario__grupo">
+            <legend>Tipo de roleta</legend>
+            <label class="opcao-radio">
+              <input type="radio" name="tipoRoleta" value="europeia" checked>
+              Europeia (37 casas: 0–36)
+            </label>
+            <label class="opcao-radio">
+              <input type="radio" name="tipoRoleta" value="americana">
+              Americana (38 casas: 0, 00, 1–36)
+            </label>
+          </fieldset>
+          <button type="submit" class="botao botao--primario">Salvar</button>
+          <button type="button" id="btn-limpar-dados" class="botao botao--perigo">
+            Apagar todos os dados locais
+          </button>
+        </form>
+      </section>
+    </main>
+  </div>
+
+  <div id="area-toast" class="area-toast" aria-live="polite" aria-atomic="true"></div>
+
+  <footer class="rodape" role="contentinfo">
+    <p>
+      Uso educacional. Nenhuma estratégia altera a vantagem da casa.
+      Dados armazenados apenas neste navegador (IndexedDB/LocalStorage).
+    </p>
+  </footer>
+
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>
