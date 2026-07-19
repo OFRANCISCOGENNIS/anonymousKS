@@ -40,9 +40,14 @@ function strategyAllowed(strategy, userConditions) {
 // Monta uma refeição: proteína primeiro (20-40 g/refeição — ISSN), depois
 // carbo e gordura até bater a meta kcal do slot. Ordem de escolha estável:
 // melhor densidade do nutriente-alvo, desempate por nome (determinismo).
-function buildMeal({ targetKcal, targetProteinG, foods }) {
+// `rotate` desloca a escolha dentro do ranking (variedade semanal SEM sorteio:
+// dia 0 usa a 1ª melhor fonte, dia 1 a 2ª, ... — determinístico por índice).
+function buildMeal({ targetKcal, targetProteinG, foods, rotate = 0 }) {
   const byProteinDensity = [...foods]
-    .filter((f) => f.protein_g / Math.max(f.kcal, 1) > 0.1)
+    // Densidade >0,08 g proteína/kcal inclui ovo (0,091) e outras fontes mistas;
+    // mínimo absoluto de 12 g/100 g barra fontes fracas (iogurte, tofu) como
+    // prato principal — com elas, a porção de 300 g não fecha a meta proteica.
+    .filter((f) => f.protein_g / Math.max(f.kcal, 1) > 0.08 && f.protein_g >= 12)
     .sort((a, b) => (b.protein_g / b.kcal) - (a.protein_g / a.kcal) || a.name.localeCompare(b.name));
   const byCarb = [...foods]
     .filter((f) => f.carb_g > f.protein_g && f.carb_g > f.fat_g)
@@ -62,28 +67,24 @@ function buildMeal({ targetKcal, targetProteinG, foods }) {
     protein += food.protein_g * grams / 100;
   };
 
+  const pick = (list) => list.length ? list[rotate % list.length] : null;
+
   // 1. Proteína: fecha a meta proteica do slot com a melhor fonte elegível.
   // Reserva 15% da meta para a proteína dos acompanhamentos (arroz, feijão...),
   // senão o teto de 40 g/refeição (ISSN) estoura ao somar o prato inteiro.
-  if (byProteinDensity.length) {
-    const p = byProteinDensity[0];
-    addFood(p, Math.min((targetProteinG * 0.85 / p.protein_g) * 100, 300));
-  }
+  const p = pick(byProteinDensity);
+  if (p) addFood(p, Math.min((targetProteinG * 0.85 / p.protein_g) * 100, 300));
   // 2. Carboidrato: preenche até ~80% das kcal restantes.
-  if (byCarb.length && kcal < targetKcal) {
-    const c = byCarb[0];
-    addFood(c, ((targetKcal - kcal) * 0.8 / c.kcal) * 100);
-  }
+  const c = pick(byCarb);
+  if (c && kcal < targetKcal) addFood(c, ((targetKcal - kcal) * 0.8 / c.kcal) * 100);
   // 3. Gordura: fecha o restante.
-  if (byFat.length && kcal < targetKcal * 0.95) {
-    const g = byFat[0];
-    addFood(g, Math.min(((targetKcal - kcal) / g.kcal) * 100, 30));
-  }
+  const g = pick(byFat);
+  if (g && kcal < targetKcal * 0.95) addFood(g, Math.min(((targetKcal - kcal) / g.kcal) * 100, 30));
 
   return { items, totalKcal: Math.round(kcal), totalProteinG: Math.round(protein) };
 }
 
-function generateDayPlan({ macros, foods, strategy = {}, allergies = [], restrictions = [], userConditions = [] }) {
+function generateDayPlan({ macros, foods, strategy = {}, allergies = [], restrictions = [], userConditions = [], dayIndex = 0 }) {
   if (!strategyAllowed(strategy, userConditions)) {
     return { blocked: true, reason: `Estratégia ${strategy.code || ''} contraindicada para: ${strategy.contraindications.filter((c) => userConditions.includes(c)).join(', ')}` };
   }
@@ -98,11 +99,37 @@ function generateDayPlan({ macros, foods, strategy = {}, allergies = [], restric
       targetKcal: macros.kcal * kcalPct,
       targetProteinG: Math.min(Math.round(macros.proteinG * kcalPct * 1.15), 40),
       foods: pool,
+      rotate: dayIndex,
     }),
   }));
 
   const totals = meals.reduce((t, m) => ({ kcal: t.kcal + m.totalKcal, proteinG: t.proteinG + m.totalProteinG }), { kcal: 0, proteinG: 0 });
   return { blocked: false, meals, totals, targets: { kcal: macros.kcal, proteinG: macros.proteinG } };
+}
+
+// Plano semanal (Módulo 6): 7 dias com rotação determinística de fontes
+// (dia N usa a N-ésima melhor fonte de cada ranking) + lista de compras
+// agregada da semana, ordenada por gramas totais.
+const WEEK_DAYS = ['Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado', 'Domingo'];
+
+function generateWeekPlan(opts) {
+  const days = WEEK_DAYS.map((label, i) => {
+    const plan = generateDayPlan({ ...opts, dayIndex: i });
+    return { label, dayIndex: i, ...plan };
+  });
+  if (days.some((d) => d.blocked)) return { blocked: true, reason: days.find((d) => d.blocked).reason };
+
+  // Lista de compras: soma de gramas por alimento na semana inteira.
+  const grams = new Map();
+  for (const d of days) for (const m of d.meals) for (const it of m.items) {
+    grams.set(it.food, (grams.get(it.food) || 0) + it.grams);
+  }
+  const shoppingList = [...grams.entries()]
+    .map(([food, totalG]) => ({ food, totalG }))
+    .sort((a, b) => b.totalG - a.totalG || a.food.localeCompare(b.food));
+
+  const weekTotals = days.reduce((t, d) => ({ kcal: t.kcal + d.totals.kcal, proteinG: t.proteinG + d.totals.proteinG }), { kcal: 0, proteinG: 0 });
+  return { blocked: false, days, shoppingList, weekTotals };
 }
 
 // Substituição inteligente: mesmo perfil de macros (menor distância euclidiana
@@ -124,4 +151,4 @@ function findSubstitutes(food, pool, limit = 3) {
     }));
 }
 
-module.exports = { generateDayPlan, eligibleFoods, strategyAllowed, buildMeal, findSubstitutes, MEAL_SLOTS };
+module.exports = { generateDayPlan, generateWeekPlan, eligibleFoods, strategyAllowed, buildMeal, findSubstitutes, MEAL_SLOTS, WEEK_DAYS };

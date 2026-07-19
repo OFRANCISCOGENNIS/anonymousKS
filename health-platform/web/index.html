@@ -194,6 +194,43 @@ h1.title{font-size:clamp(26px,3vw,34px);font-weight:800;letter-spacing:-.02em;ma
 .banner b{display:block;margin-bottom:2px}
 .banner .msg{color:var(--muted)}
 
+/* labs */
+.labrow{display:grid;grid-template-columns:minmax(140px,1.4fr) 110px 1fr auto;gap:12px;align-items:center;
+  padding:10px 12px;border-radius:10px;transition:.15s}
+.labrow:hover{background:var(--surface-2)}
+.labrow .ln b{font-size:13.5px;font-weight:600;display:block}
+.labrow .ln span{font-family:var(--mono);font-size:10.5px;color:var(--faint)}
+.labrow input{background:var(--surface-2);border:1px solid var(--border);color:var(--text);
+  height:36px;border-radius:9px;padding:0 10px;font-size:14px;width:100%;font-family:var(--mono)}
+.labrow input:focus{border-color:var(--accent)}
+.labbar{position:relative;height:8px;border-radius:5px;background:var(--ring-track)}
+.labbar .zone{position:absolute;top:0;height:100%;border-radius:5px;background:color-mix(in srgb,var(--good) 32%,transparent)}
+.labbar .mark{position:absolute;top:-3px;width:3px;height:14px;border-radius:2px;background:var(--text)}
+@media(max-width:720px){.labrow{grid-template-columns:1fr 90px auto}.labbar{display:none}}
+
+/* habits */
+.habgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:12px}
+.hab{display:flex;align-items:center;gap:12px;padding:14px;border-radius:var(--r-sm);
+  background:var(--surface-2);border:1px solid var(--border);cursor:pointer;transition:.18s;user-select:none}
+.hab:hover{border-color:var(--accent)}
+.hab.done{background:color-mix(in srgb,var(--good) 12%,var(--surface-2));border-color:color-mix(in srgb,var(--good) 45%,var(--border))}
+.hab .ic{font-size:20px}
+.hab .hn{flex:1;font-size:13.5px;font-weight:600}
+.hab .chk{width:22px;height:22px;border-radius:50%;border:2px solid var(--border);display:grid;place-items:center;
+  font-size:12px;color:transparent;transition:.18s;flex:0 0 auto}
+.hab.done .chk{background:var(--good);border-color:var(--good);color:#fff}
+.streakbig{display:flex;align-items:baseline;gap:10px}
+.streakbig .n{font-size:52px;font-weight:800;letter-spacing:-.03em;line-height:1;
+  background:linear-gradient(135deg,var(--accent),var(--accent-2));-webkit-background-clip:text;background-clip:text;color:transparent}
+.streakbig .u{font-family:var(--mono);font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.1em}
+
+/* week tabs */
+.wtabs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px}
+.wtabs button{border:1px solid var(--border);background:var(--surface-2);color:var(--muted);
+  height:34px;padding:0 13px;border-radius:9px;font-size:12.5px;font-weight:600;transition:.15s}
+.wtabs button:hover{color:var(--text)}
+.wtabs button.on{background:var(--accent);border-color:var(--accent);color:#fff}
+
 .footer{margin-top:32px;padding-top:18px;border-top:1px solid var(--border);
   font-size:11.5px;color:var(--faint);font-family:var(--mono);display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px}
 .footer a{color:var(--muted);text-decoration:none}
@@ -207,8 +244,11 @@ h1.title{font-size:clamp(26px,3vw,34px);font-weight:800;letter-spacing:-.02em;ma
     <nav class="nav" id="nav">
       <button class="on" data-v="today" aria-label="Hoje"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="M9 22V12h6v10"/></svg><span class="railtip">Hoje</span></button>
       <button data-v="nutri" aria-label="Nutrição"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 2a7 7 0 0 0-7 7c0 5 7 13 7 13s7-8 7-13a7 7 0 0 0-7-7z"/><circle cx="12" cy="9" r="2.5"/></svg><span class="railtip">Nutrição</span></button>
+      <button data-v="week" aria-label="Semana"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="3" y="4" width="18" height="17" rx="2"/><path d="M3 9h18M8 2v4M16 2v4M7 13h3M14 13h3M7 17h3"/></svg><span class="railtip">Semana</span></button>
       <button data-v="train" aria-label="Treino"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M6.5 6.5l11 11M4 8l-2 2 3 3M20 16l2-2-3-3M8 4l-2 2M16 20l2-2"/></svg><span class="railtip">Treino</span></button>
       <button data-v="calc" aria-label="Calculadoras"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="4" y="2" width="16" height="20" rx="2"/><path d="M8 6h8M8 10h2M8 14h2M8 18h2M14 10h2v8h-2z"/></svg><span class="railtip">Calculadoras</span></button>
+      <button data-v="labs" aria-label="Exames"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M10 2v7.5L4.5 19a2 2 0 0 0 1.7 3h11.6a2 2 0 0 0 1.7-3L14 9.5V2"/><path d="M8 2h8M7 15h10"/></svg><span class="railtip">Exames</span></button>
+      <button data-v="habits" aria-label="Hábitos"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 3c1 3-2 4-2 7a4 4 0 0 0 8 0c0-1-.5-2-1-3 0 0 3 2 3 6a8 8 0 0 1-16 0c0-5 5-7 8-10z"/></svg><span class="railtip">Hábitos</span></button>
       <button data-v="safe" aria-label="Segurança"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 2l8 4v6c0 5-3.5 8.5-8 10-4.5-1.5-8-5-8-10V6z"/><path d="M9 12l2 2 4-4"/></svg><span class="railtip">Segurança</span></button>
     </nav>
   </aside>
@@ -302,32 +342,107 @@ function guardrails(p){
   return f;
 }
 
-/* --- base mínima de alimentos (SEED/TACO, por 100 g) --- */
+/* --- base de alimentos (SEED/TACO, por 100 g) --- */
 const FOODS=[
   {n:"Frango grelhado",c:"meats",kcal:159,p:32,ch:0,f:2.5,t:["animal","gf","lf","keto"]},
   {n:"Tilápia grelhada",c:"fish",kcal:96,p:20.1,ch:0,f:1.7,t:["animal","gf","lf","keto"]},
+  {n:"Patinho grelhado",c:"meats",kcal:219,p:35.9,ch:0,f:7.3,t:["animal","gf","lf","keto"]},
   {n:"Ovo cozido",c:"eggs",kcal:146,p:13.3,ch:.6,f:9.5,t:["veg","gf","lf","keto"]},
+  {n:"Atum em água",c:"fish",kcal:118,p:26.2,ch:0,f:1,t:["animal","gf","lf","keto"]},
   {n:"Queijo minas",c:"dairy",kcal:264,p:17.4,ch:3.2,f:20.2,t:["veg","gf","keto"]},
+  {n:"Iogurte natural",c:"dairy",kcal:51,p:4.1,ch:1.9,f:3,t:["veg","gf"]},
+  {n:"Tofu firme",c:"legumes",kcal:76,p:8.1,ch:1.9,f:4.8,t:["vegan","veg","gf","lf"]},
   {n:"Arroz integral",c:"cereals",kcal:124,p:2.6,ch:25.8,f:1,t:["vegan","veg","gf"]},
   {n:"Feijão carioca",c:"legumes",kcal:76,p:4.8,ch:13.6,f:.5,t:["vegan","veg","gf"]},
+  {n:"Lentilha cozida",c:"legumes",kcal:93,p:6.3,ch:16.3,f:.5,t:["vegan","veg","gf"]},
   {n:"Batata-doce",c:"tubers",kcal:77,p:.6,ch:18.4,f:.1,t:["vegan","veg","gf"]},
+  {n:"Mandioca cozida",c:"tubers",kcal:125,p:.6,ch:30.1,f:.3,t:["vegan","veg","gf"]},
+  {n:"Macarrão integral",c:"cereals",kcal:126,p:4.9,ch:25.9,f:.9,t:["vegan","veg"]},
   {n:"Aveia em flocos",c:"cereals",kcal:394,p:13.9,ch:66.6,f:8.5,t:["vegan","veg"]},
+  {n:"Pão francês",c:"cereals",kcal:300,p:8,ch:58.6,f:3.1,t:["vegan","veg"]},
   {n:"Banana prata",c:"fruits",kcal:98,p:1.3,ch:26,f:.1,t:["vegan","veg","gf"]},
+  {n:"Mamão papaia",c:"fruits",kcal:40,p:.5,ch:10.4,f:.1,t:["vegan","veg","gf"]},
   {n:"Azeite extra virgem",c:"oils",kcal:884,p:0,ch:0,f:100,t:["vegan","veg","gf","keto"]},
+  {n:"Pasta de amendoim",c:"oils",kcal:589,p:22.5,ch:21.6,f:46.9,t:["vegan","veg","gf","keto"]},
+  {n:"Abacate",c:"fruits",kcal:96,p:1.2,ch:6,f:8.4,t:["vegan","veg","gf","keto"]},
+  {n:"Castanha-de-caju",c:"oils",kcal:570,p:18.5,ch:29.1,f:46.3,t:["vegan","veg","gf","keto"]},
 ];
 const MEALS=[{s:"Café da manhã",t:"07:00",pct:.25},{s:"Almoço",t:"12:00",pct:.35},{s:"Lanche",t:"16:00",pct:.15},{s:"Jantar",t:"20:00",pct:.25}];
-function buildMeal(tk,tp){
-  const prot=[...FOODS].filter(x=>x.p/Math.max(x.kcal,1)>.1).sort((a,b)=>b.p/b.kcal-a.p/a.kcal||a.n.localeCompare(b.n));
-  const carb=[...FOODS].filter(x=>x.ch>x.p&&x.ch>x.f).sort((a,b)=>b.ch-a.ch||a.n.localeCompare(b.n));
-  const fat=[...FOODS].filter(x=>x.f/Math.max(x.kcal,1)>.05).sort((a,b)=>b.f/b.kcal-a.f/a.kcal||a.n.localeCompare(b.n));
+const WEEK_DAYS=["Segunda","Terça","Quarta","Quinta","Sexta","Sábado","Domingo"];
+// rotate: dia N usa a N-ésima melhor fonte de cada ranking — variedade sem sorteio.
+function buildMeal(tk,tp,rotate=0){
+  const prot=[...FOODS].filter(x=>x.p/Math.max(x.kcal,1)>.08&&x.p>=12).sort((a,b)=>b.p/b.kcal-a.p/a.kcal||a.n.localeCompare(b.n));
+  const carb=[...FOODS].filter(x=>x.ch>x.p&&x.ch>x.f&&x.kcal<200).sort((a,b)=>b.ch-a.ch||a.n.localeCompare(b.n));
+  const fat=[...FOODS].filter(x=>x.f/Math.max(x.kcal,1)>.05&&x.p/Math.max(x.kcal,1)<=.08).sort((a,b)=>b.f/b.kcal-a.f/a.kcal||a.n.localeCompare(b.n));
+  const pick=l=>l.length?l[rotate%l.length]:null;
   const items=[];let kc=0,pr=0;
   const add=(fd,g)=>{g=Math.round(g/5)*5;if(g<10)return;items.push({n:fd.n,g,kcal:Math.round(fd.kcal*g/100),p:Math.round(fd.p*g/100)});kc+=fd.kcal*g/100;pr+=fd.p*g/100;};
-  if(prot[0])add(prot[0],Math.min(tp*.85/prot[0].p*100,300));
-  if(carb[0]&&kc<tk)add(carb[0],(tk-kc)*.8/carb[0].kcal*100);
-  if(fat[0]&&kc<tk*.95)add(fat[0],Math.min((tk-kc)/fat[0].kcal*100,30));
+  const P=pick(prot),C=pick(carb),F=pick(fat);
+  if(P)add(P,Math.min(tp*.85/P.p*100,300));
+  if(C&&kc<tk)add(C,(tk-kc)*.8/C.kcal*100);
+  if(F&&kc<tk*.95)add(F,Math.min((tk-kc)/F.kcal*100,30));
   return{items,kcal:Math.round(kc),p:Math.round(pr)};
 }
-function dayPlan(m){return MEALS.map(ms=>({...ms,tk:Math.round(m.kcal*ms.pct),...buildMeal(m.kcal*ms.pct,Math.min(Math.round(m.protein*ms.pct*1.15),40))}));}
+function dayPlan(m,dayIndex=0){return MEALS.map(ms=>({...ms,tk:Math.round(m.kcal*ms.pct),...buildMeal(m.kcal*ms.pct,Math.min(Math.round(m.protein*ms.pct*1.15),40),dayIndex)}));}
+function weekPlan(m){
+  const days=WEEK_DAYS.map((label,i)=>({label,plan:dayPlan(m,i)}));
+  const grams=new Map();
+  for(const d of days)for(const ms of d.plan)for(const it of ms.items)grams.set(it.n,(grams.get(it.n)||0)+it.g);
+  const shop=[...grams.entries()].map(([n,g])=>({n,g})).sort((a,b)=>b.g-a.g||a.n.localeCompare(b.n));
+  return{days,shop};
+}
+
+/* --- exames: marcadores + faixas de referência (SEED, educativo) --- */
+const LABS=[
+  {c:"VIT_D",n:"Vitamina D (25-OH)",u:"ng/mL",lo:30,hi:100,clo:10,chi:150,src:"Endocrine Society 2011"},
+  {c:"B12",n:"Vitamina B12",u:"pg/mL",lo:200,hi:900,clo:100,chi:null,src:"SBPC 2023"},
+  {c:"FERRITIN",n:"Ferritina",u:"ng/mL",sex:{M:{lo:30,hi:400},F:{lo:15,hi:150}},clo:10,chi:1000,src:"SBPC 2023"},
+  {c:"TSH",n:"TSH",u:"µUI/mL",lo:.4,hi:4.5,clo:.1,chi:10,src:"SBPC 2023"},
+  {c:"GLUCOSE",n:"Glicemia de jejum",u:"mg/dL",lo:70,hi:99,clo:50,chi:200,src:"ADA 2023"},
+  {c:"HBA1C",n:"Hemoglobina glicada",u:"%",lo:4,hi:5.6,clo:null,chi:9,src:"ADA 2023"},
+  {c:"LDL",n:"LDL colesterol",u:"mg/dL",lo:null,hi:130,clo:null,chi:190,src:"SBC 2019"},
+  {c:"HDL",n:"HDL colesterol",u:"mg/dL",sex:{M:{lo:40,hi:null},F:{lo:50,hi:null}},clo:20,chi:null,src:"SBC 2019"},
+  {c:"TRIG",n:"Triglicerídeos",u:"mg/dL",lo:null,hi:150,clo:null,chi:500,src:"SBC 2019"},
+  {c:"CREAT",n:"Creatinina",u:"mg/dL",sex:{M:{lo:.7,hi:1.3},F:{lo:.6,hi:1.1}},clo:null,chi:4,src:"SBPC 2023"},
+  {c:"ALT",n:"TGP / ALT",u:"U/L",lo:7,hi:56,clo:null,chi:300,src:"SBPC 2023"},
+  {c:"CRP",n:"PCR ultrassensível",u:"mg/L",lo:null,hi:3,clo:null,chi:10,src:"AHA/CDC 2003"},
+];
+function labRange(lab,sex){const r=lab.sex?lab.sex[sex]:lab;return{lo:r.lo,hi:r.hi,clo:lab.clo,chi:lab.chi};}
+function interpretLab(v,r){
+  if(r.clo!=null&&v<r.clo)return"critical";
+  if(r.chi!=null&&v>r.chi)return"critical";
+  if(r.lo!=null&&v<r.lo)return"below";
+  if(r.hi!=null&&v>r.hi)return"above";
+  return"in";
+}
+const LABMSG={
+  in:{pill:"good",t:"na faixa",m:"Dentro da faixa de referência."},
+  below:{pill:"warn",t:"abaixo",m:"Abaixo da faixa de referência — leve este resultado a um profissional habilitado. Não sugerimos doses."},
+  above:{pill:"warn",t:"acima",m:"Acima da faixa de referência — discuta com um profissional habilitado. Não sugerimos doses."},
+  critical:{pill:"crit",t:"crítico",m:"Valor em faixa crítica — procure um médico o quanto antes."},
+};
+let LABVALS={};
+
+/* --- hábitos: estado persistente + streak determinístico --- */
+const HABITS=[
+  {k:"water",n:"Água na meta",ic:"💧"},
+  {k:"train",n:"Treino do dia",ic:"🏋️"},
+  {k:"sleep",n:"Dormi 7 h+",ic:"😴"},
+  {k:"steps",n:"8 000 passos",ic:"👟"},
+  {k:"protein",n:"Proteína na meta",ic:"🍳"},
+];
+function todayKey(){const d=new Date();return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");}
+function loadHab(){try{return JSON.parse(localStorage.getItem("vita.habits")||"{}");}catch(e){return{};}}
+function saveHab(h){try{localStorage.setItem("vita.habits",JSON.stringify(h));}catch(e){}}
+// Streak: dias consecutivos (terminando hoje ou ontem) com ≥3 hábitos feitos.
+function streak(h){
+  let s=0;const d=new Date();
+  const done=k=>((h[k]||[]).length)>=3;
+  const key=dt=>dt.getFullYear()+"-"+String(dt.getMonth()+1).padStart(2,"0")+"-"+String(dt.getDate()).padStart(2,"0");
+  if(!done(key(d)))d.setDate(d.getDate()-1); // hoje ainda incompleto não quebra o streak
+  while(done(key(d))){s++;d.setDate(d.getDate()-1);}
+  return s;
+}
 
 /* --- base mínima de exercícios (SEED) + gerador --- */
 const EX=[
@@ -410,7 +525,7 @@ const macroBar=(name,g,kcalShare,total,color,src)=>`
   <div class="track"><div class="fill" style="width:${Math.round(kcalShare/total*100)}%;background:${color}"></div></div>
   <div class="src">${src}</div></div>`;
 
-let VIEW="today";
+let VIEW="today",WEEKSEL=(new Date().getDay()+6)%7;
 function render(){
   const p=P();
   const m=macros(p),kc=targetKcal(p),bz=bmr(p),td=tdee(p),wm=waterMl(p),hz=hrZones(p.age),bi=bmi(p),ff=ffmi(p);
@@ -472,10 +587,60 @@ function render(){
       <div class="legrow"><span class="dot" style="background:var(--good)"></span><div class="lab"><b>${(wm/1000).toFixed(2)} L água</b><span>meta hídrica do dia</span></div></div>
     </div></div></div>`;
 
-  // meals & workout compact
-  const plan=dayPlan(m),totKcal=plan.reduce((s,x)=>s+x.kcal,0),totP=plan.reduce((s,x)=>s+x.p,0);
-  const cardMeals=`<div class="card span-6"><h3>Plano alimentar de hoje</h3><div class="cap">gerado por regras · ${totKcal} kcal · ${totP} g proteína</div>
+  // meals & workout compact — hoje usa o dia real da semana (rotação determinística)
+  const todayIdx=(new Date().getDay()+6)%7; // 0=segunda
+  const plan=dayPlan(m,todayIdx),totKcal=plan.reduce((s,x)=>s+x.kcal,0),totP=plan.reduce((s,x)=>s+x.p,0);
+  const cardMeals=`<div class="card span-6"><h3>Plano alimentar · ${WEEK_DAYS[todayIdx]}</h3><div class="cap">gerado por regras · ${totKcal} kcal · ${totP} g proteína · rotação diária de fontes</div>
     <div class="list">${plan.map(ms=>`<div class="daytag">${ms.s} · ${ms.t} · alvo ${ms.tk} kcal</div>${ms.items.map((it,i)=>`<div class="li"><span class="idx tnum">${String(i+1).padStart(2,'0')}</span><div class="nm"><b>${it.n}</b><span>${it.g} g</span></div><div class="rt"><b class="tnum">${it.kcal}</b> kcal · ${it.p}g P</div></div>`).join("")}`).join("")}</div></div>`;
+
+  // ---- semana: plano de 7 dias + lista de compras ----
+  const wk=weekPlan(m);
+  const wd=wk.days[WEEKSEL];
+  const wdKcal=wd.plan.reduce((s,x)=>s+x.kcal,0),wdP=wd.plan.reduce((s,x)=>s+x.p,0);
+  const cardWeek=`<div class="card span-7"><h3>Cardápio da semana</h3><div class="cap">7 dias · rotação determinística de fontes · sem repetição monótona</div>
+    <div class="wtabs" id="wtabs">${wk.days.map((d,i)=>`<button data-w="${i}" class="${i===WEEKSEL?'on':''}">${d.label.slice(0,3)}</button>`).join("")}</div>
+    <div class="daytag" style="margin-top:0">${wd.label} · ${wdKcal} kcal · ${wdP} g proteína</div>
+    <div class="list">${wd.plan.map(ms=>`<div class="daytag">${ms.s} · ${ms.t}</div>${ms.items.map((it,i)=>`<div class="li"><span class="idx tnum">${String(i+1).padStart(2,'0')}</span><div class="nm"><b>${it.n}</b><span>${it.g} g</span></div><div class="rt"><b class="tnum">${it.kcal}</b> kcal · ${it.p}g P</div></div>`).join("")}`).join("")}</div></div>`;
+  const cardShop=`<div class="card span-5"><h3>Lista de compras</h3><div class="cap">agregada da semana inteira · ${wk.shop.length} itens</div>
+    <div class="list">${wk.shop.map((it,i)=>`<div class="li"><span class="idx tnum">${String(i+1).padStart(2,'0')}</span><div class="nm"><b>${it.n}</b></div><div class="rt"><b class="tnum">${it.g>=1000?(it.g/1000).toFixed(2).replace('.',',')+' kg':it.g+' g'}</b></div></div>`).join("")}</div>
+    <div class="src" style="margin-top:12px">Quantidades exatas do plano — some sua margem de preparo.</div></div>`;
+
+  // ---- exames: entrada + interpretação por faixa (educativo) ----
+  const filled=LABS.filter(l=>LABVALS[l.c]!=null&&LABVALS[l.c]!=="");
+  const anyCrit=filled.some(l=>interpretLab(+LABVALS[l.c],labRange(l,p.sex))==="critical");
+  const cardLabs=`<div class="card span-8"><h3>Exames laboratoriais <span class="pill ${anyCrit?'crit':filled.length?'good':'accent'}">${anyCrit?'valor crítico':filled.length?filled.length+' informados':'informe valores'}</span></h3>
+    <div class="cap">interpretação educativa por faixa de referência · nunca sugere dose ou medicamento</div>
+    <div class="list">${LABS.map(l=>{
+      const r=labRange(l,p.sex);const v=LABVALS[l.c];
+      const has=v!=null&&v!=="";const st=has?interpretLab(+v,r):null;const msg=st?LABMSG[st]:null;
+      const lo=r.lo??r.clo??0,hi=r.hi??r.chi??(lo*3||100);const span=(hi-lo)||1;const min=lo-span*.5,max=hi+span*.5;
+      const pos=has?Math.min(Math.max((+v-min)/(max-min),0),1)*100:null;
+      const zl=(lo-min)/(max-min)*100,zw=(hi-lo)/(max-min)*100;
+      return`<div class="labrow"><div class="ln"><b>${l.n}</b><span>${r.lo??"—"}–${r.hi??"—"} ${l.u} · ${l.src}</span></div>
+        <input type="number" step="any" inputmode="decimal" data-lab="${l.c}" value="${has?v:""}" placeholder="${l.u}" aria-label="${l.n}">
+        <div class="labbar"><div class="zone" style="left:${zl}%;width:${zw}%"></div>${has?`<div class="mark" style="left:calc(${pos}% - 1px)"></div>`:""}</div>
+        <div>${has?`<span class="pill ${msg.pill}">${msg.t}</span>`:`<span class="pill" style="color:var(--faint)">—</span>`}</div></div>`;
+    }).join("")}</div>
+    ${filled.some(l=>interpretLab(+LABVALS[l.c],labRange(l,p.sex))!=="in")?`<div class="src" style="margin-top:12px">Resultados fora da faixa: leve o exame a um profissional habilitado. Este painel é educativo e não substitui laudo médico.</div>`:""}</div>`;
+  const cardLabSummary=`<div class="card span-4"><h3>Resumo</h3><div class="cap">como ler este painel</div>
+    <div class="tiles">
+      <div class="tile"><div class="k">Na faixa</div><div class="v tnum" style="color:var(--good)">${filled.filter(l=>interpretLab(+LABVALS[l.c],labRange(l,p.sex))==="in").length}</div><div class="meta">marcadores ok</div></div>
+      <div class="tile"><div class="k">Fora da faixa</div><div class="v tnum" style="color:var(--warn)">${filled.filter(l=>["below","above"].includes(interpretLab(+LABVALS[l.c],labRange(l,p.sex)))).length}</div><div class="meta">discutir c/ profissional</div></div>
+      <div class="tile"><div class="k">Críticos</div><div class="v tnum" style="color:var(--crit)">${filled.filter(l=>interpretLab(+LABVALS[l.c],labRange(l,p.sex))==="critical").length}</div><div class="meta">procurar médico já</div></div>
+      <div class="tile"><div class="k">Faixas por</div><div class="v" style="font-size:16px">sexo ${p.sex}</div><div class="meta">ferritina, HDL, creatinina</div></div>
+    </div>
+    <div class="src" style="margin-top:12px">A faixa verde na barra é a referência; o traço é o seu valor. Faixas segmentadas por sexo aplicadas automaticamente.</div></div>`;
+
+  // ---- hábitos: checklist do dia + streak ----
+  const hab=loadHab(),tk2=todayKey(),doneToday=hab[tk2]||[];
+  const st2=streak(hab);
+  const cardStreak=`<div class="card span-4"><h3>Sequência</h3><div class="cap">dias consecutivos com 3+ hábitos</div>
+    <div class="streakbig"><span class="n tnum">${st2}</span><span class="u">dia${st2===1?"":"s"} 🔥</span></div>
+    <div class="deltarow" style="margin-top:16px"><span>Hoje: <b>${doneToday.length}/${HABITS.length}</b> hábitos${doneToday.length>=3?" — dia conta para a sequência ✓":` — faltam <b>${3-doneToday.length}</b> para contar`}</span></div>
+    <div class="src" style="margin-top:10px">Regra: ≥3 hábitos no dia mantém a sequência. Determinístico, sem pegadinha.</div></div>`;
+  const cardHabits=`<div class="card span-8"><h3>Hábitos de hoje · ${WEEK_DAYS[todayIdx]}</h3><div class="cap">toque para marcar · salvo neste dispositivo</div>
+    <div class="habgrid" id="habgrid">${HABITS.map(h=>`<div class="hab ${doneToday.includes(h.k)?"done":""}" data-h="${h.k}" role="button" tabindex="0" aria-pressed="${doneToday.includes(h.k)}"><span class="ic">${h.ic}</span><span class="hn">${h.n}</span><span class="chk">✓</span></div>`).join("")}</div>
+    <div class="deltarow"><span>Água de hoje: <b>${(wm/1000).toFixed(2)} L</b> · Proteína: <b>${m.protein} g</b> · Passos: meta <b>8 000</b></span></div></div>`;
 
   const wp=workoutPlan(p);
   const cardWorkout=`<div class="card span-6"><h3>Treino gerado</h3><div class="cap">split ${wp.map(d=>d.type.slice(0,3)).join("/")} · ${p.days}× semana · lesões filtram exercícios</div>
@@ -484,8 +649,11 @@ function render(){
   const VIEWS={
     today:{title:"Hoje",sub:"Tudo abaixo é calculado por fórmula nomeada — mesmo input, mesmo output.",html:cardEnergy+cardMacros+cardBody+cardTrend+cardReady+cardMeals+cardWorkout},
     nutri:{title:"Nutrição",sub:"Meta calórica e macros pelo motor; plano montado por seleção na base de alimentos.",html:cardEnergy+cardMacros+cardMeals+cardBody},
+    week:{title:"Semana",sub:"7 dias com rotação determinística de fontes + lista de compras agregada.",html:cardWeek+cardShop},
     train:{title:"Treino",sub:"Split por frequência, faixas por objetivo, progressão dupla automática.",html:cardWorkout+cardReady+cardTrend},
     calc:{title:"Calculadoras",sub:"Cada número com fórmula nomeada e fonte.",html:cardEnergy+cardBody+cardMacros+cardReady},
+    labs:{title:"Exames",sub:"Comparação com faixas de referência armazenadas — educativo, nunca prescreve.",html:cardLabs+cardLabSummary},
+    habits:{title:"Hábitos",sub:"Checklist diário e sequência por regras determinísticas sobre o que você registra.",html:cardHabits+cardStreak},
     safe:{title:"Segurança",sub:"Guardrails determinísticos. Educa, não diagnostica.",html:(guards.length?"":`<div class="card span-12"><h3>Nenhuma bandeira vermelha ativa <span class="pill good">tudo certo</span></h3><div class="cap">o motor libera as recomendações padrão</div><div class="src" style="font-size:12px">Regras monitoradas: dor torácica ao esforço · IMC &lt;17,5 com meta de emagrecer · indícios de transtorno alimentar · gestação/lactação · diabetes tipo 1 · menor de 16 sem responsável · exame em faixa crítica · piso calórico 1,1×TMB · freio de perda &gt;1,5%/semana.</div></div>`)+cardTrend+cardBody},
   };
   const v=VIEWS[VIEW];
@@ -495,6 +663,23 @@ function render(){
 
 /* interações */
 document.querySelectorAll(".profile input,.profile select").forEach(el=>el.addEventListener("input",render));
+// delegação nas views: abas da semana, exames e hábitos (o DOM é re-renderizado)
+$("#views").addEventListener("click",e=>{
+  const w=e.target.closest("[data-w]");if(w){WEEKSEL=+w.dataset.w;render();return;}
+  const h=e.target.closest(".hab");if(h){toggleHabit(h.dataset.h);return;}
+});
+$("#views").addEventListener("keydown",e=>{
+  const h=e.target.closest(".hab");
+  if(h&&(e.key==="Enter"||e.key===" ")){e.preventDefault();toggleHabit(h.dataset.h);}
+});
+$("#views").addEventListener("change",e=>{
+  const l=e.target.closest("[data-lab]");if(l){LABVALS[l.dataset.lab]=l.value;render();}
+});
+function toggleHabit(k){
+  const h=loadHab(),t=todayKey();const day=new Set(h[t]||[]);
+  day.has(k)?day.delete(k):day.add(k);
+  h[t]=[...day];saveHab(h);render();
+}
 $("#sexseg").addEventListener("click",e=>{const b=e.target.closest("button");if(!b)return;$("#sexseg").querySelectorAll("button").forEach(x=>x.classList.remove("on"));b.classList.add("on");render();});
 $("#nav").addEventListener("click",e=>{const b=e.target.closest("button");if(!b)return;$("#nav").querySelectorAll("button").forEach(x=>x.classList.remove("on"));b.classList.add("on");VIEW=b.dataset.v;render();});
 

@@ -187,6 +187,36 @@ test('substitutos do frango priorizam perfil proteico similar (tilápia primeiro
 test('gerador de dieta: determinismo', () => {
   deterministic(() => D.generateDayPlan({ macros: macros80kg, foods: FOODS, strategy: { code: 'flexible', contraindications: [] } }));
 });
+test('plano semanal: 7 dias, com VARIEDADE de proteína entre os dias (rotação)', () => {
+  const week = D.generateWeekPlan({ macros: macros80kg, foods: FOODS, strategy: { code: 'flexible', contraindications: [] } });
+  assert.strictEqual(week.blocked, false);
+  assert.strictEqual(week.days.length, 7);
+  const lunchProteins = week.days.map((d) => d.meals[1].items[0].food);
+  assert.ok(new Set(lunchProteins).size >= 3, `pouca variedade: ${[...new Set(lunchProteins)].join(', ')}`);
+});
+test('plano semanal: cada dia continua perto da meta calórica', () => {
+  const week = D.generateWeekPlan({ macros: macros80kg, foods: FOODS, strategy: { code: 'flexible', contraindications: [] } });
+  for (const d of week.days) {
+    assert.ok(Math.abs(d.totals.kcal - macros80kg.kcal) / macros80kg.kcal < 0.25, `${d.label}: ${d.totals.kcal} kcal vs ${macros80kg.kcal}`);
+  }
+});
+test('lista de compras: soma da semana bate com os itens dos dias', () => {
+  const week = D.generateWeekPlan({ macros: macros80kg, foods: FOODS, strategy: { code: 'flexible', contraindications: [] } });
+  const somaLista = week.shoppingList.reduce((s, i) => s + i.totalG, 0);
+  const somaDias = week.days.reduce((s, d) => s + d.meals.reduce((s2, m) => s2 + m.items.reduce((s3, it) => s3 + it.grams, 0), 0), 0);
+  assert.strictEqual(somaLista, somaDias);
+  assert.ok(week.shoppingList.length >= 3);
+});
+test('plano semanal vegano: nenhuma fonte animal em nenhum dia', () => {
+  const week = D.generateWeekPlan({ macros: macros80kg, foods: FOODS, strategy: { code: 'flexible', contraindications: [] }, restrictions: ['vegan'] });
+  for (const d of week.days) for (const m of d.meals) for (const it of m.items) {
+    const f = FOODS.find((x) => x.name === it.food);
+    assert.ok(f.tags.includes('vegan'), `${d.label}/${m.slot}: ${it.food} não é vegano`);
+  }
+});
+test('plano semanal: determinismo', () => {
+  deterministic(() => D.generateWeekPlan({ macros: macros80kg, foods: FOODS, strategy: { code: 'flexible', contraindications: [] } }));
+});
 
 // ---------------------------------------------------------------------------
 console.log('workoutGenerator.js');
