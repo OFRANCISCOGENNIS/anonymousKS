@@ -276,11 +276,19 @@ export function FotoEditor() {
                 <ImageUp className="h-8 w-8 text-violet-300" aria-hidden />
               </span>
               <p className="text-sm font-semibold text-white">Arraste uma imagem aqui</p>
-              <p className="text-xs text-zinc-500">ou clique para escolher do computador (PNG, JPG, WEBP)</p>
+              <p className="text-xs text-zinc-500">PNG, JPG ou WEBP — nada sai do seu aparelho</p>
+              <Button
+                className="mt-2"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  fileRef.current?.click();
+                }}
+              >
+                <ImageUp className="h-4 w-4" aria-hidden /> Escolher foto do aparelho
+              </Button>
               <Button
                 variant="secondary"
                 size="sm"
-                className="mt-2"
                 onClick={(e) => {
                   e.stopPropagation();
                   loadSample();
@@ -316,13 +324,27 @@ export function FotoEditor() {
     <div className="relative mx-auto flex max-w-[1500px] flex-col gap-3">
       {/* Header */}
       <div className="flex flex-wrap items-center gap-2">
-        <div className="min-w-0 flex-1">
+        <div className="w-full min-w-0 lg:w-auto lg:flex-1">
           <h1 className="truncate text-lg font-bold text-white">
             <ImagePlus className="mr-2 inline h-5 w-5 text-fuchsia-400" aria-hidden />
             Editor de Fotos
           </h1>
-          <p className="text-xs text-zinc-500">{s.imgW}×{s.imgH} px · edição 100% local</p>
+          <p className="truncate text-xs text-zinc-500">{s.imgW}×{s.imgH} px · edição 100% local</p>
         </div>
+        <Button variant="secondary" size="sm" onClick={() => fileRef.current?.click()} title="Anexar outra foto do aparelho">
+          <ImageUp className="h-4 w-4" aria-hidden /> Trocar foto
+        </Button>
+        <input
+          ref={fileRef}
+          type="file"
+          accept="image/*"
+          className="sr-only"
+          aria-label="Selecionar arquivo de imagem"
+          onChange={(e) => {
+            loadFromFile(e.target.files?.[0]);
+            e.target.value = "";
+          }}
+        />
         <div className="flex items-center gap-1 rounded-xl border border-white/[0.08] bg-surface-1/60 p-1 backdrop-blur-xl" role="group" aria-label="Histórico">
           <button
             onClick={s.undo}
