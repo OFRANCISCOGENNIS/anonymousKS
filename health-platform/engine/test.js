@@ -1,0 +1,315 @@
+'use strict';
+// ============================================================================
+// TESTES DO MOTOR DETERMINÍSTICO — rodar com: node test.js
+// Sem framework: assert nativo. Cada teste também valida DETERMINISMO
+// (duas chamadas idênticas → resultados idênticos).
+// ============================================================================
+const assert = require('assert');
+const F = require('./formulas');
+const G = require('./guardrails');
+const D = require('./dietGenerator');
+const W = require('./workoutGenerator');
+const A = require('./adaptation');
+
+let passed = 0;
+function test(name, fn) {
+  try { fn(); passed++; console.log(`  ok - ${name}`); }
+  catch (e) { console.error(`  FAIL - ${name}\n    ${e.message}`); process.exitCode = 1; }
+}
+const deterministic = (fn) => assert.deepStrictEqual(fn(), fn(), 'não determinístico!');
+
+// ---------------------------------------------------------------------------
+console.log('formulas.js');
+// ---------------------------------------------------------------------------
+const maleProfile = { weightKg: 80, heightCm: 180, age: 30, sex: 'M', activityLevel: 'moderate', goal: 'fat_loss', bodyFatPct: 20 };
+
+test('Mifflin-St Jeor homem 80kg/180cm/30a = 1780 kcal', () => {
+  assert.strictEqual(F.bmrMifflinStJeor(maleProfile).value, 1780); // 800+1125-150+5
+});
+test('Mifflin-St Jeor mulher 60kg/165cm/25a = 1345 kcal', () => {
+  assert.strictEqual(F.bmrMifflinStJeor({ weightKg: 60, heightCm: 165, age: 25, sex: 'F' }).value, 1345);
+});
+test('Katch-McArdle LBM 64kg = 1752 kcal', () => {
+  assert.strictEqual(F.bmrKatchMcArdle({ lbmKg: 64 }).value, 1752);
+});
+test('bmr() escolhe Katch-McArdle quando %gordura é confiável', () => {
+  assert.strictEqual(F.bmr({ ...maleProfile, bfConfidence: 'high' }).formula, 'KATCH_MCARDLE');
+  assert.strictEqual(F.bmr(maleProfile).formula, 'MIFFLIN_ST_JEOR');
+});
+test('TDEE = TMB × 1.55 (moderate)', () => {
+  assert.strictEqual(F.tdee(maleProfile).value, Math.round(1780 * 1.55));
+});
+test('targetKcal em fat_loss = TDEE -20%, nunca abaixo de 1,1×TMB', () => {
+  const t = F.targetKcal(maleProfile);
+  assert.strictEqual(t.value, Math.round(2759 * 0.8));
+  const sedentary = F.targetKcal({ ...maleProfile, activityLevel: 'sedentary' });
+  assert.ok(sedentary.value >= 1780 * 1.1 - 1, 'piso 1,1×TMB violado');
+});
+test('macros em déficit usa 2,6 g/kg LBM (Helms)', () => {
+  const m = F.macros(maleProfile);
+  assert.strictEqual(m.proteinG, Math.round(2.6 * 80 * 0.8)); // LBM=64 → 166g
+  assert.strictEqual(m.fatG, 64); // 0,8 g/kg
+  assert.ok(m.carbG > 0);
+  assert.ok(m.sources.protein.includes('Helms'));
+});
+test('macros fecham a conta calórica (±4 kcal de arredondamento por macro)', () => {
+  const m = F.macros(maleProfile);
+  const sum = m.proteinG * 4 + m.carbG * 4 + m.fatG * 9;
+  assert.ok(Math.abs(sum - m.kcal) <= 8, `soma ${sum} vs alvo ${m.kcal}`);
+});
+test('US Navy %gordura homem — caso conhecido', () => {
+  const bf = F.bodyFatUsNavy({ sex: 'M', heightCm: 180, waistCm: 85, neckCm: 38 });
+  assert.ok(bf.value > 14 && bf.value < 19, `fora da faixa esperada: ${bf.value}`);
+  assert.strictEqual(bf.confidence, 'medium');
+});
+test('US Navy exige quadril para sexo F', () => {
+  assert.throws(() => F.bodyFatUsNavy({ sex: 'F', heightCm: 165, waistCm: 70, neckCm: 32 }));
+});
+test('Epley 1RM: 100kg × 10 reps = 133,3 kg; 1 rep = a própria carga', () => {
+  assert.strictEqual(F.oneRepMaxEpley({ loadKg: 100, reps: 10 }).value, 133.3);
+  assert.strictEqual(F.oneRepMaxEpley({ loadKg: 140, reps: 1 }).value, 140);
+});
+test('Zonas Karvonen coerentes (z1<z5, dentro de FCrep..FCmáx)', () => {
+  const z = F.hrZonesKarvonen({ age: 30, hrRest: 60 });
+  assert.strictEqual(z.hrMax, 187); // Tanaka: 208-21
+  assert.ok(z.zones.z1.min >= 60 && z.zones.z5.max === 187);
+  assert.ok(z.zones.z1.max < z.zones.z5.min);
+});
+test('água diária 80kg + 60min treino = 3550 ml', () => {
+  assert.strictEqual(F.waterMl({ weightKg: 80, trainingMinPerDay: 60 }).value, 35 * 80 + 750);
+});
+test('formulas: determinismo', () => {
+  deterministic(() => F.macros(maleProfile));
+  deterministic(() => F.hrZonesKarvonen({ age: 41, hrRest: 55 }));
+});
+
+// ---------------------------------------------------------------------------
+console.log('guardrails.js');
+// ---------------------------------------------------------------------------
+test('sem respostas de risco → sem flags, não bloqueia', () => {
+  const r = G.evaluateRedFlags({ answers: {}, age: 30, weightKg: 80, heightCm: 180, goal: 'fat_loss' });
+  assert.strictEqual(r.flags.length, 0);
+  assert.strictEqual(r.blocksGeneration, false);
+});
+test('dor no peito bloqueia geração', () => {
+  const r = G.evaluateRedFlags({ answers: { chest_pain_exertion: true } });
+  assert.strictEqual(r.blocksGeneration, true);
+  assert.strictEqual(r.flags[0].code, 'CHEST_PAIN');
+});
+test('IMC <17,5 com meta emagrecer bloqueia', () => {
+  const r = G.evaluateRedFlags({ answers: {}, weightKg: 45, heightCm: 170, goal: 'fat_loss' });
+  assert.ok(r.flags.some((f) => f.code === 'BMI_LT_175_CUTTING'));
+  assert.strictEqual(r.blocksGeneration, true);
+});
+test('mesmo IMC baixo SEM meta de emagrecer não bloqueia', () => {
+  const r = G.evaluateRedFlags({ answers: {}, weightKg: 45, heightCm: 170, goal: 'hypertrophy' });
+  assert.strictEqual(r.blocksGeneration, false);
+});
+test('2 de 3 indicadores de TA disparam ED_INDICATORS', () => {
+  const r = G.evaluateRedFlags({ answers: { extreme_restriction: true, compensatory_behavior: true } });
+  assert.ok(r.flags.some((f) => f.code === 'ED_INDICATORS'));
+});
+test('menor de 16 sem responsável bloqueia; com responsável não', () => {
+  assert.strictEqual(G.evaluateRedFlags({ answers: {}, age: 15, hasGuardian: false }).blocksGeneration, true);
+  assert.strictEqual(G.evaluateRedFlags({ answers: {}, age: 15, hasGuardian: true }).blocksGeneration, false);
+});
+test('exame crítico gera flag NÃO bloqueante', () => {
+  const r = G.evaluateRedFlags({ answers: {}, criticalLabs: ['GLUCOSE'] });
+  assert.ok(r.flags.some((f) => f.code === 'CRITICAL_LAB' && !f.blocks));
+  assert.strictEqual(r.blocksGeneration, false);
+});
+test('interpretLab cobre as 4 saídas', () => {
+  const range = { normalMin: 70, normalMax: 99, criticalMin: 50, criticalMax: 200 };
+  assert.strictEqual(G.interpretLab({ value: 85, range }), 'in_range');
+  assert.strictEqual(G.interpretLab({ value: 60, range }), 'below_range');
+  assert.strictEqual(G.interpretLab({ value: 120, range }), 'above_range');
+  assert.strictEqual(G.interpretLab({ value: 220, range }), 'critical');
+  assert.strictEqual(G.interpretLab({ value: 40, range }), 'critical');
+});
+
+// ---------------------------------------------------------------------------
+console.log('dietGenerator.js');
+// ---------------------------------------------------------------------------
+// Base espelhando o SEED (nomes/valores idênticos ao SEED.sql).
+const FOODS = [
+  { name: 'Arroz, integral, cozido', category: 'cereals', kcal: 124, protein_g: 2.6, carb_g: 25.8, fat_g: 1.0, tags: ['vegan', 'vegetarian', 'gluten_free'] },
+  { name: 'Feijão, carioca, cozido', category: 'legumes', kcal: 76, protein_g: 4.8, carb_g: 13.6, fat_g: 0.5, tags: ['vegan', 'vegetarian', 'gluten_free'] },
+  { name: 'Frango, peito, grelhado', category: 'meats', kcal: 159, protein_g: 32.0, carb_g: 0.0, fat_g: 2.5, tags: ['gluten_free', 'lactose_free', 'animal_based', 'keto_friendly'] },
+  { name: 'Ovo, cozido', category: 'eggs', kcal: 146, protein_g: 13.3, carb_g: 0.6, fat_g: 9.5, tags: ['vegetarian', 'gluten_free', 'lactose_free', 'animal_based', 'keto_friendly'] },
+  { name: 'Batata, doce, cozida', category: 'tubers', kcal: 77, protein_g: 0.6, carb_g: 18.4, fat_g: 0.1, tags: ['vegan', 'vegetarian', 'gluten_free'] },
+  { name: 'Azeite, extra virgem', category: 'oils', kcal: 884, protein_g: 0, carb_g: 0, fat_g: 100, tags: ['vegan', 'vegetarian', 'gluten_free', 'keto_friendly'] },
+  { name: 'Tilápia, grelhada', category: 'fish', kcal: 96, protein_g: 20.1, carb_g: 0, fat_g: 1.7, tags: ['gluten_free', 'lactose_free', 'animal_based', 'keto_friendly'] },
+  { name: 'Queijo, minas', category: 'dairy', kcal: 264, protein_g: 17.4, carb_g: 3.2, fat_g: 20.2, tags: ['vegetarian', 'gluten_free', 'keto_friendly'] },
+];
+const macros80kg = F.macros(maleProfile);
+
+test('plano do dia gera 4 refeições e chega perto das metas', () => {
+  const plan = D.generateDayPlan({ macros: macros80kg, foods: FOODS, strategy: { code: 'flexible', contraindications: [] } });
+  assert.strictEqual(plan.blocked, false);
+  assert.strictEqual(plan.meals.length, 4);
+  assert.ok(Math.abs(plan.totals.kcal - macros80kg.kcal) / macros80kg.kcal < 0.20, `kcal ${plan.totals.kcal} vs ${macros80kg.kcal}`);
+  assert.ok(plan.totals.proteinG >= macros80kg.proteinG * 0.75, `proteína ${plan.totals.proteinG} vs ${macros80kg.proteinG}`);
+});
+test('nenhuma refeição passa de 40g de proteína (teto ISSN por refeição)', () => {
+  const plan = D.generateDayPlan({ macros: macros80kg, foods: FOODS, strategy: { code: 'flexible', contraindications: [] } });
+  for (const m of plan.meals) assert.ok(m.totalProteinG <= 46, `${m.slot}: ${m.totalProteinG}g (com tolerância de arredondamento 5g)`);
+});
+test('restrição vegana remove todos os alimentos animais do plano', () => {
+  const plan = D.generateDayPlan({ macros: macros80kg, foods: FOODS, strategy: { code: 'flexible', contraindications: [] }, restrictions: ['vegan'] });
+  const names = plan.meals.flatMap((m) => m.items.map((i) => i.food));
+  for (const n of names) {
+    const f = FOODS.find((x) => x.name === n);
+    assert.ok(f.tags.includes('vegan'), `${n} não é vegano`);
+  }
+});
+test('alergia a lactose exclui queijo', () => {
+  const pool = D.eligibleFoods(FOODS, { allergies: ['lactose'] });
+  assert.ok(!pool.some((f) => f.name.includes('Queijo')));
+  assert.ok(pool.some((f) => f.name.includes('Frango')));
+});
+test('estratégia keto é BLOQUEADA para diabetes tipo 1 (contraindicação)', () => {
+  const keto = { code: 'keto', foodTagFilter: { require: ['keto_friendly'] }, contraindications: ['t1_diabetes', 'pregnancy'] };
+  const plan = D.generateDayPlan({ macros: macros80kg, foods: FOODS, strategy: keto, userConditions: ['t1_diabetes'] });
+  assert.strictEqual(plan.blocked, true);
+  assert.ok(plan.reason.includes('t1_diabetes'));
+});
+test('keto sem contraindicação filtra por tag keto_friendly', () => {
+  const keto = { code: 'keto', foodTagFilter: { require: ['keto_friendly'] }, contraindications: ['t1_diabetes'] };
+  const pool = D.eligibleFoods(FOODS, { strategy: keto });
+  assert.ok(pool.every((f) => f.tags.includes('keto_friendly')));
+});
+test('substitutos do frango priorizam perfil proteico similar (tilápia primeiro)', () => {
+  const frango = FOODS.find((f) => f.name.includes('Frango'));
+  const subs = D.findSubstitutes(frango, FOODS);
+  assert.strictEqual(subs[0].name, 'Tilápia, grelhada');
+  assert.ok(subs[0].gramsPer100gOriginal > 100, 'tilápia tem menos kcal → precisa de mais gramas p/ isocalórico');
+});
+test('gerador de dieta: determinismo', () => {
+  deterministic(() => D.generateDayPlan({ macros: macros80kg, foods: FOODS, strategy: { code: 'flexible', contraindications: [] } }));
+});
+
+// ---------------------------------------------------------------------------
+console.log('workoutGenerator.js');
+// ---------------------------------------------------------------------------
+const EXERCISES = [
+  { code: 'BB_BACK_SQUAT', name: 'Agachamento livre', primary_muscle: 'quadriceps', movement_pattern: 'squat', equipment: ['barbell'], difficulty: 'intermediate', is_compound: true, contraindicated_conditions: ['knee_injury', 'lumbar_hernia'] },
+  { code: 'GOBLET_SQUAT', name: 'Agachamento goblet', primary_muscle: 'quadriceps', movement_pattern: 'squat', equipment: ['dumbbell'], difficulty: 'beginner', is_compound: true, contraindicated_conditions: ['knee_injury'] },
+  { code: 'LEG_PRESS', name: 'Leg press', primary_muscle: 'quadriceps', movement_pattern: 'squat', equipment: ['machine'], difficulty: 'beginner', is_compound: true, contraindicated_conditions: ['knee_injury'] },
+  { code: 'DB_RDL', name: 'Stiff halteres', primary_muscle: 'hamstrings', movement_pattern: 'hinge', equipment: ['dumbbell'], difficulty: 'beginner', is_compound: true, contraindicated_conditions: ['lumbar_hernia'] },
+  { code: 'HIP_THRUST', name: 'Elevação pélvica', primary_muscle: 'glutes', movement_pattern: 'hinge', equipment: ['barbell', 'bodyweight'], difficulty: 'beginner', is_compound: true, contraindicated_conditions: [] },
+  { code: 'DB_BENCH_PRESS', name: 'Supino halteres', primary_muscle: 'chest', movement_pattern: 'push_h', equipment: ['dumbbell'], difficulty: 'beginner', is_compound: true, contraindicated_conditions: ['shoulder_injury'] },
+  { code: 'PUSH_UP', name: 'Flexão', primary_muscle: 'chest', movement_pattern: 'push_h', equipment: ['bodyweight'], difficulty: 'beginner', is_compound: true, contraindicated_conditions: ['wrist_injury'] },
+  { code: 'OHP', name: 'Desenvolvimento', primary_muscle: 'shoulders', movement_pattern: 'push_v', equipment: ['barbell', 'dumbbell'], difficulty: 'intermediate', is_compound: true, contraindicated_conditions: ['shoulder_injury'] },
+  { code: 'SEATED_ROW', name: 'Remada sentada', primary_muscle: 'back', movement_pattern: 'pull_h', equipment: ['machine', 'cable'], difficulty: 'beginner', is_compound: true, contraindicated_conditions: [] },
+  { code: 'PULL_UP', name: 'Barra fixa', primary_muscle: 'lats', movement_pattern: 'pull_v', equipment: ['bodyweight'], difficulty: 'advanced', is_compound: true, contraindicated_conditions: ['shoulder_injury'] },
+  { code: 'LAT_PULLDOWN', name: 'Puxada', primary_muscle: 'lats', movement_pattern: 'pull_v', equipment: ['cable', 'machine'], difficulty: 'beginner', is_compound: true, contraindicated_conditions: [] },
+  { code: 'PLANK', name: 'Prancha', primary_muscle: 'core', movement_pattern: 'core', equipment: ['bodyweight'], difficulty: 'beginner', is_compound: false, contraindicated_conditions: [] },
+];
+
+test('lesão de joelho exclui TODOS os agachamentos; hérnia lombar exclui terra/stiff', () => {
+  const pool = W.eligibleExercises(EXERCISES, { conditions: ['knee_injury'], equipment: ['barbell', 'dumbbell', 'machine', 'bodyweight', 'cable'], level: 'advanced' });
+  assert.ok(!pool.some((e) => ['BB_BACK_SQUAT', 'GOBLET_SQUAT', 'LEG_PRESS'].includes(e.code)));
+  const pool2 = W.eligibleExercises(EXERCISES, { conditions: ['lumbar_hernia'], equipment: ['barbell', 'dumbbell'], level: 'advanced' });
+  assert.ok(!pool2.some((e) => ['DB_RDL', 'BB_BACK_SQUAT'].includes(e.code)));
+  assert.ok(pool2.some((e) => e.code === 'HIP_THRUST'));
+});
+test('iniciante não recebe exercício advanced (barra fixa)', () => {
+  const pool = W.eligibleExercises(EXERCISES, { conditions: [], equipment: ['bodyweight', 'cable'], level: 'beginner' });
+  assert.ok(!pool.some((e) => e.code === 'PULL_UP'));
+  assert.ok(pool.some((e) => e.code === 'LAT_PULLDOWN'));
+});
+test('só peso corporal em casa ainda gera plano', () => {
+  const plan = W.generateWorkoutPlan({ exercises: EXERCISES, daysPerWeek: 3, equipment: ['bodyweight'], level: 'beginner' });
+  assert.strictEqual(plan.blocked, false);
+  const codes = plan.sessions.flatMap((s) => s.items.map((i) => i.code));
+  assert.ok(codes.every((c) => EXERCISES.find((e) => e.code === c).equipment.includes('bodyweight')));
+});
+test('4 dias/semana gera split upper/lower; hipertrofia usa 6-12 reps', () => {
+  const plan = W.generateWorkoutPlan({ exercises: EXERCISES, goal: 'hypertrophy', daysPerWeek: 4, equipment: ['barbell', 'dumbbell', 'machine', 'cable', 'bodyweight'], level: 'intermediate' });
+  assert.strictEqual(plan.split, 'upper/lower/upper/lower');
+  for (const s of plan.sessions) for (const it of s.items) {
+    assert.strictEqual(it.repMin, 6);
+    assert.strictEqual(it.repMax, 12);
+    assert.strictEqual(it.sets, 3); // intermediate
+  }
+});
+test('descanso maior em compostos (150s) que isolados (75s) em hipertrofia', () => {
+  const plan = W.generateWorkoutPlan({ exercises: EXERCISES, goal: 'hypertrophy', daysPerWeek: 3, equipment: ['bodyweight', 'cable', 'machine'], level: 'beginner' });
+  const plank = plan.sessions.flatMap((s) => s.items).find((i) => i.code === 'PLANK');
+  const compound = plan.sessions.flatMap((s) => s.items).find((i) => i.code !== 'PLANK');
+  if (plank) assert.strictEqual(plank.restSeconds, 75);
+  assert.strictEqual(compound.restSeconds, 150);
+});
+test('progressão: topo da faixa com RIR≥1 em 2 sessões → +2,5% composto', () => {
+  const history = [
+    { sets: [{ reps: 12, loadKg: 100, rir: 2 }, { reps: 12, loadKg: 100, rir: 1 }] },
+    { sets: [{ reps: 12, loadKg: 100, rir: 2 }, { reps: 12, loadKg: 100, rir: 1 }] },
+  ];
+  const r = W.nextLoad({ history, repMax: 12, isCompound: true });
+  assert.strictEqual(r.change, 'increase');
+  assert.strictEqual(r.nextLoadKg, 102.5);
+});
+test('progressão: uma sessão abaixo do topo → mantém carga', () => {
+  const history = [
+    { sets: [{ reps: 12, loadKg: 100, rir: 1 }] },
+    { sets: [{ reps: 10, loadKg: 100, rir: 0 }] },
+  ];
+  assert.strictEqual(W.nextLoad({ history, repMax: 12, isCompound: true }).change, 'keep');
+});
+test('gerador de treino: determinismo', () => {
+  deterministic(() => W.generateWorkoutPlan({ exercises: EXERCISES, goal: 'hypertrophy', daysPerWeek: 5, equipment: ['barbell', 'dumbbell', 'machine', 'cable', 'bodyweight'], level: 'advanced' }));
+});
+
+// ---------------------------------------------------------------------------
+console.log('adaptation.js');
+// ---------------------------------------------------------------------------
+const flat14d = Array.from({ length: 10 }, (_, i) => ({ day: i * 1.5, value: 82 + (i % 2 ? 0.1 : -0.1) })); // ruído sem tendência
+const falling = Array.from({ length: 10 }, (_, i) => ({ day: i * 1.5, value: 84 - i * 0.12 })); // -~0,5 kg/sem
+const crashing = Array.from({ length: 10 }, (_, i) => ({ day: i * 1.5, value: 84 - i * 0.35 })); // perda agressiva
+
+test('peso estável 14d + adesão 85% → platô detectado', () => {
+  const r = A.detectPlateau({ weighins: flat14d, adherencePct: 85, goal: 'fat_loss' });
+  assert.strictEqual(r.plateau, true);
+  assert.strictEqual(r.rule, 'PLATEAU_WEIGHT_14D');
+});
+test('peso caindo → NÃO é platô (tendência vence ruído)', () => {
+  assert.strictEqual(A.detectPlateau({ weighins: falling, adherencePct: 90, goal: 'fat_loss' }).plateau, false);
+});
+test('adesão <80% → NÃO corta caloria; manda simplificar plano primeiro', () => {
+  const r = A.detectPlateau({ weighins: flat14d, adherencePct: 60, goal: 'fat_loss' });
+  assert.strictEqual(r.plateau, false);
+  assert.ok(r.reason.includes('ADHERENCE_LOW_SIMPLIFY'));
+});
+test('menos de 8 pesagens → dados insuficientes', () => {
+  assert.strictEqual(A.detectPlateau({ weighins: flat14d.slice(0, 5), adherencePct: 90, goal: 'fat_loss' }).plateau, false);
+});
+test('ação de platô: -5% kcal, mas respeita piso 1,1×TMB', () => {
+  const a = A.applyPlateauAction({ targetKcal: 2200, bmrKcal: 1780 });
+  assert.strictEqual(a.newTargetKcal, 2090);
+  const floored = A.applyPlateauAction({ targetKcal: 1960, bmrKcal: 1800 });
+  assert.strictEqual(floored.action, 'suggest_neat'); // 1960*0,95=1862 < 1980
+  assert.strictEqual(floored.newTargetKcal, 1960);
+});
+test('freio de perda rápida: >1,5%/sem → +10% kcal e flag de revisão', () => {
+  const r = A.rapidLossBrake({ weighins: crashing, targetKcal: 2000 });
+  assert.strictEqual(r.triggered, true);
+  assert.strictEqual(r.newTargetKcal, 2200);
+  assert.strictEqual(r.flag, 'review_red_flags');
+});
+test('perda no ritmo seguro não dispara o freio', () => {
+  assert.strictEqual(A.rapidLossBrake({ weighins: falling, targetKcal: 2000 }).triggered, false);
+});
+test('ETA de meta com faixa de incerteza (nunca ponto exato)', () => {
+  const eta = A.goalEta({ weighins: falling, targetValue: 80 });
+  assert.strictEqual(eta.reachable, true);
+  assert.ok(eta.etaDays > 0 && eta.etaRangeDays >= 7);
+});
+test('meta na direção oposta da tendência → não alcançável', () => {
+  assert.strictEqual(A.goalEta({ weighins: falling, targetValue: 90 }).reachable, false);
+});
+test('adaptation: determinismo', () => {
+  deterministic(() => A.detectPlateau({ weighins: flat14d, adherencePct: 85, goal: 'fat_loss' }));
+});
+
+// ---------------------------------------------------------------------------
+console.log(`\n${passed} testes passaram${process.exitCode ? ' (com falhas acima)' : ', 0 falhas'}`);
