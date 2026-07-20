@@ -54,6 +54,18 @@ describe("animEnvelope", () => {
     expect(animEnvelope(clip, 100)).toEqual(NEUTRAL_ENVELOPE);
   });
 
+  it("bounce entra deslocado no eixo y e assenta em 0", () => {
+    const clip = clipWith({ in: { id: "bounce", durationMs: 500 } });
+    expect(animEnvelope(clip, 0).dy).toBeCloseTo(0.5, 5);
+    expect(animEnvelope(clip, 500).dy).toBeCloseTo(0, 5);
+  });
+
+  it("flip começa achatado (escala pequena) e assenta em 1", () => {
+    const clip = clipWith({ in: { id: "flip", durationMs: 500 } });
+    expect(animEnvelope(clip, 0).scale).toBeCloseTo(0.2, 5);
+    expect(animEnvelope(clip, 500).scale).toBeCloseTo(1, 5);
+  });
+
   it("todos os presets assentam no envelope neutro em progress=1", () => {
     for (const p of ANIM_PRESETS) {
       const env = p.at(1);

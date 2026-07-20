@@ -259,6 +259,103 @@ function drawWithTransition(
       drawCur();
       ctx.restore();
       break;
+    case "deslizar-cima":
+      // o novo clipe sobe de baixo para cima
+      drawPrev();
+      ctx.save();
+      ctx.translate(0, (1 - p) * canvasH);
+      drawCur();
+      ctx.restore();
+      break;
+    case "empurrar":
+      // push: o anterior sai pela esquerda enquanto o novo entra pela direita
+      ctx.save();
+      ctx.translate(-p * canvasW, 0);
+      drawPrev();
+      ctx.restore();
+      ctx.save();
+      ctx.translate((1 - p) * canvasW, 0);
+      drawCur();
+      ctx.restore();
+      break;
+    case "giro":
+      // spin: o novo clipe gira meia-volta e cresce até assentar
+      drawPrev({ alphaMul: 1 - p });
+      ctx.save();
+      ctx.translate(canvasW / 2, canvasH / 2);
+      ctx.rotate((1 - p) * Math.PI);
+      ctx.translate(-canvasW / 2, -canvasH / 2);
+      drawCur({ alphaMul: p, scaleMul: 0.4 + 0.6 * p });
+      ctx.restore();
+      break;
+    case "relogio": {
+      // clock wipe: uma varredura angular revela o novo clipe
+      drawPrev();
+      const R = Math.hypot(canvasW, canvasH);
+      const a0 = -Math.PI / 2;
+      ctx.save();
+      ctx.beginPath();
+      ctx.moveTo(canvasW / 2, canvasH / 2);
+      ctx.arc(canvasW / 2, canvasH / 2, R, a0, a0 + Math.max(0.001, p) * Math.PI * 2);
+      ctx.closePath();
+      ctx.clip();
+      drawCur();
+      ctx.restore();
+      break;
+    }
+    case "xadrez": {
+      // checkerboard: ladrilhos crescem em cascata na diagonal
+      drawPrev();
+      const cols = 8;
+      const rows = Math.max(4, Math.round((cols * canvasH) / canvasW));
+      const tw = canvasW / cols;
+      const th = canvasH / rows;
+      ctx.save();
+      ctx.beginPath();
+      for (let r = 0; r < rows; r++) {
+        for (let c = 0; c < cols; c++) {
+          const delay = (r + c) / (rows + cols);
+          const local = clamp01((p - delay) / (1 - delay + 0.0001));
+          if (local <= 0) continue;
+          const w = tw * local;
+          const h = th * local;
+          ctx.rect(c * tw + (tw - w) / 2, r * th + (th - h) / 2, w, h);
+        }
+      }
+      ctx.clip();
+      drawCur();
+      ctx.restore();
+      break;
+    }
+    case "diagonal": {
+      // wipe diagonal do canto superior-esquerdo
+      drawPrev();
+      const t = p * 2;
+      ctx.save();
+      ctx.beginPath();
+      ctx.moveTo(0, 0);
+      ctx.lineTo(t * canvasW, 0);
+      ctx.lineTo(0, t * canvasH);
+      ctx.closePath();
+      ctx.clip();
+      drawCur();
+      ctx.restore();
+      break;
+    }
+    case "flash": {
+      // corte com estouro de luz branca no meio
+      if (p < 0.5) drawPrev();
+      else drawCur();
+      const a = 1 - Math.abs(p - 0.5) * 2;
+      if (a > 0) {
+        ctx.save();
+        ctx.globalAlpha = a;
+        ctx.fillStyle = "#ffffff";
+        ctx.fillRect(0, 0, canvasW, canvasH);
+        ctx.restore();
+      }
+      break;
+    }
     case "circulo":
       drawPrev();
       ctx.save();

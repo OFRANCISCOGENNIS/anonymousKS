@@ -9,11 +9,18 @@ import { clipEndMs } from "./timeline-math";
 export const TRANSITIONS: { id: string; name: string }[] = [
   { id: "fundido", name: "Fundido" },
   { id: "escurecer", name: "Escurecer" },
-  { id: "deslizar", name: "Deslizar" },
+  { id: "deslizar", name: "Deslizar ←" },
+  { id: "deslizar-cima", name: "Subir ↑" },
+  { id: "empurrar", name: "Empurrar" },
   { id: "circulo", name: "Círculo" },
+  { id: "relogio", name: "Relógio" },
   { id: "zoom", name: "Zoom" },
+  { id: "giro", name: "Giro" },
   { id: "cortina", name: "Cortina" },
   { id: "persiana", name: "Persiana" },
+  { id: "xadrez", name: "Xadrez" },
+  { id: "diagonal", name: "Diagonal" },
+  { id: "flash", name: "Flash" },
 ];
 
 /** Tolerância para considerar dois clipes adjacentes (ms). */
