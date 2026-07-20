@@ -676,6 +676,9 @@ const FOODS=[
   {n:"Proteína vegana (pó)",c:"supplements",kcal:390,p:75,ch:10,f:5,t:["vegan","veg","gf","lf","keto"],gi:15,pd:.85,mi:{k:400,mg:100,fe:8,zn:3,ca:150,vc:0,va:0,o3:.5,na:350}},
 ];
 const MEALS=[{s:"Café da manhã",t:"07:00",pct:.25},{s:"Almoço",t:"12:00",pct:.35},{s:"Lanche",t:"16:00",pct:.15},{s:"Jantar",t:"20:00",pct:.25}];
+/* preço médio estimado por categoria (R$/kg, Brasil ~2024) — estimativa, não cotação */
+const PRICE_CAT={meats:38,fish:36,eggs:14,dairy:24,legumes:11,cereals:9,tubers:5,vegetables:9,fruits:8,oils:28,supplements:130};
+function foodCostBRL(food,grams){const pk=PRICE_CAT[food.c]||12;return pk*grams/1000;}
 const WEEK_DAYS=["Segunda","Terça","Quarta","Quinta","Sexta","Sábado","Domingo"];
 
 /* estratégias de dieta com contraindicações codificadas (SEED) */
@@ -1210,9 +1213,15 @@ function render(){
     <div class="wtabs" id="wtabs">${wk.days.map((d,i)=>`<button data-w="${i}" class="${i===WEEKSEL?'on':''}">${d.label.slice(0,3)}</button>`).join("")}</div>
     <div class="daytag" style="margin-top:0">${wd.label} · ${wdKcal} kcal · ${wdP} g proteína</div>
     <div class="list">${wd.plan.map(ms=>`<div class="daytag">${ms.s} · ${ms.t}</div>${ms.items.map((it,i)=>`<div class="li"><span class="idx tnum">${String(i+1).padStart(2,'0')}</span><div class="nm"><b>${it.n}</b><span>${it.g} g</span></div><div class="rt"><b class="tnum">${it.kcal}</b> kcal · ${it.p}g P</div></div>`).join("")}`).join("")}</div></div>`;
-  const cardShop=`<div class="card printable span-5"><h3>Lista de compras <button class="minibtn" id="exportShop">Exportar / Imprimir</button></h3><div class="cap">agregada da semana inteira · ${wk.shop.length} itens</div>
-    <div class="list">${wk.shop.map((it,i)=>`<div class="li"><span class="idx tnum">${String(i+1).padStart(2,'0')}</span><div class="nm"><b>${it.n}</b></div><div class="rt"><b class="tnum">${it.g>=1000?(it.g/1000).toFixed(2).replace('.',',')+' kg':it.g+' g'}</b></div></div>`).join("")}</div>
-    <div class="src" style="margin-top:12px">Quantidades exatas do plano — some sua margem de preparo.</div></div>`;
+  // custo estimado por item (categoria) e total da semana
+  const shopCost=wk.shop.map(it=>{const f=FOODS.find(x=>x.n===it.n);return{...it,brl:f?foodCostBRL(f,it.g):0};});
+  const weekCost=shopCost.reduce((s,x)=>s+x.brl,0),dayCost=weekCost/7;
+  const budget=(_pt&&_pt.dailyBudget)||null;const overBudget=budget&&dayCost>budget;
+  const brl=v=>"R$ "+v.toFixed(2).replace(".",",");
+  const cardShop=`<div class="card printable span-5"><h3>Lista de compras <button class="minibtn" id="exportShop">Exportar / Imprimir</button></h3><div class="cap">${wk.shop.length} itens · ${brl(weekCost)}/semana · ${brl(dayCost)}/dia</div>
+    <div class="logadd" style="margin-bottom:10px"><input class="wnum" style="width:130px" type="number" step="1" data-budget="1" value="${budget||""}" placeholder="orçamento R$/dia">${overBudget?`<span class="pill crit" style="align-self:center">acima do orçamento</span>`:budget?`<span class="pill good" style="align-self:center">dentro do orçamento</span>`:""}</div>
+    <div class="list">${shopCost.map((it,i)=>`<div class="li"><span class="idx tnum">${String(i+1).padStart(2,'0')}</span><div class="nm"><b>${it.n}</b><span>${it.g>=1000?(it.g/1000).toFixed(2).replace('.',',')+' kg':it.g+' g'}</span></div><div class="rt"><b class="tnum">${brl(it.brl)}</b></div></div>`).join("")}</div>
+    <div class="src" style="margin-top:12px">Custo por preço médio de categoria (estimativa BR, não cotação). ${overBudget?`Acima do alvo — troque itens caros (carne/peixe/suplemento) por ovos, leguminosas e tubérculos.`:"Quantidades exatas do plano."}</div></div>`;
 
   // ---- exames: entrada + interpretação por faixa (educativo) ----
   const filled=LABS.filter(l=>LABVALS[l.c]!=null&&LABVALS[l.c]!=="");
@@ -1614,6 +1623,7 @@ $("#views").addEventListener("change",e=>{
   const c=e.target.closest("[data-calc]");if(c){CALC[c.dataset.calc]=c.value;render();return;}
   const anum=e.target.closest("[data-anamnum]");if(anum){setAnam(anum.dataset.anamnum,anum.value===""?null:+anum.value);return;}
   const gl=e.target.closest("[data-goal]");if(gl){const[kind,field]=gl.dataset.goal.split(".");const isNum=(field==="target");setGoal(kind,{[field]:gl.value===""?undefined:(isNum?+gl.value:gl.value)});return;}
+  const bd=e.target.closest("[data-budget]");if(bd){pUpdate(p=>{p.dailyBudget=bd.value===""?undefined:+bd.value;});render();return;}
   const pf=e.target.closest("#photofile");if(pf&&pf.files&&pf.files[0]){handlePhotoFile(pf.files[0],($("#photopose")||{value:"frente"}).value);pf.value="";return;}
   const wf=e.target.closest("#wearfile");if(wf&&wf.files&&wf.files[0]){const fr=new FileReader();fr.onload=()=>importWearableText(fr.result);fr.readAsText(wf.files[0]);wf.value="";}
 });
