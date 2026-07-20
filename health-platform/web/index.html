@@ -299,6 +299,16 @@ h1.title{font-size:clamp(26px,3vw,34px);font-weight:800;letter-spacing:-.02em;ma
 .anamq-t{font-size:13.5px;flex:1;min-width:180px}
 .anamseg{height:34px}.anamseg button{padding:0 14px}
 
+/* conquistas */
+.achgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:10px}
+.ach{display:flex;align-items:center;gap:10px;padding:12px;border-radius:var(--r-sm);background:var(--surface-2);border:1px solid var(--border);opacity:.45;transition:.2s}
+.ach.done{opacity:1;border-color:color-mix(in srgb,var(--good) 45%,var(--border))}
+.ach .aic{font-size:22px;filter:grayscale(1)}
+.ach.done .aic{filter:none}
+.ach .anm{flex:1;min-width:0}
+.ach .anm b{font-size:13px;display:block}
+.ach .anm span{font-size:10.5px;color:var(--muted);font-family:var(--mono);display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
 /* sessão ao vivo */
 .sesscard{border-color:color-mix(in srgb,var(--accent) 45%,var(--border))}
 .sessex b{font-size:20px;font-weight:800;letter-spacing:-.01em;display:block}
@@ -827,6 +837,43 @@ function todayLog(){const p=pActive();return(p&&p.foodlog&&p.foodlog[todayKey()]
 function addLogItem(n,g){if(!n||!(g>0))return;pUpdate(p=>{p.foodlog=p.foodlog||{};const t=todayKey();p.foodlog[t]=p.foodlog[t]||[];p.foodlog[t].push({n,g:Math.round(g)});});render();}
 function removeLogItem(i){pUpdate(p=>{const t=todayKey();if(p.foodlog&&p.foodlog[t])p.foodlog[t].splice(i,1);});render();}
 function setMesoWeek(delta){pUpdate(p=>{p.mesoWeek=Math.max(1,Math.min((p.mesoWeek||1)+delta,5));});render();}
+/* gamificação: conquistas por regras determinísticas sobre dados reais + XP/nível */
+const ACHIEVEMENTS=[
+  {c:"FIRST_LOG",n:"Primeiro registro",ic:"📓",xp:50,d:"Registrou o primeiro item no diário alimentar",when:s=>s.foodDays>=1},
+  {c:"WEEK_DIARY",n:"Semana no diário",ic:"🗓️",xp:150,d:"7 dias com diário preenchido",when:s=>s.foodDays>=7},
+  {c:"FIRST_WORKOUT",n:"Primeira sessão",ic:"🏋️",xp:50,d:"Registrou o primeiro treino",when:s=>s.workoutDays>=1},
+  {c:"TEN_WORKOUTS",n:"10 treinos",ic:"💪",xp:200,d:"10 sessões de treino registradas",when:s=>s.workoutDays>=10},
+  {c:"STREAK_7",n:"Semana perfeita",ic:"🔥",xp:150,d:"7 dias seguidos de hábitos (3+/dia)",when:s=>s.bestStreak>=7},
+  {c:"STREAK_30",n:"Mês de ferro",ic:"🏆",xp:500,d:"30 dias seguidos de hábitos",when:s=>s.bestStreak>=30},
+  {c:"ADHERENCE_90",n:"Dia impecável",ic:"🎯",xp:100,d:"Um dia com aderência ≥90% ao alvo",when:s=>s.bestAdh>=90},
+  {c:"WEIGHINS_14",n:"Rastreador",ic:"⚖️",xp:150,d:"14 pesagens registradas",when:s=>s.weighins>=14},
+  {c:"STRENGTH_UP",n:"Mais forte",ic:"📈",xp:200,d:"1RM estimado subiu 10%+ num exercício",when:s=>s.strengthGainPct>=10},
+  {c:"MEASURED",n:"Sob medida",ic:"📏",xp:80,d:"Registrou medidas corporais",when:s=>s.measures>=1},
+  {c:"LAB_TRACKED",n:"Exames em dia",ic:"🧪",xp:80,d:"Registrou exames no histórico",when:s=>s.labSnapshots>=1},
+  {c:"FULL_PROFILE",n:"Anamnese completa",ic:"📋",xp:100,d:"Respondeu 70%+ da anamnese",when:s=>s.anamPct>=70},
+];
+function gamiState(pt){
+  const foodDays=Object.keys(pt.foodlog||{}).length;
+  const wl=pt.wlog||{};const wdays=new Set();Object.values(wl).forEach(a=>a.forEach(s=>wdays.add(s.d)));
+  // melhor streak histórico de hábitos (≥3/dia)
+  const hd=Object.keys(pt.habits||{}).filter(d=>(pt.habits[d]||[]).length>=3).sort();
+  let best=0,cur=0,prev=null;
+  for(const d of hd){cur=(prev&&(new Date(d)-new Date(prev))===864e5)?cur+1:1;best=Math.max(best,cur);prev=d;}
+  // melhor aderência de um dia
+  let bestAdh=0;
+  const prof=profFromPatient(pt);
+  if(prof.weightKg>0&&pt.foodlog){const m=macros(prof);for(const d of Object.keys(pt.foodlog)){const items=(pt.foodlog[d]||[]).map(e=>({food:FOODS.find(f=>f.n===e.n),g:e.g})).filter(x=>x.food);if(items.length){const c=sumIntake(items);bestAdh=Math.max(bestAdh,adherenceScore({kcal:c.kcal,p:c.p},{kcal:m.kcal,p:m.protein}).ad);}}}
+  // maior ganho % de 1RM entre primeira e última sessão de cada exercício
+  let strengthGainPct=0;
+  for(const k of Object.keys(wl)){const a=wl[k];if(a.length>=2){const f=Math.max(...a[0].sets.map(s=>e1rm(s.l,s.r)||0)),l=Math.max(...a[a.length-1].sets.map(s=>e1rm(s.l,s.r)||0));if(f>0)strengthGainPct=Math.max(strengthGainPct,(l-f)/f*100);}}
+  const anamTotal=ANAM_TOTAL||14;
+  const anamPct=Math.round(Object.keys(pt.anamnese||{}).length/anamTotal*100);
+  return{foodDays,workoutDays:wdays.size,bestStreak:best,bestAdh,weighins:(pt.weighins||[]).length,
+    strengthGainPct,measures:(pt.measures||[]).length,labSnapshots:Object.keys(pt.labHistory||{}).length,anamPct};
+}
+function achievementsFor(pt){const s=gamiState(pt);return ACHIEVEMENTS.map(a=>({...a,done:!!a.when(s)}));}
+function xpLevel(xp){let lvl=1,need=100,acc=0;while(xp>=acc+need){acc+=need;lvl++;need=Math.round(need*1.4);}return{lvl,cur:xp-acc,need,pct:Math.round((xp-acc)/need*100)};}
+
 /* notas de acompanhamento do profissional (datadas, por paciente) */
 function patientNotes(){const p=pActive();return(p&&p.notes)||[];}
 function addNote(text){text=(text||"").trim();if(!text)return;pUpdate(p=>{p.notes=p.notes||[];p.notes.push({d:todayKey(),ts:Date.now(),text});});render();}
@@ -1428,6 +1475,16 @@ function render(){
     <div class="list">${wp.map((d,di)=>`<div class="daytag">Dia ${d.day} · ${d.type} <button class="minibtn" data-startsess="${di}" style="margin-left:8px">▶ Iniciar sessão</button></div>${d.items.map(exItem).join("")}`).join("")}</div>
     ${isDeload?`<div class="src" style="margin-top:12px">Semana de deload: metade das séries, 80% da carga, longe da falha. Recupera para o próximo mesociclo render mais.</div>`:wpr.barred.length?`<div class="src" style="margin-top:12px">Excluídos pela lesão: ${wpr.barred.map(e=>e.n).join(", ")}.</div>`:""}</div>`;
 
+  // ---- gamificação: conquistas + XP/nível ----
+  const achs=achievementsFor(_pt||{});
+  const doneAchs=achs.filter(a=>a.done);
+  const totalXp=doneAchs.reduce((s,a)=>s+a.xp,0);
+  const lv=xpLevel(totalXp);
+  const cardGami=`<div class="card span-12"><h3>Conquistas <span class="pill accent">Nível ${lv.lvl} · ${totalXp} XP</span></h3><div class="cap">${doneAchs.length}/${achs.length} desbloqueadas · regras determinísticas sobre os seus dados — nada de números inventados</div>
+    <div class="mh" style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:6px"><b class="mono">Nível ${lv.lvl}</b><span class="g mono tnum">${lv.cur}/${lv.need} XP p/ nível ${lv.lvl+1}</span></div>
+    <div class="track" style="margin-bottom:16px"><div class="fill" style="width:${lv.pct}%;background:linear-gradient(90deg,var(--accent),var(--accent-2))"></div></div>
+    <div class="achgrid">${achs.map(a=>`<div class="ach ${a.done?"done":""}" title="${a.d}"><span class="aic">${a.ic}</span><div class="anm"><b>${a.n}</b><span>${a.done?"+"+a.xp+" XP":a.d}</span></div>${a.done?'<span class="chk" style="color:var(--good)">✓</span>':""}</div>`).join("")}</div></div>`;
+
   // ---- SESSÃO AO VIVO: exercício a exercício com timer de descanso ----
   let cardSession="";
   if(SESH&&wp[SESH.day]){
@@ -1836,7 +1893,7 @@ function render(){
     train:{title:"Treino",sub:"Split por frequência, volume graduado por landmarks, base aeróbica e biblioteca de exercícios.",html:cardWorkoutMain+cardVolume+cardZone2+cardExLib+cardReady+cardTrend},
     calc:{title:"Calculadoras",sub:"1RM, zonas de FC, pace, gasto calórico e VO₂máx — todas determinísticas.",html:cardCalc+cardBody},
     labs:{title:"Exames",sub:"Comparação com faixas de referência + tendência entre exames — educativo, nunca prescreve.",html:cardLabs+cardLabSummary+cardLabTrend},
-    habits:{title:"Hábitos",sub:"Checklist diário e sequência por regras determinísticas sobre o que você registra.",html:cardHabits+cardStreak+cardCoach},
+    habits:{title:"Hábitos",sub:"Checklist diário, sequência, conquistas e nível — tudo por regras determinísticas.",html:cardHabits+cardStreak+cardGami+cardCoach},
     pacientes:{title:"Pacientes",sub:"Visão do profissional: todos os pacientes, quem precisa de atenção primeiro.",html:cardRoster+cardNotes},
     agenda:{title:"Agenda do dia",sub:"Cronograma de refeições, hidratação e treino por horário — ajuste à sua rotina.",html:cardAgenda+cardAgendaSum},
     evolucao:{title:"Evolução",sub:"Check-in semanal + linha do tempo de todas as métricas num só lugar.",html:cardCheckin+cardEvolution},
