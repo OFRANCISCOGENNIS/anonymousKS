@@ -360,6 +360,7 @@ h1.title{font-size:clamp(26px,3vw,34px);font-weight:800;letter-spacing:-.02em;ma
       <button data-v="labs" aria-label="Exames"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M10 2v7.5L4.5 19a2 2 0 0 0 1.7 3h11.6a2 2 0 0 0 1.7-3L14 9.5V2"/><path d="M8 2h8M7 15h10"/></svg><span class="railtip">Exames</span></button>
       <button data-v="habits" aria-label="Hábitos"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 3c1 3-2 4-2 7a4 4 0 0 0 8 0c0-1-.5-2-1-3 0 0 3 2 3 6a8 8 0 0 1-16 0c0-5 5-7 8-10z"/></svg><span class="railtip">Hábitos</span></button>
       <button data-v="fotos" aria-label="Fotos"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M3 7h4l2-3h6l2 3h4v13H3z"/><circle cx="12" cy="13" r="4"/></svg><span class="railtip">Fotos</span></button>
+      <button data-v="devices" aria-label="Dispositivos"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="7" y="2" width="10" height="20" rx="3"/><path d="M11 6h2M12 16v.5"/></svg><span class="railtip">Dispositivos</span></button>
       <button data-v="safe" aria-label="Segurança"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 2l8 4v6c0 5-3.5 8.5-8 10-4.5-1.5-8-5-8-10V6z"/><path d="M9 12l2 2 4-4"/></svg><span class="railtip">Segurança</span></button>
     </nav>
   </aside>
@@ -761,6 +762,41 @@ function addPhoto(pose,url){
   render();
 }
 function removePhoto(idx){pUpdate(p=>{if(p.photos)p.photos.splice(idx,1);});render();}
+/* wearables: importação de CSV/JSON (Apple Health / Google Fit / Garmin export) */
+function wearableData(){const p=pActive();return(p&&p.wearable)||{};}
+function latestRhr(){const w=wearableData(),days=Object.keys(w).sort();for(let i=days.length-1;i>=0;i--)if(w[days[i]].rhr)return w[days[i]].rhr;return null;}
+function _num(v){if(v==null||v==="")return null;const n=parseFloat(String(v).replace(",","."));return isNaN(n)?null:n;}
+function _normDate(s){if(!s)return null;s=String(s).trim().slice(0,10);let m=s.match(/^(\d{4})-(\d{2})-(\d{2})$/);if(m)return s;m=s.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);if(m)return m[3]+"-"+m[2]+"-"+m[1];return null;}
+function _parseCSV(t){const lines=t.split(/\r?\n/).filter(l=>l.trim());if(lines.length<2)return[];const sep=lines[0].includes(";")?";":",";const hd=lines[0].split(sep).map(h=>h.trim().toLowerCase());return lines.slice(1).map(l=>{const c=l.split(sep);const o={};hd.forEach((h,i)=>o[h]=(c[i]||"").trim());return o;});}
+function importWearableText(text){
+  const t=(text||"").trim();if(!t){alert("Nada para importar.");return;}
+  let rows=[];
+  if(t[0]==="["||t[0]==="{"){try{const j=JSON.parse(t);rows=Array.isArray(j)?j:(j.data||j.records||[]);}catch(e){alert("JSON inválido.");return;}}
+  else rows=_parseCSV(t);
+  if(!rows.length){alert("Nenhuma linha reconhecida. Use CSV com cabeçalho (date,steps,resting_hr,sleep_h,weight_kg) ou JSON.");return;}
+  let n=0;
+  pUpdate(p=>{
+    p.wearable=p.wearable||{};p.weighins=p.weighins||[];p.habits=p.habits||{};
+    for(const r of rows){
+      const d=_normDate(r.date||r.data||r.dia||r.day);if(!d)continue;
+      const steps=_num(r.steps||r.passos),rhr=_num(r.resting_hr||r.rhr||r.fc_repouso||r.fcrepouso||r.restinghr),sleep=_num(r.sleep_h||r.sleep||r.sono||r.sono_h||r.sleephours),wkg=_num(r.weight_kg||r.peso||r.weight);
+      const cur=p.wearable[d]||{};
+      if(steps!=null)cur.steps=steps;if(rhr!=null)cur.rhr=rhr;if(sleep!=null)cur.sleep=sleep;
+      p.wearable[d]=cur;
+      if(wkg!=null){const w=p.weighins.find(x=>x.d===d);if(w)w.kg=wkg;else p.weighins.push({d,kg:wkg});}
+      if(steps!=null&&steps>=8000){const h=new Set(p.habits[d]||[]);h.add("steps");p.habits[d]=[...h];}
+      if(sleep!=null&&sleep>=7){const h=new Set(p.habits[d]||[]);h.add("sleep");p.habits[d]=[...h];}
+      n++;
+    }
+    p.weighins.sort((a,b)=>a.d<b.d?-1:a.d>b.d?1:0);
+  });
+  render();
+  alert(n+" dia(s) importado(s). Passos/sono viraram hábitos; peso entrou na evolução.");
+}
+function downloadWearableTemplate(){
+  const csv="date,steps,resting_hr,sleep_h,weight_kg\n2026-07-14,9200,58,7.5,80.2\n2026-07-15,11040,57,6.8,80.0\n2026-07-16,7300,59,7.9,79.8\n";
+  const a=document.createElement("a");a.href="data:text/csv;charset=utf-8,"+encodeURIComponent(csv);a.download="modelo-wearable.csv";a.click();
+}
 // Streak: dias consecutivos (terminando hoje ou ontem) com ≥3 hábitos feitos.
 function streak(h){
   let s=0;const d=new Date();
@@ -917,7 +953,8 @@ let VIEW="today",WEEKSEL=(new Date().getDay()+6)%7,SWAP=null;
 let CALC={mode:"1rm",rmLoad:100,rmReps:5,rmTarget:8,hrRest:60,paceKm:5,paceMin:25,actType:"corrida_leve",actMin:30,cooper:2400};
 function render(){
   const p=P();
-  const m=macros(p),kc=targetKcal(p),bz=bmr(p),td=tdee(p),wm=waterMl(p),hz=hrZones(p.age),bi=bmi(p),ff=ffmi(p);
+  const _rhr=latestRhr()||60; // usa FC de repouso real do wearable quando houver
+  const m=macros(p),kc=targetKcal(p),bz=bmr(p),td=tdee(p),wm=waterMl(p),hz=hrZones(p.age,_rhr),bi=bmi(p),ff=ffmi(p);
   const guards=guardrails(p);
   // hash de determinismo
   $("#hash").textContent="#"+Math.abs([p.sex,p.weightKg,p.heightCm,p.age,p.bf,p.goal,p.activity,p.days].join("|").split("").reduce((a,ch)=>(a*31+ch.charCodeAt(0))|0,7)).toString(16).slice(0,6);
@@ -1189,6 +1226,30 @@ function render(){
   const cardCompare=`<div class="card span-5"><h3>Antes × depois</h3><div class="cap">primeira vs última foto de cada pose</div>
     ${cmpBlocks||`<div class="src" style="padding:10px 0">Envie ao menos 2 fotos da mesma pose (ex.: frente) para ver a comparação lado a lado.</div>`}</div>`;
 
+  // ---- WEARABLES: importação + resumo ----
+  const wear=wearableData();const wdays=Object.keys(wear).sort();
+  const stepsSeries=wdays.slice(-14).map((d,i)=>({x:i,y:wear[d].steps||0})).filter(x=>x.y>0);
+  const rhrVals=wdays.map(d=>wear[d].rhr).filter(v=>v!=null);
+  const sleepVals=wdays.map(d=>wear[d].sleep).filter(v=>v!=null);
+  const stepsVals=wdays.map(d=>wear[d].steps).filter(v=>v!=null);
+  const avg=a=>a.length?Math.round(a.reduce((s,x)=>s+x,0)/a.length):null;
+  const cardDevices=`<div class="card span-7"><h3>Importar wearable <span class="pill accent">${wdays.length} dias</span></h3><div class="cap">CSV ou JSON de Apple Health / Google Fit / Garmin · processado no seu dispositivo</div>
+    <div class="logadd">
+      <label class="minibtn photobtn">⭱ Importar arquivo<input type="file" accept=".csv,.json,text/csv,application/json" id="wearfile" style="display:none"></label>
+      <button class="minibtn" id="wearTemplate">⭳ Baixar modelo CSV</button>
+    </div>
+    <textarea id="wearpaste" placeholder="…ou cole aqui os dados (CSV com cabeçalho date,steps,resting_hr,sleep_h,weight_kg — ou JSON)" style="width:100%;min-height:70px;background:var(--surface-2);border:1px solid var(--border);color:var(--text);border-radius:10px;padding:10px;font-family:var(--mono);font-size:12px;resize:vertical"></textarea>
+    <button class="minibtn" id="wearImportPaste" style="margin-top:8px">Importar texto colado</button>
+    <div class="src" style="margin-top:10px">Colunas reconhecidas: date · steps · resting_hr · sleep_h · weight_kg. Passos ≥ 8.000 e sono ≥ 7 h marcam os hábitos do dia automaticamente; peso entra na evolução.</div></div>`;
+  const cardDevSummary=`<div class="card span-5"><h3>Resumo do período</h3><div class="cap">${wdays.length?wdays[0]+" a "+wdays[wdays.length-1]:"sem dados importados"}</div>
+    <div class="tiles">
+      <div class="tile"><div class="k">Passos · média</div><div class="v tnum">${avg(stepsVals)?avg(stepsVals).toLocaleString('pt-BR'):"—"}</div><div class="meta">${stepsVals.length} dias</div></div>
+      <div class="tile"><div class="k">FC repouso</div><div class="v tnum">${avg(rhrVals)??"—"}<small> bpm</small></div><div class="meta">${latestRhr()?"usada nas zonas":"—"}</div></div>
+      <div class="tile"><div class="k">Sono · média</div><div class="v tnum">${sleepVals.length?(sleepVals.reduce((s,x)=>s+x,0)/sleepVals.length).toFixed(1):"—"}<small> h</small></div><div class="meta">${sleepVals.length} noites</div></div>
+      <div class="tile"><div class="k">Dias sincronizados</div><div class="v tnum">${wdays.length}</div><div class="meta">local, seguro</div></div>
+    </div>
+    ${stepsSeries.length>=2?`<div class="src" style="margin:12px 0 4px">Passos (últimos ${stepsSeries.length} dias)</div>${sparkline(stepsSeries)}`:""}</div>`;
+
   // ---- PRONTUÁRIO PARA EXPORTAÇÃO (impressão → PDF) ----
   const GOALLBL={fat_loss:"Emagrecimento",hypertrophy:"Hipertrofia",maintenance:"Manutenção / saúde"}[p.goal]||p.goal;
   const lowMic=micros.filter(x=>x.st==="low").map(x=>x.l);
@@ -1235,6 +1296,7 @@ function render(){
     labs:{title:"Exames",sub:"Comparação com faixas de referência armazenadas — educativo, nunca prescreve.",html:cardLabs+cardLabSummary},
     habits:{title:"Hábitos",sub:"Checklist diário e sequência por regras determinísticas sobre o que você registra.",html:cardHabits+cardStreak+cardCoach},
     fotos:{title:"Fotos de evolução",sub:"Registro visual do progresso, comparação antes/depois. Tudo local — as imagens não saem do dispositivo.",html:cardPhotos+cardCompare},
+    devices:{title:"Dispositivos",sub:"Importe passos, FC de repouso, sono e peso de wearables — alimenta hábitos, evolução e zonas de FC.",html:cardDevices+cardDevSummary},
     safe:{title:"Segurança",sub:"Guardrails determinísticos. Educa, não diagnostica.",html:(guards.length?"":`<div class="card span-12"><h3>Nenhuma bandeira vermelha ativa <span class="pill good">tudo certo</span></h3><div class="cap">o motor libera as recomendações padrão</div><div class="src" style="font-size:12px">Regras monitoradas: dor torácica ao esforço · IMC &lt;17,5 com meta de emagrecer · indícios de transtorno alimentar · gestação/lactação · diabetes tipo 1 · menor de 16 sem responsável · exame em faixa crítica · piso calórico 1,1×TMB · freio de perda &gt;1,5%/semana.</div></div>`)+cardTrend+cardBody},
   };
   const v=VIEWS[VIEW];
@@ -1258,6 +1320,8 @@ $("#views").addEventListener("click",e=>{
   if(e.target.closest("#mesoPrev")){setMesoWeek(-1);return;}
   if(e.target.closest("#mesoNext")){setMesoWeek(1);return;}
   const rmp=e.target.closest("[data-rmphoto]");if(rmp){removePhoto(+rmp.dataset.rmphoto);return;}
+  if(e.target.closest("#wearTemplate")){downloadWearableTemplate();return;}
+  if(e.target.closest("#wearImportPaste")){const ta=$("#wearpaste");if(ta)importWearableText(ta.value);return;}
   const cm=e.target.closest("[data-cmode]");if(cm){CALC.mode=cm.dataset.cmode;render();return;}
   const sw=e.target.closest("[data-swap]");if(sw){SWAP=SWAP===sw.dataset.swap?null:sw.dataset.swap;render();return;}
 });
@@ -1270,7 +1334,8 @@ if(window.matchMedia)window.matchMedia("print").addEventListener&&window.matchMe
 // inputs/selects das calculadoras — 'change' (não 'input') p/ não perder foco no re-render
 $("#views").addEventListener("change",e=>{
   const c=e.target.closest("[data-calc]");if(c){CALC[c.dataset.calc]=c.value;render();return;}
-  const pf=e.target.closest("#photofile");if(pf&&pf.files&&pf.files[0]){handlePhotoFile(pf.files[0],($("#photopose")||{value:"frente"}).value);pf.value="";}
+  const pf=e.target.closest("#photofile");if(pf&&pf.files&&pf.files[0]){handlePhotoFile(pf.files[0],($("#photopose")||{value:"frente"}).value);pf.value="";return;}
+  const wf=e.target.closest("#wearfile");if(wf&&wf.files&&wf.files[0]){const fr=new FileReader();fr.onload=()=>importWearableText(fr.result);fr.readAsText(wf.files[0]);wf.value="";}
 });
 // chips multi-seleção da anamnese
 $("#anamnese").addEventListener("click",e=>{const b=e.target.closest(".chips[data-multi] button");if(!b)return;b.classList.toggle("on");render();});
