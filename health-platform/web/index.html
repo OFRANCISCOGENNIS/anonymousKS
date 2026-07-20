@@ -255,6 +255,16 @@ h1.title{font-size:clamp(26px,3vw,34px);font-weight:800;letter-spacing:-.02em;ma
 .zlab{flex:1}.zlab b{font-size:13px;display:block}.zlab span{font-size:11px;color:var(--muted);font-family:var(--mono)}
 .zval{font-family:var(--mono);font-weight:700;font-size:14px}.zval small{color:var(--muted);font-weight:500}
 
+/* evolução consolidada */
+.evogrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:14px}
+.evop{background:var(--surface-2);border:1px solid var(--border);border-radius:var(--r-sm);padding:14px}
+.evohd{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px;gap:8px}
+.evol{font-size:12.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.evocur{font-family:var(--mono);font-size:18px;font-weight:800}
+.evocur small{font-size:11px;color:var(--muted);font-weight:600}
+.evop .spark{height:52px}
+.evod{font-family:var(--mono);font-size:11px;margin-top:5px}
+
 /* medidas corporais */
 .mgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:10px}
 .mfield{display:flex;flex-direction:column;gap:5px}
@@ -378,6 +388,7 @@ h1.title{font-size:clamp(26px,3vw,34px);font-weight:800;letter-spacing:-.02em;ma
       <button data-v="calc" aria-label="Calculadoras"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="4" y="2" width="16" height="20" rx="2"/><path d="M8 6h8M8 10h2M8 14h2M8 18h2M14 10h2v8h-2z"/></svg><span class="railtip">Calculadoras</span></button>
       <button data-v="labs" aria-label="Exames"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M10 2v7.5L4.5 19a2 2 0 0 0 1.7 3h11.6a2 2 0 0 0 1.7-3L14 9.5V2"/><path d="M8 2h8M7 15h10"/></svg><span class="railtip">Exames</span></button>
       <button data-v="habits" aria-label="Hábitos"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 3c1 3-2 4-2 7a4 4 0 0 0 8 0c0-1-.5-2-1-3 0 0 3 2 3 6a8 8 0 0 1-16 0c0-5 5-7 8-10z"/></svg><span class="railtip">Hábitos</span></button>
+      <button data-v="evolucao" aria-label="Evolução"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M3 3v18h18"/><path d="M7 15l4-5 3 3 5-7"/></svg><span class="railtip">Evolução</span></button>
       <button data-v="metas" aria-label="Metas"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1"/></svg><span class="railtip">Metas</span></button>
       <button data-v="fotos" aria-label="Fotos"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M3 7h4l2-3h6l2 3h4v13H3z"/><circle cx="12" cy="13" r="4"/></svg><span class="railtip">Fotos</span></button>
       <button data-v="devices" aria-label="Dispositivos"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="7" y="2" width="10" height="20" rx="3"/><path d="M11 6h2M12 16v.5"/></svg><span class="railtip">Dispositivos</span></button>
@@ -1542,6 +1553,35 @@ function render(){
       <div class="tile"><div class="k">Cintura/quadril</div><div class="v tnum">${(lastM.waist&&lastM.hip)?R(lastM.waist/lastM.hip,2):"—"}</div><div class="meta">RCQ · risco cardiometab.</div></div>
     </div>`:`<div class="src">A %gordura por dobras (Jackson-Pollock) tem erro de ±3–4% — melhor que bioimpedância caseira quando bem medida. Sempre pelo mesmo avaliador e lado do corpo.</div>`}</div>`;
 
+  // ---- EVOLUÇÃO CONSOLIDADA (timeline multi-métrica de dados reais) ----
+  const evoPanel=(label,series,unit,dir)=>{
+    if(series.length<2)return `<div class="evop"><div class="evohd"><span class="evol">${label}</span></div><div class="src" style="padding:16px 0;text-align:center">Registre 2+ pontos</div></div>`;
+    const s2=series.map((pt,i)=>({x:i,y:pt.y}));const cur=s2[s2.length-1].y,first=s2[0].y,d=R(cur-first,1);
+    let col="var(--muted)";
+    if(dir==="down")col=d<0?"var(--good)":d>0?"var(--accent)":"var(--muted)";
+    else if(dir==="up")col=d>0?"var(--good)":d<0?"var(--accent)":"var(--muted)";
+    return `<div class="evop"><div class="evohd"><span class="evol">${label}</span><span class="evocur tnum">${cur}<small>${unit}</small></span></div>${sparkline(s2)}<div class="evod tnum" style="color:${col}">${d>0?"+":""}${d}${unit} · ${s2.length} pts</div></div>`;
+  };
+  const wSeriesE=((_pt&&_pt.weighins)||[]).map((w,i)=>({x:i,y:w.kg}));
+  const measE=(_pt&&_pt.measures)||[];
+  const bfSeriesE=measE.filter(x=>x.bf!=null).map((x,i)=>({x:i,y:x.bf}));
+  const waistSeriesE=measE.filter(x=>x.waist!=null).map((x,i)=>({x:i,y:x.waist}));
+  const wlogE=(_pt&&_pt.wlog)||{};
+  const topLiftsE=Object.keys(wlogE).filter(k=>(wlogE[k]||[]).length>=2).sort((a,b)=>wlogE[b].length-wlogE[a].length).slice(0,2);
+  const liftSeriesE=topLiftsE.map(k=>({name:k,series:wlogE[k].map((se,i)=>({x:i,y:Math.max(...se.sets.map(s=>e1rm(s.l,s.r)||0))}))}));
+  const flE=(_pt&&_pt.foodlog)||{};
+  const adhSeriesE=Object.keys(flE).sort().map(d=>{const items=(flE[d]||[]).map(e=>({food:FOODS.find(f=>f.n===e.n),g:e.g})).filter(x=>x.food);if(!items.length)return null;const c=sumIntake(items);return adherenceScore({kcal:c.kcal,p:c.p},{kcal:m.kcal,p:m.protein}).ad;}).filter(v=>v!=null).map((y,i)=>({x:i,y}));
+  const anyEvo=wSeriesE.length>=2||bfSeriesE.length>=2||waistSeriesE.length>=2||liftSeriesE.some(l=>l.series.length>=2)||adhSeriesE.length>=2;
+  const cardEvolution=`<div class="card span-12"><h3>Evolução consolidada</h3><div class="cap">todas as métricas do paciente numa linha do tempo · só dados reais registrados</div>
+    ${anyEvo?`<div class="evogrid">
+      ${evoPanel("Peso",wSeriesE," kg",p.goal==="hypertrophy"?"up":"down")}
+      ${evoPanel("%Gordura (JP3)",bfSeriesE," %","down")}
+      ${evoPanel("Cintura",waistSeriesE," cm","down")}
+      ${liftSeriesE.map(l=>evoPanel(l.name+" · 1RM",l.series," kg","up")).join("")}
+      ${evoPanel("Aderência",adhSeriesE," %","up")}
+    </div>
+    <div class="src" style="margin-top:12px"><span style="color:var(--good)">Verde</span> = na direção do objetivo. Cada painel precisa de 2+ registros (pesagens, medições, séries de treino, diário).</div>`:`<div class="src" style="padding:20px 0;text-align:center">Sem histórico ainda. Registre pesagens (Hoje), medições (Metas), séries (Treino) e o diário — a evolução aparece aqui automaticamente.</div>`}</div>`;
+
   // ---- ANAMNESE GUIADA ----
   const an=anamnese();
   const anAnswered=Object.keys(an).filter(k=>{const v=an[k];return !(v===null||v===""||(Array.isArray(v)&&!v.length));}).length;
@@ -1567,6 +1607,7 @@ function render(){
     calc:{title:"Calculadoras",sub:"1RM, zonas de FC, pace, gasto calórico e VO₂máx — todas determinísticas.",html:cardCalc+cardBody},
     labs:{title:"Exames",sub:"Comparação com faixas de referência armazenadas — educativo, nunca prescreve.",html:cardLabs+cardLabSummary},
     habits:{title:"Hábitos",sub:"Checklist diário e sequência por regras determinísticas sobre o que você registra.",html:cardHabits+cardStreak+cardCoach},
+    evolucao:{title:"Evolução",sub:"Linha do tempo de todas as métricas — peso, gordura, cintura, força e aderência num só lugar.",html:cardEvolution},
     metas:{title:"Metas & medidas",sub:"Alvos com previsão de data + circunferências e dobras com %gordura por Jackson-Pollock.",html:cardGoals+cardGoalsHelp+cardMeasures+cardMeasEvo},
     fotos:{title:"Fotos de evolução",sub:"Registro visual do progresso, comparação antes/depois. Tudo local — as imagens não saem do dispositivo.",html:cardPhotos+cardCompare},
     devices:{title:"Dispositivos",sub:"Importe passos, FC de repouso, sono e peso de wearables — alimenta hábitos, evolução e zonas de FC.",html:cardDevices+cardDevSummary},
