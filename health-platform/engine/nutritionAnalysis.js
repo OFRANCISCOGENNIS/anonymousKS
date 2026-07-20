@@ -118,4 +118,38 @@ function glycemicLoad(items) {
   return { glDay: gl, carbTotalG: round(carbTotal, 0), status, source: 'Carga glicêmica (IG × carbo/100), Foster-Powell 2002' };
 }
 
-module.exports = { analyzeMicros, proteinQuality, proteinDistribution, glycemicLoad, MICRO_TARGETS };
+// ---------------------------------------------------------------------------
+// DIÁRIO ALIMENTAR: soma do que foi realmente consumido e aderência ao alvo.
+// items: [{ food, grams }]. Aceita food no formato engine (kcal/protein_g/...)
+// ou web (kcal/p/ch/f) — lê ambos.
+// ---------------------------------------------------------------------------
+function sumIntake(items) {
+  let kcal = 0, protein = 0, carb = 0, fat = 0;
+  for (const { food, grams } of items) {
+    const g = grams;
+    kcal += (food.kcal || 0) * g / 100;
+    protein += (food.protein_g != null ? food.protein_g : food.p || 0) * g / 100;
+    carb += (food.carb_g != null ? food.carb_g : food.ch || 0) * g / 100;
+    fat += (food.fat_g != null ? food.fat_g : food.f || 0) * g / 100;
+  }
+  return { kcal: Math.round(kcal), protein: Math.round(protein), carb: Math.round(carb), fat: Math.round(fat) };
+}
+
+// Aderência ao alvo: penaliza desvio calórico (para os dois lados) e défice
+// de proteína (faltar proteína pesa; sobrar não penaliza). 0–100.
+function adherenceScore(consumed, target) {
+  const kcalDev = target.kcal ? Math.abs(consumed.kcal - target.kcal) / target.kcal : 0;
+  const protDeficit = target.protein ? Math.max(0, target.protein - consumed.protein) / target.protein : 0;
+  const score = Math.max(0, Math.min(100, Math.round(100 - kcalDev * 100 - protDeficit * 50)));
+  return {
+    adherence: score,
+    kcalDevPct: Math.round(kcalDev * 100),
+    proteinDeficitPct: Math.round(protDeficit * 100),
+    status: score >= 85 ? 'high' : score >= 60 ? 'ok' : 'low',
+  };
+}
+
+module.exports = {
+  analyzeMicros, proteinQuality, proteinDistribution, glycemicLoad,
+  sumIntake, adherenceScore, MICRO_TARGETS,
+};

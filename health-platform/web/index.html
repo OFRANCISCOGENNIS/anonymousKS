@@ -255,6 +255,14 @@ h1.title{font-size:clamp(26px,3vw,34px);font-weight:800;letter-spacing:-.02em;ma
 .zlab{flex:1}.zlab b{font-size:13px;display:block}.zlab span{font-size:11px;color:var(--muted);font-family:var(--mono)}
 .zval{font-family:var(--mono);font-weight:700;font-size:14px}.zval small{color:var(--muted);font-weight:500}
 
+/* diário alimentar */
+.logadd{display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap}
+.logadd select{flex:1;min-width:150px;background:var(--surface-2);border:1px solid var(--border);color:var(--text);height:38px;border-radius:10px;padding:0 10px;font-size:13.5px}
+.logadd input{width:90px;background:var(--surface-2);border:1px solid var(--border);color:var(--text);height:38px;border-radius:10px;padding:0 10px;font-size:14px;font-family:var(--mono)}
+.logadd select:focus,.logadd input:focus{border-color:var(--accent)}
+.rmbtn{border:0;background:transparent;color:var(--faint);font-size:14px;cursor:pointer;padding:4px 6px;border-radius:6px;transition:.15s;margin-left:6px}
+.rmbtn:hover{background:color-mix(in srgb,var(--crit) 16%,transparent);color:var(--crit)}
+
 /* barra de volume (landmarks) */
 .vbar{position:relative;flex:1;height:10px;border-radius:6px;background:var(--ring-track);overflow:visible;min-width:80px}
 .vfill{height:100%;border-radius:6px;transition:width .4s}
@@ -311,6 +319,7 @@ h1.title{font-size:clamp(26px,3vw,34px);font-weight:800;letter-spacing:-.02em;ma
     <nav class="nav" id="nav">
       <button class="on" data-v="today" aria-label="Hoje"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="M9 22V12h6v10"/></svg><span class="railtip">Hoje</span></button>
       <button data-v="nutri" aria-label="Nutrição"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 2a7 7 0 0 0-7 7c0 5 7 13 7 13s7-8 7-13a7 7 0 0 0-7-7z"/><circle cx="12" cy="9" r="2.5"/></svg><span class="railtip">Nutrição</span></button>
+      <button data-v="diario" aria-label="Diário"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M4 4h16v16H4z"/><path d="M8 4v16M4 9h4M4 14h4M12 9h5M12 13h5"/></svg><span class="railtip">Diário</span></button>
       <button data-v="week" aria-label="Semana"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="3" y="4" width="18" height="17" rx="2"/><path d="M3 9h18M8 2v4M16 2v4M7 13h3M14 13h3M7 17h3"/></svg><span class="railtip">Semana</span></button>
       <button data-v="train" aria-label="Treino"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M6.5 6.5l11 11M4 8l-2 2 3 3M20 16l2-2-3-3M8 4l-2 2M16 20l2-2"/></svg><span class="railtip">Treino</span></button>
       <button data-v="analise" aria-label="Análise"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M3 3v18h18"/><path d="M7 15l3-4 3 2 4-6"/></svg><span class="railtip">Análise</span></button>
@@ -478,6 +487,9 @@ function proteinQuality(items){
 }
 function glycemicLoad(items){let gl=0,ct=0;for(const{food,g}of items){const carb=food.ch*g/100;ct+=carb;if(food.gi!=null)gl+=food.gi*carb/100;}gl=Math.round(gl);return{gl,ct:Math.round(ct),st:gl<=80?"low":gl<=120?"medium":"high"};}
 function proteinDist(meals,kg){const target=Math.round(.4*kg);const rows=meals.map(m=>{const p=Math.round(m.p||0),leu=Math.round(.085*p*10)/10;return{s:m.s,p,leu,target,ad:p>=target&&leu>=2.5,pct:Math.round(p/target*100)};});return{target,rows,nAd:rows.filter(r=>r.ad).length,n:rows.length};}
+/* --- diário alimentar: consumo real + aderência ao alvo --- */
+function sumIntake(items){let kcal=0,p=0,c=0,f=0;for(const{food,g}of items){kcal+=food.kcal*g/100;p+=food.p*g/100;c+=food.ch*g/100;f+=food.f*g/100;}return{kcal:Math.round(kcal),p:Math.round(p),c:Math.round(c),f:Math.round(f)};}
+function adherenceScore(cons,tg){const kd=tg.kcal?Math.abs(cons.kcal-tg.kcal)/tg.kcal:0;const pd=tg.p?Math.max(0,tg.p-cons.p)/tg.p:0;const sc=Math.max(0,Math.min(100,Math.round(100-kd*100-pd*50)));return{ad:sc,kd:Math.round(kd*100),st:sc>=85?"high":sc>=60?"ok":"low"};}
 
 /* --- prontuário: múltiplos pacientes com histórico próprio --- */
 function pAll(){try{return JSON.parse(localStorage.getItem("vita.patients")||"[]");}catch(e){return[];}}
@@ -625,6 +637,10 @@ const HABITS=[
 function todayKey(){const d=new Date();return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");}
 function loadHab(){const p=pActive();return(p&&p.habits)||{};}
 function saveHab(h){pUpdate(p=>{p.habits=h;});}
+/* diário alimentar por paciente/dia */
+function todayLog(){const p=pActive();return(p&&p.foodlog&&p.foodlog[todayKey()])||[];}
+function addLogItem(n,g){if(!n||!(g>0))return;pUpdate(p=>{p.foodlog=p.foodlog||{};const t=todayKey();p.foodlog[t]=p.foodlog[t]||[];p.foodlog[t].push({n,g:Math.round(g)});});render();}
+function removeLogItem(i){pUpdate(p=>{const t=todayKey();if(p.foodlog&&p.foodlog[t])p.foodlog[t].splice(i,1);});render();}
 // Streak: dias consecutivos (terminando hoje ou ontem) com ≥3 hábitos feitos.
 function streak(h){
   let s=0;const d=new Date();
@@ -744,6 +760,7 @@ const COACH=[
   {c:"DIET_BLOCKED",pr:1,cat:"alert",when:s=>s.dietBlocked,body:s=>`A dieta ${s.strategyName} é contraindicada para a sua condição. Escolha outra estratégia ou converse com um profissional.`},
   {c:"LOW_WATER",pr:2,cat:"reminder",when:s=>s.waterPctToday!=null&&s.waterPctToday<50,body:s=>`Você bebeu ${Math.round(s.waterPctToday)}% da meta de água hoje. Uma garrafa de 500 ml agora te recoloca no ritmo.`},
   {c:"PLATEAU",pr:4,cat:"feedback",when:s=>s.plateau,body:()=>"Seu peso estagnou por 2 semanas com boa adesão. O motor ajustou −5% nas calorias e sugere +2000 passos/dia."},
+  {c:"LOW_ADHERENCE",pr:3,cat:"feedback",when:s=>s.adherencePct!=null&&s.adherencePct<60,body:s=>`Aderência de ${s.adherencePct}% ao alvo hoje. Antes de mudar o plano, foco em aproximar o consumo — adesão vale mais que otimização.`},
   {c:"PROTEIN_GAP",pr:5,cat:"correction",when:s=>s.proteinDoneToday===false,body:()=>"Ainda não marcou a proteína do dia. Priorize uma fonte magra na próxima refeição."},
   {c:"STREAK",pr:6,cat:"motivation",when:s=>[7,14,30,60,100].includes(s.streakDays),body:s=>`${s.streakDays} dias seguidos! Consistência é o que separa quem tenta de quem consegue. 🔥`},
   {c:"ON_TRACK",pr:9,cat:"motivation",when:s=>!s.plateau&&!s.rapidLoss&&!s.dietBlocked&&s.redFlags===0&&s.streakDays>=1,body:s=>`No rumo certo — sequência de ${s.streakDays} dia${s.streakDays===1?"":"s"} e nenhuma bandeira ativa. Mantenha o ritmo.`},
@@ -937,14 +954,24 @@ function render(){
     <div class="cores"><div class="k">Sua faixa Z2</div><div class="v tnum">${hz.z2.min}–${hz.z2.max}<small> bpm</small></div><div class="meta">Karvonen · manter conversável</div></div></div>
     <div class="src" style="margin-top:12px">Z2 aumenta densidade mitocondrial e oxidação de gordura — a base sobre a qual as zonas altas rendem. ${["performance","running","cycling"].includes(p.goal)?"Volume elevado pelo objetivo de endurance.":"150–200 min/sem cobrem saúde e longevidade."}</div></div>`;
 
+  // ---- DIÁRIO ALIMENTAR: consumo real de hoje ----
+  const tlog=todayLog();
+  const logItems=tlog.map(e=>({food:FOODS.find(f=>f.n===e.n),g:e.g})).filter(x=>x.food);
+  const consumed=sumIntake(logItems);
+  const adh=adherenceScore({kcal:consumed.kcal,p:consumed.p},{kcal:m.kcal,p:m.protein});
+  const hasLog=tlog.length>0;
+
   // ---- ANÁLISE NUTRICIONAL DE PRECISÃO (micros vs DRI, PDCAAS, leucina, GL) ----
+  // Analisa o CONSUMO REAL quando há diário hoje; senão, o plano gerado.
   const dayItems=dietBlocked?[]:plan.flatMap(ms=>ms.items.map(it=>({food:FOODS.find(f=>f.n===it.n),g:it.g}))).filter(x=>x.food);
-  const micros=analyzeMicros(dayItems,p.sex);
-  const pq=proteinQuality(dayItems);
-  const gload=glycemicLoad(dayItems);
+  const anItems=hasLog?logItems:dayItems;
+  const anSrc=hasLog?"consumo real de hoje ("+tlog.length+" itens)":"plano gerado de hoje";
+  const micros=analyzeMicros(anItems,p.sex);
+  const pq=proteinQuality(anItems);
+  const gload=glycemicLoad(anItems);
   const pdist=proteinDist(plan,p.weightKg);
   const MST={low:{p:"warn",t:"baixo"},ok:{p:"good",t:"ok"},high:{p:"accent",t:"alto"},over:{p:"crit",t:"excesso"}};
-  const cardMicros=`<div class="card span-7"><h3>Micronutrientes do dia <span class="pill accent">vs DRI</span></h3><div class="cap">completude do plano de hoje · metas por sexo (IOM/DRI) · sódio é teto</div>
+  const cardMicros=`<div class="card span-7"><h3>Micronutrientes do dia <span class="pill ${hasLog?"good":"accent"}">${hasLog?"consumo real":"vs DRI"}</span></h3><div class="cap">${anSrc} · metas por sexo (IOM/DRI) · sódio é teto</div>
     <div class="zones">${micros.map(mo=>{const st=MST[mo.st];const pct=Math.min(mo.pct,140);return`<div class="zrow"><div class="zlab" style="flex:0 0 92px"><b>${mo.l}</b><span>${mo.amount} / ${mo.target} ${mo.u}</span></div>
       <div class="vbar"><div class="vmav" style="left:${mo.ceil?100/1.4*1:71.4}%"></div><div class="vfill ${mo.st==='low'?'below':mo.st==='ok'?'prod':mo.st==='high'?'high':'over'}" style="width:${Math.min(pct/1.4,100)}%"></div></div>
       <div class="zval tnum" style="flex:0 0 44px">${mo.pct}%</div><span class="pill ${st.p}">${st.t}</span></div>`;}).join("")}</div>
@@ -959,9 +986,26 @@ function render(){
     <div class="cores"><div class="k">Carboidrato</div><div class="v tnum">${gload.ct}<small> g</small></div><div class="meta">total do dia</div></div></div>
     <div class="src" style="margin-top:12px"><span class="pill ${gload.st==="low"?"good":gload.st==="medium"?"warn":"crit"}">${gload.st==="low"?"resposta glicêmica suave":gload.st==="medium"?"moderada":"considere trocar fontes de alto IG"}</span></div></div>`;
 
+  // ---- card do DIÁRIO ALIMENTAR (registrar + comparar consumido × alvo) ----
+  const macroRow=(lab,cons,tgt,col)=>`<div class="macro"><div class="mh"><b>${lab}</b><span class="g mono tnum">${cons} / ${tgt} g</span></div><div class="track"><div class="fill" style="width:${Math.min(cons/Math.max(tgt,1)*100,100)}%;background:${col}"></div></div></div>`;
+  const cardDiary=`<div class="card span-7"><h3>Diário de hoje <span class="pill ${hasLog?(adh.st==="high"?"good":adh.st==="ok"?"warn":"crit"):"accent"}">${hasLog?"aderência "+adh.ad+"%":"nada registrado"}</span></h3><div class="cap">registre o que comeu · comparado ao alvo do paciente</div>
+    <div class="logadd">
+      <select id="logfood">${FOODS.map(f=>`<option value="${f.n}">${f.n}</option>`).join("")}</select>
+      <input id="loggrams" type="number" value="100" min="5" step="5" aria-label="gramas">
+      <button class="minibtn" id="addlog">+ Adicionar</button>
+    </div>
+    <div class="list">${tlog.length?tlog.map((e,i)=>{const fd=FOODS.find(f=>f.n===e.n);const kc=fd?Math.round(fd.kcal*e.g/100):0;const pr=fd?Math.round(fd.p*e.g/100):0;return`<div class="li"><span class="idx tnum">${String(i+1).padStart(2,'0')}</span><div class="nm"><b>${e.n}</b><span>${e.g} g</span></div><div class="rt"><b class="tnum">${kc}</b> kcal · ${pr}g P</div><button class="rmbtn" data-rmlog="${i}" aria-label="Remover">✕</button></div>`;}).join(""):`<div class="src" style="padding:8px 0">Nenhum item hoje. Adicione acima — a aba Análise passa a usar o consumo real.</div>`}</div></div>`;
+  const cardIntake=`<div class="card span-5"><h3>Consumido × alvo</h3><div class="cap">${hasLog?"aderência calórica + proteica":"registre no diário para comparar"}</div>
+    <div class="ringwrap" style="width:150px;height:150px;margin:0 auto 8px">${ring(hasLog?adh.ad/100:0,150)}<div class="center"><div class="big tnum" style="font-size:34px">${hasLog?adh.ad:"—"}${hasLog?'<small style="font-size:14px">%</small>':""}</div><div class="unit">ADERÊNCIA</div></div></div>
+    <div class="mh" style="justify-content:space-between;display:flex;font-size:13px;margin-bottom:7px"><b>Calorias</b><span class="g mono tnum">${consumed.kcal} / ${m.kcal} kcal</span></div>
+    <div class="track" style="margin-bottom:14px"><div class="fill" style="width:${Math.min(consumed.kcal/m.kcal*100,100)}%;background:var(--accent)"></div></div>
+    ${macroRow("Proteína",consumed.p,m.protein,COL.protein)}${macroRow("Carboidrato",consumed.c,m.carb,COL.carb)}${macroRow("Gordura",consumed.f,m.fat,COL.fat)}
+    <div class="src" style="margin-top:10px">${hasLog?(adh.kd>0?`Desvio calórico ${adh.kd}%.`:"")+(adh.st==="high"?" Excelente aderência.":adh.st==="ok"?" Aderência razoável.":" Aderência baixa — ajuste o consumo."):"Sem dados hoje."}</div></div>`;
+
   // ---- coach por regras: estado agregado ----
   const coachState={redFlags:guards.filter(g=>g.sev==="crit").length,rapidLoss:rapid,plateau:plateau,dietBlocked,strategyName:stratName,
-    waterPctToday:doneToday.includes("water")?100:40,proteinDoneToday:doneToday.includes("protein"),streakDays:st2};
+    waterPctToday:doneToday.includes("water")?100:40,proteinDoneToday:doneToday.includes("protein"),streakDays:st2,
+    adherencePct:hasLog?adh.ad:null};
   const cmsgs=coachMessages(coachState);
   const CATIC={alert:"⚠️",reminder:"🔔",feedback:"📊",correction:"🎯",motivation:"✨"};
   const cardCoach=`<div class="card span-12"><h3>Coach <span class="pill accent">${cmsgs.length} mensage${cmsgs.length===1?"m":"ns"}</span></h3><div class="cap">selecionadas por regra sobre o seu estado · nada gerado livremente</div>
@@ -1008,6 +1052,7 @@ function render(){
     today:{title:"Hoje",sub:"Tudo abaixo é calculado por fórmula nomeada — mesmo input, mesmo output.",html:cardCoach+cardEnergy+cardMacros+cardBody+cardTrend+cardReady+cardMeals+cardWorkout},
     nutri:{title:"Nutrição",sub:"Meta calórica e macros pelo motor; plano montado por seleção na base de alimentos.",html:cardEnergy+cardMacros+cardMeals+cardBody},
     week:{title:"Semana",sub:"7 dias com rotação determinística de fontes + lista de compras agregada.",html:cardWeek+cardShop},
+    diario:{title:"Diário alimentar",sub:"Registre o consumo real; a Análise passa a usar o que foi comido, não o plano.",html:cardDiary+cardIntake},
     analise:{title:"Análise de precisão",sub:"Micronutrientes vs DRI, qualidade proteica (PDCAAS), leucina por refeição e carga glicêmica.",html:cardMicros+cardProtQual+cardProtDist+cardGL+cardMacros},
     train:{title:"Treino",sub:"Split por frequência, volume graduado por landmarks e base aeróbica em Zona 2.",html:cardWorkout+cardVolume+cardZone2+cardReady+cardTrend},
     calc:{title:"Calculadoras",sub:"1RM, zonas de FC, pace, gasto calórico e VO₂máx — todas determinísticas.",html:cardCalc+cardBody},
@@ -1031,6 +1076,8 @@ $("#views").addEventListener("click",e=>{
   const h=e.target.closest(".hab");if(h){toggleHabit(h.dataset.h);return;}
   if(e.target.closest("#exportShop")){window.print();return;}
   if(e.target.closest("#logMeas")){logMeasurement();return;}
+  if(e.target.closest("#addlog")){addLogItem($("#logfood").value,+$("#loggrams").value);return;}
+  const rm=e.target.closest("[data-rmlog]");if(rm){removeLogItem(+rm.dataset.rmlog);return;}
   const cm=e.target.closest("[data-cmode]");if(cm){CALC.mode=cm.dataset.cmode;render();return;}
   const sw=e.target.closest("[data-swap]");if(sw){SWAP=SWAP===sw.dataset.swap?null:sw.dataset.swap;render();return;}
 });

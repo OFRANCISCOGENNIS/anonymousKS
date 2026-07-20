@@ -454,9 +454,9 @@ test('coach: determinismo', () => {
 // ---------------------------------------------------------------------------
 console.log('nutritionAnalysis.js');
 // ---------------------------------------------------------------------------
-const F_CHICKEN = { name: 'Frango', category: 'meats', protein_g: 32, carb_g: 0, pdcaas: 0.92, glycemic_index: null, tags: ['animal'], micros: { potassium_mg: 256, magnesium_mg: 29, iron_mg: 1, zinc_mg: 1.8, calcium_mg: 12, vitc_mg: 0, vita_mcg: 16, omega3_g: 0.03, sodium_mg: 82 } };
-const F_RICE = { name: 'Arroz', category: 'cereals', protein_g: 2.6, carb_g: 25.8, pdcaas: 0.5, glycemic_index: 50, tags: ['vegan'], micros: { potassium_mg: 42, magnesium_mg: 43, iron_mg: 0.3, zinc_mg: 0.7, calcium_mg: 5, vitc_mg: 0, vita_mcg: 0, omega3_g: 0.01, sodium_mg: 1 } };
-const F_BEANS = { name: 'Feijão', category: 'legumes', protein_g: 4.8, carb_g: 13.6, pdcaas: 0.68, glycemic_index: 30, tags: ['vegan'], micros: { potassium_mg: 355, magnesium_mg: 42, iron_mg: 1.3, zinc_mg: 0.7, calcium_mg: 27, vitc_mg: 0, vita_mcg: 0, omega3_g: 0.1, sodium_mg: 2 } };
+const F_CHICKEN = { name: 'Frango', category: 'meats', kcal: 159, protein_g: 32, carb_g: 0, fat_g: 2.5, pdcaas: 0.92, glycemic_index: null, tags: ['animal'], micros: { potassium_mg: 256, magnesium_mg: 29, iron_mg: 1, zinc_mg: 1.8, calcium_mg: 12, vitc_mg: 0, vita_mcg: 16, omega3_g: 0.03, sodium_mg: 82 } };
+const F_RICE = { name: 'Arroz', category: 'cereals', kcal: 124, protein_g: 2.6, carb_g: 25.8, fat_g: 1, pdcaas: 0.5, glycemic_index: 50, tags: ['vegan'], micros: { potassium_mg: 42, magnesium_mg: 43, iron_mg: 0.3, zinc_mg: 0.7, calcium_mg: 5, vitc_mg: 0, vita_mcg: 0, omega3_g: 0.01, sodium_mg: 1 } };
+const F_BEANS = { name: 'Feijão', category: 'legumes', kcal: 76, protein_g: 4.8, carb_g: 13.6, fat_g: 0.5, pdcaas: 0.68, glycemic_index: 30, tags: ['vegan'], micros: { potassium_mg: 355, magnesium_mg: 42, iron_mg: 1.3, zinc_mg: 0.7, calcium_mg: 27, vitc_mg: 0, vita_mcg: 0, omega3_g: 0.1, sodium_mg: 2 } };
 
 test('micros: soma proporcional às gramas e compara à meta por sexo', () => {
   const micros = NA.analyzeMicros([{ food: F_BEANS, grams: 200 }], 'F');
@@ -499,9 +499,30 @@ test('carga glicêmica: soma IG×carbo/100 e classifica', () => {
   assert.strictEqual(gl.glDay, 26);
   assert.strictEqual(gl.status, 'low');
 });
+test('diário: soma consumo proporcional às gramas', () => {
+  const s = NA.sumIntake([{ food: F_CHICKEN, grams: 150 }, { food: F_RICE, grams: 200 }]);
+  assert.strictEqual(s.protein, Math.round(32 * 1.5 + 2.6 * 2)); // 48+5,2 → 53
+  assert.ok(s.kcal > 0);
+});
+test('aderência: consumo no alvo → alta', () => {
+  const a = NA.adherenceScore({ kcal: 2000, protein: 160 }, { kcal: 2000, protein: 160 });
+  assert.strictEqual(a.adherence, 100);
+  assert.strictEqual(a.status, 'high');
+});
+test('aderência: 500 kcal a menos e proteína curta → cai', () => {
+  const a = NA.adherenceScore({ kcal: 1500, protein: 100 }, { kcal: 2000, protein: 160 });
+  assert.ok(a.adherence < 70);
+  assert.strictEqual(a.kcalDevPct, 25);
+});
+test('aderência: sobrar proteína não penaliza (só falta pesa)', () => {
+  const mais = NA.adherenceScore({ kcal: 2000, protein: 200 }, { kcal: 2000, protein: 160 });
+  assert.strictEqual(mais.proteinDeficitPct, 0);
+  assert.strictEqual(mais.adherence, 100);
+});
 test('nutritionAnalysis: determinismo', () => {
   deterministic(() => NA.analyzeMicros([{ food: F_BEANS, grams: 150 }, { food: F_RICE, grams: 100 }], 'M'));
   deterministic(() => NA.proteinQuality([{ food: F_RICE, grams: 200 }, { food: F_BEANS, grams: 200 }]));
+  deterministic(() => NA.adherenceScore({ kcal: 1800, protein: 140 }, { kcal: 2000, protein: 160 }));
 });
 
 // ---------------------------------------------------------------------------
