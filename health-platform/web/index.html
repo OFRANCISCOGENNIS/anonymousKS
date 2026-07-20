@@ -817,6 +817,10 @@ function todayLog(){const p=pActive();return(p&&p.foodlog&&p.foodlog[todayKey()]
 function addLogItem(n,g){if(!n||!(g>0))return;pUpdate(p=>{p.foodlog=p.foodlog||{};const t=todayKey();p.foodlog[t]=p.foodlog[t]||[];p.foodlog[t].push({n,g:Math.round(g)});});render();}
 function removeLogItem(i){pUpdate(p=>{const t=todayKey();if(p.foodlog&&p.foodlog[t])p.foodlog[t].splice(i,1);});render();}
 function setMesoWeek(delta){pUpdate(p=>{p.mesoWeek=Math.max(1,Math.min((p.mesoWeek||1)+delta,5));});render();}
+/* notas de acompanhamento do profissional (datadas, por paciente) */
+function patientNotes(){const p=pActive();return(p&&p.notes)||[];}
+function addNote(text){text=(text||"").trim();if(!text)return;pUpdate(p=>{p.notes=p.notes||[];p.notes.push({d:todayKey(),ts:Date.now(),text});});render();}
+function removeNote(ts){pUpdate(p=>{if(p.notes)p.notes=p.notes.filter(n=>n.ts!==ts);});render();}
 /* registro de treino executado + progressão real (usa 1RM e nextLoad) */
 function e1rm(load,reps){if(!(load>0)||!(reps>=1))return null;const ep=reps===1?load:load*(1+reps/30);const br=(reps>=37)?ep:(reps===1?load:load*(36/(37-reps)));return Math.round((ep+br)/2*10)/10;}
 function wlogFor(name){const p=pActive();return(p&&p.wlog&&p.wlog[name])||[];}
@@ -1197,6 +1201,7 @@ function render(){
   // hash de determinismo
   $("#hash").textContent="#"+Math.abs([p.sex,p.weightKg,p.heightCm,p.age,p.bf,p.goal,p.activity,p.days].join("|").split("").reduce((a,ch)=>(a*31+ch.charCodeAt(0))|0,7)).toString(16).slice(0,6);
   const _pt=pActive();const _nm=(_pt&&_pt.name)||"Paciente";
+  const notes=patientNotes();
   $("#avatar").textContent=_nm.trim().split(/\s+/).map(w=>w[0]).slice(0,2).join("").toUpperCase()||"P";
 
   // guardrail banners
@@ -1586,6 +1591,7 @@ function render(){
     <table>${vaudit.map(v=>row(v.mu,v.sets+" séries/sem · "+({below:"abaixo do MEV",prod:"produtivo",high:"alto",over:"acima do MRV"}[v.st]))).join("")}</table>
     <h3>Evolução do peso</h3>
     ${usingReal?`<table>${realW.slice(-8).map(w=>row(w.d,w.kg+" kg"+(w.bf?" · "+w.bf+"% gord":""))).join("")}</table><div>Tendência: ${perWk>0?"+":""}${perWk} kg/semana (${status.t}).</div>`:`<div>Sem medições registradas — use "Registrar medição" para acompanhar a evolução real.</div>`}
+    ${notes.length?`<h3>Notas de acompanhamento</h3><table>${notes.slice(-8).map(n=>`<tr><td>${n.d}</td><td style="text-align:left;font-weight:400">${n.text.replace(/</g,"&lt;")}</td></tr>`).join("")}</table>`:""}
     <div class="repfoot">Documento educativo gerado por Vitα (motor determinístico, reprodutível). Não substitui avaliação médica ou nutricional presencial. Fórmulas e fontes: Mifflin-St Jeor, ISSN 2017, Morton 2018, Schoenfeld & Aragon 2018, IOM/DRI, Woolcott 2018.</div>
   </div>`;
   $("#report").innerHTML=reportHtml;
@@ -1659,6 +1665,10 @@ function render(){
       </div>`).join("")}
     </div>
     <div class="src" style="margin-top:12px">Prioridade: bandeiras de segurança &gt; inatividade &gt; baixa aderência. Aderência e alertas vêm do diário, pesagens e anamnese de cada paciente.</div></div>`;
+  // notas de acompanhamento do paciente ativo (notes já computado no topo do render)
+  const cardNotes=`<div class="card span-12"><h3>Notas de acompanhamento · ${_nm} <span class="pill accent">${notes.length}</span></h3><div class="cap">observações da consulta · datadas · entram no prontuário PDF</div>
+    <div class="logadd"><textarea id="noteText" placeholder="Ex.: relatou dor no ombro no supino; ajustar para halteres. Sono melhorou após rotina noturna." style="flex:1;min-width:220px;min-height:56px;background:var(--surface-2);border:1px solid var(--border);color:var(--text);border-radius:10px;padding:10px;font-size:13.5px;resize:vertical"></textarea><button class="minibtn" id="addNote" style="align-self:flex-start">+ Nota</button></div>
+    ${notes.length?`<div class="list" style="margin-top:12px">${notes.slice().reverse().map(n=>`<div class="li"><span class="idx tnum">${n.d.slice(5)}</span><div class="nm" style="white-space:normal"><b style="font-weight:500;white-space:normal">${n.text.replace(/</g,"&lt;")}</b></div><button class="rmbtn" data-rmnote="${n.ts}" aria-label="Remover">✕</button></div>`).join("")}</div>`:`<div class="src" style="margin-top:10px">Sem notas ainda.</div>`}</div>`;
 
   // ---- AGENDA DO DIA (cronograma por horário) ----
   const evs=[];
@@ -1763,7 +1773,7 @@ function render(){
     calc:{title:"Calculadoras",sub:"1RM, zonas de FC, pace, gasto calórico e VO₂máx — todas determinísticas.",html:cardCalc+cardBody},
     labs:{title:"Exames",sub:"Comparação com faixas de referência + tendência entre exames — educativo, nunca prescreve.",html:cardLabs+cardLabSummary+cardLabTrend},
     habits:{title:"Hábitos",sub:"Checklist diário e sequência por regras determinísticas sobre o que você registra.",html:cardHabits+cardStreak+cardCoach},
-    pacientes:{title:"Pacientes",sub:"Visão do profissional: todos os pacientes, quem precisa de atenção primeiro.",html:cardRoster},
+    pacientes:{title:"Pacientes",sub:"Visão do profissional: todos os pacientes, quem precisa de atenção primeiro.",html:cardRoster+cardNotes},
     agenda:{title:"Agenda do dia",sub:"Cronograma de refeições, hidratação e treino por horário — ajuste à sua rotina.",html:cardAgenda+cardAgendaSum},
     evolucao:{title:"Evolução",sub:"Check-in semanal + linha do tempo de todas as métricas num só lugar.",html:cardCheckin+cardEvolution},
     metas:{title:"Metas & medidas",sub:"Alvos com previsão de data + circunferências e dobras com %gordura por Jackson-Pollock.",html:cardGoals+cardGoalsHelp+cardMeasures+cardMeasEvo},
@@ -1814,6 +1824,8 @@ $("#views").addEventListener("click",e=>{
   }
   const rmm=e.target.closest("[data-rmmeas]");if(rmm){removeMeasure(+rmm.dataset.rmmeas);return;}
   if(e.target.closest("#labSnapshot")){saveLabSnapshot();return;}
+  if(e.target.closest("#addNote")){const ta=$("#noteText");if(ta){addNote(ta.value);}return;}
+  const rmn=e.target.closest("[data-rmnote]");if(rmn){removeNote(+rmn.dataset.rmnote);return;}
   const opt=e.target.closest("[data-openpt]");if(opt){pSetActive(opt.dataset.openpt);loadProfile();VIEW="today";$("#nav").querySelectorAll("button").forEach(x=>x.classList.toggle("on",x.dataset.v==="today"));render();return;}
   if(e.target.closest("#copyCheckin")){const txt=CHECKIN_TEXT;const done=()=>alert("Resumo copiado — cole no WhatsApp/e-mail do paciente.");if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(txt).then(done).catch(()=>alert(txt));}else alert(txt);return;}
   const cm=e.target.closest("[data-cmode]");if(cm){CALC.mode=cm.dataset.cmode;render();return;}
