@@ -27,6 +27,12 @@ function easeOutCubic(t: number): number {
   return 1 - Math.pow(1 - t, 3);
 }
 
+function easeOutBack(t: number): number {
+  const c1 = 1.70158;
+  const c3 = c1 + 1;
+  return 1 + c3 * Math.pow(t - 1, 3) + c1 * Math.pow(t - 1, 2);
+}
+
 export const ANIM_PRESETS: AnimPreset[] = [
   { id: "fade", name: "Fade", at: (p) => ({ ...NEUTRAL_ENVELOPE, opacity: p }) },
   {
@@ -63,6 +69,27 @@ export const ANIM_PRESETS: AnimPreset[] = [
     id: "blur",
     name: "Desfocar",
     at: (p) => ({ ...NEUTRAL_ENVELOPE, opacity: Math.min(1, p * 1.2), blurPx: (1 - p) * 24 }),
+  },
+  {
+    id: "bounce",
+    name: "Pulo",
+    // sobe de baixo com um leve overshoot elástico ao assentar
+    at: (p) => ({
+      ...NEUTRAL_ENVELOPE,
+      opacity: Math.min(1, p * 1.6),
+      dy: (1 - easeOutBack(p)) * 0.5,
+    }),
+  },
+  {
+    id: "flip",
+    name: "Virar",
+    // vira no eixo horizontal (achata e reabre), como um cartão girando
+    at: (p) => ({
+      ...NEUTRAL_ENVELOPE,
+      opacity: Math.min(1, p * 1.5),
+      scale: 0.2 + 0.8 * easeOutCubic(p),
+      rotation: (1 - easeOutCubic(p)) * 20,
+    }),
   },
 ];
 

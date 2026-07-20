@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { makeClip, makeTrack } from "./model";
-import { previousAdjacentClip, transitionAt } from "./transitions";
+import { previousAdjacentClip, transitionAt, TRANSITIONS } from "./transitions";
 
 function trackWithTwo(gapMs: number) {
   const track = makeTrack("video");
@@ -9,6 +9,21 @@ function trackWithTwo(gapMs: number) {
   track.clips = [a, b];
   return { track, a, b };
 }
+
+describe("catálogo TRANSITIONS", () => {
+  it("tem ids únicos e nomes preenchidos", () => {
+    const ids = TRANSITIONS.map((t) => t.id);
+    expect(new Set(ids).size).toBe(ids.length);
+    for (const t of TRANSITIONS) expect(t.name.length).toBeGreaterThan(0);
+  });
+
+  it("inclui as transições novas desenhadas no engine", () => {
+    const ids = new Set(TRANSITIONS.map((t) => t.id));
+    for (const id of ["empurrar", "deslizar-cima", "giro", "relogio", "xadrez", "diagonal", "flash"]) {
+      expect(ids.has(id)).toBe(true);
+    }
+  });
+});
 
 describe("previousAdjacentClip", () => {
   it("acha o clipe imediatamente anterior colado", () => {

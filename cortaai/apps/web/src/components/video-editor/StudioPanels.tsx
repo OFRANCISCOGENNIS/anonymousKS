@@ -375,7 +375,7 @@ export function TransitionsPanel() {
   const { clip } = found;
   return (
     <div className="space-y-2">
-      <div className="grid grid-cols-2 gap-1.5">
+      <div className="stagger-in grid grid-cols-2 gap-1.5">
         <button
           onClick={() => updateClip(clip.id, { transitionIn: undefined })}
           aria-pressed={!clip.transitionIn}
