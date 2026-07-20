@@ -929,18 +929,20 @@ function streak(h){
 
 /* --- base mínima de exercícios (SEED) + gerador --- */
 const EX=[
-  {c:"BB_BACK_SQUAT",n:"Agachamento livre",mu:"Quadríceps",mp:"squat",eq:["barbell"],lv:1,comp:1,ctr:["knee","lumbar"]},
-  {c:"GOBLET_SQUAT",n:"Agachamento goblet",mu:"Quadríceps",mp:"squat",eq:["dumbbell"],lv:0,comp:1,ctr:["knee"]},
-  {c:"LEG_PRESS",n:"Leg press 45°",mu:"Quadríceps",mp:"squat",eq:["machine"],lv:0,comp:1,ctr:["knee"]},
-  {c:"DB_RDL",n:"Stiff com halteres",mu:"Posteriores",mp:"hinge",eq:["dumbbell"],lv:0,comp:1,ctr:["lumbar"]},
-  {c:"HIP_THRUST",n:"Elevação pélvica",mu:"Glúteos",mp:"hinge",eq:["barbell","bodyweight"],lv:0,comp:1,ctr:[]},
-  {c:"DB_BENCH",n:"Supino com halteres",mu:"Peito",mp:"push_h",eq:["dumbbell"],lv:0,comp:1,ctr:["shoulder"]},
-  {c:"PUSH_UP",n:"Flexão de braço",mu:"Peito",mp:"push_h",eq:["bodyweight"],lv:0,comp:1,ctr:["wrist"]},
-  {c:"OHP",n:"Desenvolvimento militar",mu:"Ombros",mp:"push_v",eq:["barbell","dumbbell"],lv:1,comp:1,ctr:["shoulder"]},
-  {c:"SEATED_ROW",n:"Remada sentada",mu:"Costas",mp:"pull_h",eq:["machine","cable"],lv:0,comp:1,ctr:[]},
-  {c:"LAT_PULLDOWN",n:"Puxada na frente",mu:"Dorsais",mp:"pull_v",eq:["cable","machine"],lv:0,comp:1,ctr:[]},
-  {c:"PLANK",n:"Prancha",mu:"Core",mp:"core",eq:["bodyweight"],lv:0,comp:0,ctr:[]},
+  {c:"BB_BACK_SQUAT",n:"Agachamento livre",mu:"Quadríceps",mp:"squat",eq:["barbell"],lv:1,comp:1,ctr:["knee","lumbar"],cue:"Barra no trapézio, pés na largura dos ombros. Desça controlando até as coxas paralelas, joelhos alinhados aos pés, coluna neutra. Suba empurrando o chão."},
+  {c:"GOBLET_SQUAT",n:"Agachamento goblet",mu:"Quadríceps",mp:"squat",eq:["dumbbell"],lv:0,comp:1,ctr:["knee"],cue:"Halter junto ao peito, cotovelos por dentro dos joelhos. Desça ereto, calcanhares no chão, peito aberto."},
+  {c:"LEG_PRESS",n:"Leg press 45°",mu:"Quadríceps",mp:"squat",eq:["machine"],lv:0,comp:1,ctr:["knee"],cue:"Pés na largura dos ombros na plataforma. Desça até ~90° sem tirar o quadril do banco; não trave os joelhos no topo."},
+  {c:"DB_RDL",n:"Stiff com halteres",mu:"Posteriores",mp:"hinge",eq:["dumbbell"],lv:0,comp:1,ctr:["lumbar"],cue:"Halteres à frente das coxas, joelhos levemente flexionados. Empurre o quadril para trás com a coluna neutra até sentir o posterior; suba contraindo o glúteo."},
+  {c:"HIP_THRUST",n:"Elevação pélvica",mu:"Glúteos",mp:"hinge",eq:["barbell","bodyweight"],lv:0,comp:1,ctr:[],cue:"Escápulas apoiadas no banco, barra na dobra do quadril. Empurre pelos calcanhares até alinhar tronco e coxa; contraia o glúteo 1s no topo."},
+  {c:"DB_BENCH",n:"Supino com halteres",mu:"Peito",mp:"push_h",eq:["dumbbell"],lv:0,comp:1,ctr:["shoulder"],cue:"Escápulas retraídas no banco. Desça os halteres na linha do mamilo, cotovelos ~45°; empurre até quase estender sem travar."},
+  {c:"PUSH_UP",n:"Flexão de braço",mu:"Peito",mp:"push_h",eq:["bodyweight"],lv:0,comp:1,ctr:["wrist"],cue:"Corpo em prancha, mãos sob os ombros. Desça o peito até perto do chão, cotovelos ~45°; empurre mantendo o core firme."},
+  {c:"OHP",n:"Desenvolvimento militar",mu:"Ombros",mp:"push_v",eq:["barbell","dumbbell"],lv:1,comp:1,ctr:["shoulder"],cue:"Carga na altura dos ombros, core firme e glúteo contraído. Empurre acima da cabeça sem hiperestender a lombar; barra sobre o meio do pé."},
+  {c:"SEATED_ROW",n:"Remada sentada",mu:"Costas",mp:"pull_h",eq:["machine","cable"],lv:0,comp:1,ctr:[],cue:"Peito aberto, coluna neutra. Puxe até o abdômen levando os cotovelos para trás, aperte as escápulas; controle a volta sem curvar."},
+  {c:"LAT_PULLDOWN",n:"Puxada na frente",mu:"Dorsais",mp:"pull_v",eq:["cable","machine"],lv:0,comp:1,ctr:[],cue:"Pegada um pouco mais aberta que os ombros. Puxe a barra até a clavícula levando os cotovelos para baixo e para trás, sem balançar o tronco."},
+  {c:"PLANK",n:"Prancha",mu:"Core",mp:"core",eq:["bodyweight"],lv:0,comp:0,ctr:[],cue:"Antebraços e pontas dos pés no chão, corpo reto da cabeça ao calcanhar. Contraia abdômen e glúteo; não deixe o quadril cair nem subir."},
 ];
+const EQLBL={barbell:"Barra",dumbbell:"Halteres",machine:"Máquina",cable:"Polia",bodyweight:"Peso corporal",kettlebell:"Kettlebell"};
+const LVLBL=["Iniciante","Intermediário","Avançado"];
 const SPLITS={1:["full"],2:["full","full"],3:["full","full","full"],4:["upper","lower","upper","lower"],5:["push","pull","legs","upper","lower"],6:["push","pull","legs","push","pull","legs"]};
 const DAYPAT={full:["squat","push_h","pull_h","hinge","push_v","core"],upper:["push_h","pull_h","push_v","pull_v"],lower:["squat","hinge","squat","core"],push:["push_h","push_v","push_h"],pull:["pull_v","pull_h","pull_v"],legs:["squat","hinge","squat","core"]};
 const GP={hypertrophy:{lo:6,hi:12,rc:150,ri:75},strength:{lo:3,hi:6,rc:180,ri:90},fat_loss:{lo:8,hi:15,rc:120,ri:60},maintenance:{lo:8,hi:15,rc:120,ri:60}};
@@ -1189,7 +1191,7 @@ const macroBar=(name,g,kcalShare,total,color,src)=>`
   <div class="track"><div class="fill" style="width:${Math.round(kcalShare/total*100)}%;background:${color}"></div></div>
   <div class="src">${src}</div></div>`;
 
-let VIEW="today",WEEKSEL=(new Date().getDay()+6)%7,SWAP=null,WLOG=null,CHECKIN_TEXT="";
+let VIEW="today",WEEKSEL=(new Date().getDay()+6)%7,SWAP=null,WLOG=null,CHECKIN_TEXT="",EXFILTER="all",EXOPEN=null;
 function dateStrAgo(n){const d=new Date();d.setDate(d.getDate()-n);return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");}
 function avgInWindow(arr,getD,getV,lo,hi){const vs=arr.filter(x=>{const d=getD(x);return d>=lo&&d<=hi;}).map(getV);return vs.length?vs.reduce((s,x)=>s+x,0)/vs.length:null;}
 let CALC={mode:"1rm",rmLoad:100,rmReps:5,rmTarget:8,hrRest:60,paceKm:5,paceMin:25,actType:"corrida_leve",actMin:30,cooper:2400};
@@ -1419,6 +1421,14 @@ function render(){
     <div class="calcout"><div class="cores"><div class="k">Meta semanal Z2</div><div class="v tnum">${z2.min}–${z2.max}<small> min</small></div><div class="meta">sessões ≥ ${z2.sessionMin} min</div></div>
     <div class="cores"><div class="k">Sua faixa Z2</div><div class="v tnum">${hz.z2.min}–${hz.z2.max}<small> bpm</small></div><div class="meta">Karvonen · manter conversável</div></div></div>
     <div class="src" style="margin-top:12px">Z2 aumenta densidade mitocondrial e oxidação de gordura — a base sobre a qual as zonas altas rendem. ${["performance","running","cycling"].includes(p.goal)?"Volume elevado pelo objetivo de endurance.":"150–200 min/sem cobrem saúde e longevidade."}</div></div>`;
+
+  // ---- biblioteca de exercícios com instruções de execução ----
+  const exMuscles=["all",...new Set(EX.map(e=>e.mu))];
+  const exList=EX.filter(e=>EXFILTER==="all"||e.mu===EXFILTER);
+  const cardExLib=`<div class="card span-12"><h3>Biblioteca de exercícios <span class="pill accent">${EX.length}</span></h3><div class="cap">músculo, equipamento, nível e dica de execução · toque para ver a instrução</div>
+    <div class="wtabs" id="exfilter" style="margin-bottom:12px">${exMuscles.map(mu=>`<button data-exfilter="${mu}" class="${mu===EXFILTER?"on":""}">${mu==="all"?"Todos":mu}</button>`).join("")}</div>
+    <div class="list">${exList.map(ex=>{const open=EXOPEN===ex.c;return`<div class="li swap ${open?"op":""}" data-exopen="${ex.c}" role="button" tabindex="0"><span class="tlic" style="margin:0">${ex.comp?"🏋️":"🎯"}</span><div class="nm"><b>${ex.n} <span class="swapic">${open?"▾":"▸"}</span></b><span>${ex.mu} · ${ex.eq.map(q=>EQLBL[q]||q).join("/")} · ${LVLBL[ex.lv]}</span></div><div class="rt">${ex.ctr.length?`<span class="pill warn">lesão: ${ex.ctr.join(",")}</span>`:""}</div></div>`+(open?`<div class="subs"><div class="subttl">Execução</div><div style="font-size:13px;line-height:1.5">${ex.cue}</div></div>`:"");}).join("")}</div>
+    <div class="src" style="margin-top:12px">Dicas gerais e educativas — priorize técnica sobre carga. Dor (além do esforço muscular) é sinal de parar e reavaliar.</div></div>`;
 
   // ---- DIÁRIO ALIMENTAR: consumo real de hoje ----
   const tlog=todayLog();
@@ -1769,7 +1779,7 @@ function render(){
     week:{title:"Semana",sub:"7 dias com rotação determinística de fontes + lista de compras agregada.",html:cardWeek+cardShop},
     diario:{title:"Diário alimentar",sub:"Registre o consumo real; a Análise passa a usar o que foi comido, não o plano.",html:cardDiary+cardIntake},
     analise:{title:"Análise de precisão",sub:"Micronutrientes vs DRI, qualidade proteica (PDCAAS), leucina por refeição, carga glicêmica e lacunas com fontes alimentares.",html:cardMicros+cardProtQual+cardProtDist+cardGL+cardSupp+cardMacros},
-    train:{title:"Treino",sub:"Split por frequência, volume graduado por landmarks e base aeróbica em Zona 2.",html:cardWorkout+cardVolume+cardZone2+cardReady+cardTrend},
+    train:{title:"Treino",sub:"Split por frequência, volume graduado por landmarks, base aeróbica e biblioteca de exercícios.",html:cardWorkout+cardVolume+cardZone2+cardExLib+cardReady+cardTrend},
     calc:{title:"Calculadoras",sub:"1RM, zonas de FC, pace, gasto calórico e VO₂máx — todas determinísticas.",html:cardCalc+cardBody},
     labs:{title:"Exames",sub:"Comparação com faixas de referência + tendência entre exames — educativo, nunca prescreve.",html:cardLabs+cardLabSummary+cardLabTrend},
     habits:{title:"Hábitos",sub:"Checklist diário e sequência por regras determinísticas sobre o que você registra.",html:cardHabits+cardStreak+cardCoach},
@@ -1808,6 +1818,8 @@ $("#views").addEventListener("click",e=>{
   const ls=e.target.closest("[data-logset]");if(ls){const g=k=>{const el=document.querySelector('[data-wl="'+k+'"]');return el?el.value:"";};logSet(ls.dataset.logset,g("reps"),g("load"),g("rir"));return;}
   const us=e.target.closest("[data-undoset]");if(us){undoLastSet(us.dataset.undoset);return;}
   const wl=e.target.closest("[data-wlog]");if(wl){WLOG=WLOG===wl.dataset.wlog?null:wl.dataset.wlog;render();return;}
+  const xf=e.target.closest("[data-exfilter]");if(xf){EXFILTER=xf.dataset.exfilter;render();return;}
+  const xo=e.target.closest("[data-exopen]");if(xo){EXOPEN=EXOPEN===xo.dataset.exopen?null:xo.dataset.exopen;render();return;}
   const aa=e.target.closest("[data-applyadapt]");if(aa){applyAdapt(+aa.dataset.applyadapt,aa.dataset.adaptsrc);return;}
   if(e.target.closest("#resetAdapt")){resetAdapt();return;}
   const ab=e.target.closest("[data-anambool]");if(ab){setAnam(ab.dataset.anambool,ab.dataset.v==="1");return;}
