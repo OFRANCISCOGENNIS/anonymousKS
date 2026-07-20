@@ -750,6 +750,19 @@ check('semáforo ENTRAR: sinal + selo A + funil ≥5', sem.entrar);
 check('semáforo EVITAR contra os timeframes maiores', sem.contra);
 check('semáforo ESPERAR sem confluência', sem.esperar);
 check('semáforo EVITAR com notícia próxima', sem.news && sem.temBox);
+// Pacote mobile: nav inferior com 5 atalhos e ações mapeadas
+const mob = await p.evaluate(() => {
+  const nav = document.getElementById('mobileNav');
+  const botoes = nav ? nav.querySelectorAll('button[data-act]').length : 0;
+  const acts = nav ? [...nav.querySelectorAll('button')].map(b => b.dataset.act) : [];
+  const temAcoes = ['decisao', 'grafico', 'watch', 'risco', 'controles'].every(a => acts.includes(a) && typeof MNAV_ACOES[a] === 'function');
+  // clicar em "watch" revela o painel da watchlist e marca ativo
+  const bw = nav.querySelector('button[data-act="watch"]'); bw.click();
+  const abriu = !document.getElementById('watchPanel').classList.contains('painel-oculto') && bw.classList.contains('is-active');
+  return { botoes, temAcoes, abriu };
+});
+check('nav inferior mobile tem 5 atalhos com ações', mob.botoes === 5 && mob.temAcoes);
+check('atalho da nav revela o painel e marca ativo', mob.abriu);
 check('botões de timeframe no gráfico trocam o TF (M15)', quick.tfMudou);
 check('trocar moeda cripto pelo gráfico muda o símbolo', quick.symMudou);
 check('escolher forex pelo gráfico ajusta o par', quick.forexMudou);

@@ -47,6 +47,15 @@
         <!-- RAIL MINIMALISTA: painéis secundários viram ícones (clique abre/fecha) -->
         <nav id="railPaineis" class="rail" aria-label="Painéis"></nav>
 
+        <!-- NAV INFERIOR (só no celular): atalhos ao alcance do polegar -->
+        <nav id="mobileNav" class="mnav" aria-label="Navegação">
+            <button type="button" data-act="decisao"><span>🚦</span>Decisão</button>
+            <button type="button" data-act="grafico"><span>📈</span>Gráfico</button>
+            <button type="button" data-act="watch"><span>⭐</span>Lista</button>
+            <button type="button" data-act="risco"><span>🛡</span>Risco</button>
+            <button type="button" data-act="controles"><span>⚙️</span>Config</button>
+        </nav>
+
         <main class="main-content">
             <!-- SIDEBAR CONTROLES -->
             <aside class="sidebar">
@@ -858,6 +867,7 @@
     <script src="src/30-watchlist.js"></script>
     <script src="src/31-divergencia.js"></script>
     <script src="src/32-semaforo.js"></script>
+    <script src="src/33-mobile.js"></script>
     <!-- APP:END -->
 </body>
 </html>

@@ -19,7 +19,9 @@ function opcoesBase() {
 // ocupa ~72% da janela — leitura confortável das zonas/LTs/rótulos.
 function alturaChartPreco() {
     // padrão 1200px; ⛶ alterna para o modo compacto (500px)
-    const h = localStorage.getItem('chartAlto') === '0' ? 500 : 1200;
+    let h = localStorage.getItem('chartAlto') === '0' ? 500 : 1200;
+    // No celular 1200px rola demais: limita a ~60% da altura da tela.
+    if (window.innerWidth <= 760) h = Math.max(320, Math.round(window.innerHeight * 0.6));
     document.documentElement.style.setProperty('--chart-h', h + 'px');   // container acompanha
     return h;
 }
