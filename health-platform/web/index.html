@@ -107,6 +107,12 @@ h1.title{font-size:clamp(26px,3vw,34px);font-weight:800;letter-spacing:-.02em;ma
 .seg{display:flex;background:var(--surface-2);border:1px solid var(--border);border-radius:10px;padding:3px;height:38px}
 .seg button{border:0;background:transparent;color:var(--muted);border-radius:7px;padding:0 12px;font-size:13px;font-weight:600;transition:.15s}
 .seg button.on{background:var(--accent);color:#fff}
+.chips{display:flex;gap:6px;flex-wrap:wrap;max-width:340px}
+.chips button{border:1px solid var(--border);background:var(--surface-2);color:var(--muted);
+  height:38px;padding:0 12px;border-radius:10px;font-size:13px;font-weight:600;transition:.15s}
+.chips button:hover{color:var(--text);border-color:var(--accent)}
+.chips button.on{background:color-mix(in srgb,var(--accent) 16%,transparent);border-color:var(--accent);color:var(--accent)}
+.anamnese{margin-top:-8px}
 
 /* ============================ GRID / CARDS ============================ */
 .grid{display:grid;grid-template-columns:repeat(12,1fr);gap:16px}
@@ -231,6 +237,30 @@ h1.title{font-size:clamp(26px,3vw,34px);font-weight:800;letter-spacing:-.02em;ma
 .wtabs button:hover{color:var(--text)}
 .wtabs button.on{background:var(--accent);border-color:var(--accent);color:#fff}
 
+/* coach */
+.coachlist{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px}
+.coachmsg{display:flex;gap:12px;padding:14px;border-radius:var(--r-sm);background:var(--surface-2);
+  border:1px solid var(--border);border-left:3px solid var(--accent);font-size:13.5px}
+.coachmsg.alert{border-left-color:var(--crit)}
+.coachmsg.reminder{border-left-color:var(--warn)}
+.coachmsg.motivation{border-left-color:var(--good)}
+.coachmsg .cic{font-size:18px;flex:0 0 auto}
+.coachmsg b{font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--faint);display:block;margin-bottom:3px}
+.minibtn{margin-left:auto;border:1px solid var(--border);background:var(--surface-2);color:var(--muted);
+  height:30px;padding:0 12px;border-radius:8px;font-size:11.5px;font-weight:600;transition:.15s}
+.minibtn:hover{border-color:var(--accent);color:var(--accent)}
+.card h3{justify-content:flex-start}
+
+/* impressão: só a lista de compras, limpa */
+@media print{
+  .rail,.top,.profile,.footer,#guardslot{display:none!important}
+  .app{display:block}.main{padding:0;max-width:none}
+  body{background:#fff;color:#000}
+  .grid{display:block}.card{box-shadow:none;border:none;padding:0}
+  .card:not(.printable){display:none!important}
+  .minibtn{display:none}
+}
+
 .footer{margin-top:32px;padding-top:18px;border-top:1px solid var(--border);
   font-size:11.5px;color:var(--faint);font-family:var(--mono);display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px}
 .footer a{color:var(--muted);text-decoration:none}
@@ -295,6 +325,36 @@ h1.title{font-size:clamp(26px,3vw,34px);font-weight:800;letter-spacing:-.02em;ma
       <div class="field"><label>Dias treino</label><input id="days" type="number" value="4" min="1" max="6"></div>
     </section>
 
+    <section class="profile anamnese" aria-label="Anamnese" id="anamnese">
+      <div class="field wide"><label>Estratégia de dieta</label>
+        <select id="strategy">
+          <option value="flexible">Flexível</option>
+          <option value="low_carb">Low carb</option>
+          <option value="keto">Cetogênica</option>
+          <option value="vegetarian">Vegetariana</option>
+          <option value="vegan">Vegana</option>
+          <option value="gluten_free">Sem glúten</option>
+        </select>
+      </div>
+      <div class="field"><label>Alergias</label>
+        <div class="chips" id="allergies" data-multi>
+          <button data-v="lactose">Lactose</button><button data-v="gluten">Glúten</button>
+        </div>
+      </div>
+      <div class="field"><label>Equipamentos</label>
+        <div class="chips" id="equipment" data-multi>
+          <button data-v="bodyweight" class="on">Peso corporal</button><button data-v="dumbbell" class="on">Halteres</button>
+          <button data-v="barbell" class="on">Barra</button><button data-v="machine" class="on">Máquinas</button><button data-v="cable" class="on">Polia</button>
+        </div>
+      </div>
+      <div class="field"><label>Lesões / condições</label>
+        <div class="chips" id="injuries" data-multi>
+          <button data-v="knee">Joelho</button><button data-v="shoulder">Ombro</button>
+          <button data-v="lumbar">Lombar</button><button data-v="wrist">Punho</button><button data-v="t1_diabetes">DM1</button>
+        </div>
+      </div>
+    </section>
+
     <div id="views"></div>
 
     <div class="footer">
@@ -352,6 +412,9 @@ const FOODS=[
   {n:"Queijo minas",c:"dairy",kcal:264,p:17.4,ch:3.2,f:20.2,t:["veg","gf","keto"]},
   {n:"Iogurte natural",c:"dairy",kcal:51,p:4.1,ch:1.9,f:3,t:["veg","gf"]},
   {n:"Tofu firme",c:"legumes",kcal:76,p:8.1,ch:1.9,f:4.8,t:["vegan","veg","gf","lf"]},
+  {n:"Proteína de soja (PTS)",c:"legumes",kcal:336,p:52,ch:30,f:1.2,t:["vegan","veg","gf","lf"]},
+  {n:"Seitan",c:"legumes",kcal:121,p:24,ch:4,f:1,t:["vegan","veg","lf"]},
+  {n:"Grão-de-bico cozido",c:"legumes",kcal:164,p:8.9,ch:27.4,f:2.6,t:["vegan","veg","gf"]},
   {n:"Arroz integral",c:"cereals",kcal:124,p:2.6,ch:25.8,f:1,t:["vegan","veg","gf"]},
   {n:"Feijão carioca",c:"legumes",kcal:76,p:4.8,ch:13.6,f:.5,t:["vegan","veg","gf"]},
   {n:"Lentilha cozida",c:"legumes",kcal:93,p:6.3,ch:16.3,f:.5,t:["vegan","veg","gf"]},
@@ -369,11 +432,33 @@ const FOODS=[
 ];
 const MEALS=[{s:"Café da manhã",t:"07:00",pct:.25},{s:"Almoço",t:"12:00",pct:.35},{s:"Lanche",t:"16:00",pct:.15},{s:"Jantar",t:"20:00",pct:.25}];
 const WEEK_DAYS=["Segunda","Terça","Quarta","Quinta","Sexta","Sábado","Domingo"];
+
+/* estratégias de dieta com contraindicações codificadas (SEED) */
+const STRATEGIES={
+  flexible:{n:"Flexível",req:[],exc:[],contra:[]},
+  low_carb:{n:"Low carb",req:[],exc:[],contra:["t1_diabetes"],carbMaxPct:25},
+  keto:{n:"Cetogênica",req:["keto"],exc:[],contra:["t1_diabetes","kidney"],carbMaxPct:10},
+  vegetarian:{n:"Vegetariana",req:["veg"],exc:[],contra:[]},
+  vegan:{n:"Vegana",req:["vegan"],exc:[],contra:[]},
+  gluten_free:{n:"Sem glúten",req:["gf"],exc:[],contra:[]},
+};
+const ALLERGY_TAG={lactose:"lf",gluten:"gf"};
+function eligibleFoods(strategy,allergies){
+  const s=STRATEGIES[strategy]||STRATEGIES.flexible;
+  return FOODS.filter(f=>{
+    if(s.req.some(t=>!f.t.includes(t)))return false;
+    if(s.exc.some(t=>f.t.includes(t)))return false;
+    for(const a of allergies){const need=ALLERGY_TAG[a];if(need&&!f.t.includes(need))return false;}
+    return true;
+  });
+}
+function strategyAllowed(strategy,conditions){const s=STRATEGIES[strategy]||STRATEGIES.flexible;return !s.contra.some(c=>conditions.includes(c));}
+
 // rotate: dia N usa a N-ésima melhor fonte de cada ranking — variedade sem sorteio.
-function buildMeal(tk,tp,rotate=0){
-  const prot=[...FOODS].filter(x=>x.p/Math.max(x.kcal,1)>.08&&x.p>=12).sort((a,b)=>b.p/b.kcal-a.p/a.kcal||a.n.localeCompare(b.n));
-  const carb=[...FOODS].filter(x=>x.ch>x.p&&x.ch>x.f&&x.kcal<200).sort((a,b)=>b.ch-a.ch||a.n.localeCompare(b.n));
-  const fat=[...FOODS].filter(x=>x.f/Math.max(x.kcal,1)>.05&&x.p/Math.max(x.kcal,1)<=.08).sort((a,b)=>b.f/b.kcal-a.f/a.kcal||a.n.localeCompare(b.n));
+function buildMeal(pool,tk,tp,rotate=0){
+  const prot=pool.filter(x=>x.p/Math.max(x.kcal,1)>.08&&x.p>=12).sort((a,b)=>b.p/b.kcal-a.p/a.kcal||a.n.localeCompare(b.n));
+  const carb=pool.filter(x=>x.ch>x.p&&x.ch>x.f&&x.kcal<200).sort((a,b)=>b.ch-a.ch||a.n.localeCompare(b.n));
+  const fat=pool.filter(x=>x.f/Math.max(x.kcal,1)>.05&&x.p/Math.max(x.kcal,1)<=.08).sort((a,b)=>b.f/b.kcal-a.f/a.kcal||a.n.localeCompare(b.n));
   const pick=l=>l.length?l[rotate%l.length]:null;
   const items=[];let kc=0,pr=0;
   const add=(fd,g)=>{g=Math.round(g/5)*5;if(g<10)return;items.push({n:fd.n,g,kcal:Math.round(fd.kcal*g/100),p:Math.round(fd.p*g/100)});kc+=fd.kcal*g/100;pr+=fd.p*g/100;};
@@ -383,9 +468,9 @@ function buildMeal(tk,tp,rotate=0){
   if(F&&kc<tk*.95)add(F,Math.min((tk-kc)/F.kcal*100,30));
   return{items,kcal:Math.round(kc),p:Math.round(pr)};
 }
-function dayPlan(m,dayIndex=0){return MEALS.map(ms=>({...ms,tk:Math.round(m.kcal*ms.pct),...buildMeal(m.kcal*ms.pct,Math.min(Math.round(m.protein*ms.pct*1.15),40),dayIndex)}));}
-function weekPlan(m){
-  const days=WEEK_DAYS.map((label,i)=>({label,plan:dayPlan(m,i)}));
+function dayPlan(m,pool,dayIndex=0){return MEALS.map(ms=>({...ms,tk:Math.round(m.kcal*ms.pct),...buildMeal(pool,m.kcal*ms.pct,Math.min(Math.round(m.protein*ms.pct*1.15),40),dayIndex)}));}
+function weekPlan(m,pool){
+  const days=WEEK_DAYS.map((label,i)=>({label,plan:dayPlan(m,pool,i)}));
   const grams=new Map();
   for(const d of days)for(const ms of d.plan)for(const it of ms.items)grams.set(it.n,(grams.get(it.n)||0)+it.g);
   const shop=[...grams.entries()].map(([n,g])=>({n,g})).sort((a,b)=>b.g-a.g||a.n.localeCompare(b.n));
@@ -462,11 +547,12 @@ const SPLITS={1:["full"],2:["full","full"],3:["full","full","full"],4:["upper","
 const DAYPAT={full:["squat","push_h","pull_h","hinge","push_v","core"],upper:["push_h","pull_h","push_v","pull_v"],lower:["squat","hinge","squat","core"],push:["push_h","push_v","push_h"],pull:["pull_v","pull_h","pull_v"],legs:["squat","hinge","squat","core"]};
 const GP={hypertrophy:{lo:6,hi:12,rc:150,ri:75},strength:{lo:3,hi:6,rc:180,ri:90},fat_loss:{lo:8,hi:15,rc:120,ri:60},maintenance:{lo:8,hi:15,rc:120,ri:60}};
 const DAYNAME={full:"Corpo inteiro",upper:"Superior",lower:"Inferior",push:"Empurrar",pull:"Puxar",legs:"Pernas"};
-function workoutPlan(p){
-  const eqAll=["barbell","dumbbell","machine","cable","bodyweight"];
+// equipment: lista de equipamentos disponíveis; conditions: lesões (filtro).
+function workoutPlan(p,equipment,conditions){
   const split=SPLITS[Math.min(Math.max(p.days,1),6)];const gp=GP[p.goal]||GP.maintenance;const sets=3;
-  const pool=EX.filter(e=>e.eq.some(x=>eqAll.includes(x)));const usage=new Map();
-  return split.map((dt,i)=>{
+  const pool=EX.filter(e=>e.eq.some(x=>equipment.includes(x))&&!e.ctr.some(c=>conditions.includes(c)));
+  const usage=new Map();const excluded=[];
+  const plan=split.map((dt,i)=>{
     const pats=DAYPAT[dt];const items=[];
     for(const pat of pats){
       const cands=pool.filter(e=>e.mp===pat).sort((a,b)=>b.comp-a.comp||(usage.get(a.c)||0)-(usage.get(b.c)||0)||a.c.localeCompare(b.c));
@@ -475,6 +561,9 @@ function workoutPlan(p){
     }
     return{day:i+1,type:DAYNAME[dt],items};
   });
+  // exercícios barrados por lesão (para transparência na UI)
+  const barred=EX.filter(e=>e.ctr.some(c=>conditions.includes(c))&&e.eq.some(x=>equipment.includes(x)));
+  return{plan,barred};
 }
 
 /* --- adaptação: série de peso sintética determinística + tendência --- */
@@ -491,13 +580,29 @@ function weightSeries(p){
    RENDER
    ====================================================================== */
 const $=s=>document.querySelector(s);
+function chipsOn(id){return [...document.querySelectorAll("#"+id+" button.on")].map(b=>b.dataset.v);}
 function P(){
   return{
     sex:document.querySelector("#sexseg .on").dataset.sex,
     weightKg:+$("#weight").value,heightCm:+$("#height").value,age:+$("#age").value,
     bf:+$("#bf").value,goal:$("#goal").value,activity:$("#activity").value,days:+$("#days").value,
+    strategy:$("#strategy").value,
+    allergies:chipsOn("allergies"),equipment:chipsOn("equipment"),conditions:chipsOn("injuries"),
   };
 }
+
+/* --- coach por regras (Módulo 12): mensagens selecionadas por estado --- */
+const COACH=[
+  {c:"RED_FLAG",pr:0,cat:"alert",when:s=>s.redFlags>0,body:()=>"Há uma bandeira de segurança ativa. Antes de seguir o plano, veja a aba Segurança e procure um profissional habilitado."},
+  {c:"RAPID_LOSS",pr:1,cat:"alert",when:s=>s.rapidLoss,body:()=>"Você está perdendo peso rápido demais — isso custa massa muscular. O motor já sugeriu subir 10% das calorias."},
+  {c:"DIET_BLOCKED",pr:1,cat:"alert",when:s=>s.dietBlocked,body:s=>`A dieta ${s.strategyName} é contraindicada para a sua condição. Escolha outra estratégia ou converse com um profissional.`},
+  {c:"LOW_WATER",pr:2,cat:"reminder",when:s=>s.waterPctToday!=null&&s.waterPctToday<50,body:s=>`Você bebeu ${Math.round(s.waterPctToday)}% da meta de água hoje. Uma garrafa de 500 ml agora te recoloca no ritmo.`},
+  {c:"PLATEAU",pr:4,cat:"feedback",when:s=>s.plateau,body:()=>"Seu peso estagnou por 2 semanas com boa adesão. O motor ajustou −5% nas calorias e sugere +2000 passos/dia."},
+  {c:"PROTEIN_GAP",pr:5,cat:"correction",when:s=>s.proteinDoneToday===false,body:()=>"Ainda não marcou a proteína do dia. Priorize uma fonte magra na próxima refeição."},
+  {c:"STREAK",pr:6,cat:"motivation",when:s=>[7,14,30,60,100].includes(s.streakDays),body:s=>`${s.streakDays} dias seguidos! Consistência é o que separa quem tenta de quem consegue. 🔥`},
+  {c:"ON_TRACK",pr:9,cat:"motivation",when:s=>!s.plateau&&!s.rapidLoss&&!s.dietBlocked&&s.redFlags===0&&s.streakDays>=1,body:s=>`No rumo certo — sequência de ${s.streakDays} dia${s.streakDays===1?"":"s"} e nenhuma bandeira ativa. Mantenha o ritmo.`},
+];
+function coachMessages(state){return COACH.filter(m=>{try{return m.when(state);}catch(e){return false;}}).sort((a,b)=>a.pr-b.pr||a.c.localeCompare(b.c)).map(m=>({c:m.c,cat:m.cat,body:m.body(state)}));}
 const COL={protein:"var(--accent)",carb:"var(--accent-2)",fat:"#F2C14E"};
 function ring(pct,size=190){
   const r=size/2-14,c=2*Math.PI*r,off=c*(1-Math.min(pct,1));
@@ -587,21 +692,27 @@ function render(){
       <div class="legrow"><span class="dot" style="background:var(--good)"></span><div class="lab"><b>${(wm/1000).toFixed(2)} L água</b><span>meta hídrica do dia</span></div></div>
     </div></div></div>`;
 
+  // ---- dieta: aplica estratégia + alergias + contraindicação por condição ----
+  const dietBlocked=!strategyAllowed(p.strategy,p.conditions);
+  const pool=eligibleFoods(p.strategy,p.allergies);
+  const stratName=(STRATEGIES[p.strategy]||STRATEGIES.flexible).n;
+  const blockedBadge=dietBlocked?`<span class="pill crit">contraindicada</span>`:pool.length<3?`<span class="pill warn">poucos alimentos</span>`:`<span class="pill accent">${stratName}</span>`;
+
   // meals & workout compact — hoje usa o dia real da semana (rotação determinística)
   const todayIdx=(new Date().getDay()+6)%7; // 0=segunda
-  const plan=dayPlan(m,todayIdx),totKcal=plan.reduce((s,x)=>s+x.kcal,0),totP=plan.reduce((s,x)=>s+x.p,0);
-  const cardMeals=`<div class="card span-6"><h3>Plano alimentar · ${WEEK_DAYS[todayIdx]}</h3><div class="cap">gerado por regras · ${totKcal} kcal · ${totP} g proteína · rotação diária de fontes</div>
-    <div class="list">${plan.map(ms=>`<div class="daytag">${ms.s} · ${ms.t} · alvo ${ms.tk} kcal</div>${ms.items.map((it,i)=>`<div class="li"><span class="idx tnum">${String(i+1).padStart(2,'0')}</span><div class="nm"><b>${it.n}</b><span>${it.g} g</span></div><div class="rt"><b class="tnum">${it.kcal}</b> kcal · ${it.p}g P</div></div>`).join("")}`).join("")}</div></div>`;
+  const plan=dietBlocked?[]:dayPlan(m,pool,todayIdx),totKcal=plan.reduce((s,x)=>s+x.kcal,0),totP=plan.reduce((s,x)=>s+x.p,0);
+  const cardMeals=`<div class="card span-6"><h3>Plano alimentar · ${WEEK_DAYS[todayIdx]} ${blockedBadge}</h3><div class="cap">${dietBlocked?`dieta ${stratName} contraindicada para a condição selecionada`:`${stratName} · ${totKcal} kcal · ${totP} g proteína · ${pool.length} alimentos elegíveis`}</div>
+    ${dietBlocked?`<div class="src" style="font-size:13px;color:var(--crit)">O motor recusa gerar um plano com estratégia contraindicada. Escolha outra dieta ou remova a condição.</div>`:`<div class="list">${plan.map(ms=>`<div class="daytag">${ms.s} · ${ms.t} · alvo ${ms.tk} kcal</div>${ms.items.map((it,i)=>`<div class="li"><span class="idx tnum">${String(i+1).padStart(2,'0')}</span><div class="nm"><b>${it.n}</b><span>${it.g} g</span></div><div class="rt"><b class="tnum">${it.kcal}</b> kcal · ${it.p}g P</div></div>`).join("")}`).join("")}</div>`}</div>`;
 
   // ---- semana: plano de 7 dias + lista de compras ----
-  const wk=weekPlan(m);
+  const wk=dietBlocked?{days:WEEK_DAYS.map(label=>({label,plan:[]})),shop:[]}:weekPlan(m,pool);
   const wd=wk.days[WEEKSEL];
   const wdKcal=wd.plan.reduce((s,x)=>s+x.kcal,0),wdP=wd.plan.reduce((s,x)=>s+x.p,0);
   const cardWeek=`<div class="card span-7"><h3>Cardápio da semana</h3><div class="cap">7 dias · rotação determinística de fontes · sem repetição monótona</div>
     <div class="wtabs" id="wtabs">${wk.days.map((d,i)=>`<button data-w="${i}" class="${i===WEEKSEL?'on':''}">${d.label.slice(0,3)}</button>`).join("")}</div>
     <div class="daytag" style="margin-top:0">${wd.label} · ${wdKcal} kcal · ${wdP} g proteína</div>
     <div class="list">${wd.plan.map(ms=>`<div class="daytag">${ms.s} · ${ms.t}</div>${ms.items.map((it,i)=>`<div class="li"><span class="idx tnum">${String(i+1).padStart(2,'0')}</span><div class="nm"><b>${it.n}</b><span>${it.g} g</span></div><div class="rt"><b class="tnum">${it.kcal}</b> kcal · ${it.p}g P</div></div>`).join("")}`).join("")}</div></div>`;
-  const cardShop=`<div class="card span-5"><h3>Lista de compras</h3><div class="cap">agregada da semana inteira · ${wk.shop.length} itens</div>
+  const cardShop=`<div class="card printable span-5"><h3>Lista de compras <button class="minibtn" id="exportShop">Exportar / Imprimir</button></h3><div class="cap">agregada da semana inteira · ${wk.shop.length} itens</div>
     <div class="list">${wk.shop.map((it,i)=>`<div class="li"><span class="idx tnum">${String(i+1).padStart(2,'0')}</span><div class="nm"><b>${it.n}</b></div><div class="rt"><b class="tnum">${it.g>=1000?(it.g/1000).toFixed(2).replace('.',',')+' kg':it.g+' g'}</b></div></div>`).join("")}</div>
     <div class="src" style="margin-top:12px">Quantidades exatas do plano — some sua margem de preparo.</div></div>`;
 
@@ -642,18 +753,29 @@ function render(){
     <div class="habgrid" id="habgrid">${HABITS.map(h=>`<div class="hab ${doneToday.includes(h.k)?"done":""}" data-h="${h.k}" role="button" tabindex="0" aria-pressed="${doneToday.includes(h.k)}"><span class="ic">${h.ic}</span><span class="hn">${h.n}</span><span class="chk">✓</span></div>`).join("")}</div>
     <div class="deltarow"><span>Água de hoje: <b>${(wm/1000).toFixed(2)} L</b> · Proteína: <b>${m.protein} g</b> · Passos: meta <b>8 000</b></span></div></div>`;
 
-  const wp=workoutPlan(p);
-  const cardWorkout=`<div class="card span-6"><h3>Treino gerado</h3><div class="cap">split ${wp.map(d=>d.type.slice(0,3)).join("/")} · ${p.days}× semana · lesões filtram exercícios</div>
-    <div class="list">${wp.map(d=>`<div class="daytag">Dia ${d.day} · ${d.type}</div>${d.items.map((it,i)=>`<div class="li"><span class="idx tnum">${String(i+1).padStart(2,'0')}</span><div class="nm"><b>${it.n}</b><span>${it.mu}</span></div><div class="rt"><b class="tnum">${it.sets}×${it.lo}–${it.hi}</b> · ${it.rest}s</div></div>`).join("")}`).join("")}</div></div>`;
+  const wpr=workoutPlan(p,p.equipment.length?p.equipment:["bodyweight"],p.conditions);
+  const wp=wpr.plan;
+  const noEquip=p.equipment.length===0;
+  const cardWorkout=`<div class="card span-6"><h3>Treino gerado ${wpr.barred.length?`<span class="pill warn">${wpr.barred.length} barrado${wpr.barred.length>1?"s":""} por lesão</span>`:""}</h3><div class="cap">split ${wp.map(d=>d.type.slice(0,3)).join("/")} · ${p.days}× semana · ${noEquip?"sem equipamento → peso corporal":p.equipment.length+" equipamentos"}</div>
+    <div class="list">${wp.map(d=>`<div class="daytag">Dia ${d.day} · ${d.type}</div>${d.items.map((it,i)=>`<div class="li"><span class="idx tnum">${String(i+1).padStart(2,'0')}</span><div class="nm"><b>${it.n}</b><span>${it.mu}</span></div><div class="rt"><b class="tnum">${it.sets}×${it.lo}–${it.hi}</b> · ${it.rest}s</div></div>`).join("")}`).join("")}</div>
+    ${wpr.barred.length?`<div class="src" style="margin-top:12px">Excluídos pela lesão: ${wpr.barred.map(e=>e.n).join(", ")}. O motor nunca prescreve exercício contraindicado.</div>`:""}</div>`;
+
+  // ---- coach por regras: estado agregado ----
+  const coachState={redFlags:guards.filter(g=>g.sev==="crit").length,rapidLoss:rapid,plateau:plateau,dietBlocked,strategyName:stratName,
+    waterPctToday:doneToday.includes("water")?100:40,proteinDoneToday:doneToday.includes("protein"),streakDays:st2};
+  const cmsgs=coachMessages(coachState);
+  const CATIC={alert:"⚠️",reminder:"🔔",feedback:"📊",correction:"🎯",motivation:"✨"};
+  const cardCoach=`<div class="card span-12"><h3>Coach <span class="pill accent">${cmsgs.length} mensage${cmsgs.length===1?"m":"ns"}</span></h3><div class="cap">selecionadas por regra sobre o seu estado · nada gerado livremente</div>
+    <div class="coachlist">${cmsgs.map(msg=>`<div class="coachmsg ${msg.cat}"><span class="cic">${CATIC[msg.cat]||"💬"}</span><div><b class="mono">${msg.cat}</b><div>${msg.body}</div></div></div>`).join("")||`<div class="src">Sem mensagens ativas — tudo em ordem.</div>`}</div></div>`;
 
   const VIEWS={
-    today:{title:"Hoje",sub:"Tudo abaixo é calculado por fórmula nomeada — mesmo input, mesmo output.",html:cardEnergy+cardMacros+cardBody+cardTrend+cardReady+cardMeals+cardWorkout},
+    today:{title:"Hoje",sub:"Tudo abaixo é calculado por fórmula nomeada — mesmo input, mesmo output.",html:cardCoach+cardEnergy+cardMacros+cardBody+cardTrend+cardReady+cardMeals+cardWorkout},
     nutri:{title:"Nutrição",sub:"Meta calórica e macros pelo motor; plano montado por seleção na base de alimentos.",html:cardEnergy+cardMacros+cardMeals+cardBody},
     week:{title:"Semana",sub:"7 dias com rotação determinística de fontes + lista de compras agregada.",html:cardWeek+cardShop},
     train:{title:"Treino",sub:"Split por frequência, faixas por objetivo, progressão dupla automática.",html:cardWorkout+cardReady+cardTrend},
     calc:{title:"Calculadoras",sub:"Cada número com fórmula nomeada e fonte.",html:cardEnergy+cardBody+cardMacros+cardReady},
     labs:{title:"Exames",sub:"Comparação com faixas de referência armazenadas — educativo, nunca prescreve.",html:cardLabs+cardLabSummary},
-    habits:{title:"Hábitos",sub:"Checklist diário e sequência por regras determinísticas sobre o que você registra.",html:cardHabits+cardStreak},
+    habits:{title:"Hábitos",sub:"Checklist diário e sequência por regras determinísticas sobre o que você registra.",html:cardHabits+cardStreak+cardCoach},
     safe:{title:"Segurança",sub:"Guardrails determinísticos. Educa, não diagnostica.",html:(guards.length?"":`<div class="card span-12"><h3>Nenhuma bandeira vermelha ativa <span class="pill good">tudo certo</span></h3><div class="cap">o motor libera as recomendações padrão</div><div class="src" style="font-size:12px">Regras monitoradas: dor torácica ao esforço · IMC &lt;17,5 com meta de emagrecer · indícios de transtorno alimentar · gestação/lactação · diabetes tipo 1 · menor de 16 sem responsável · exame em faixa crítica · piso calórico 1,1×TMB · freio de perda &gt;1,5%/semana.</div></div>`)+cardTrend+cardBody},
   };
   const v=VIEWS[VIEW];
@@ -667,7 +789,10 @@ document.querySelectorAll(".profile input,.profile select").forEach(el=>el.addEv
 $("#views").addEventListener("click",e=>{
   const w=e.target.closest("[data-w]");if(w){WEEKSEL=+w.dataset.w;render();return;}
   const h=e.target.closest(".hab");if(h){toggleHabit(h.dataset.h);return;}
+  if(e.target.closest("#exportShop")){window.print();return;}
 });
+// chips multi-seleção da anamnese
+$("#anamnese").addEventListener("click",e=>{const b=e.target.closest(".chips[data-multi] button");if(!b)return;b.classList.toggle("on");render();});
 $("#views").addEventListener("keydown",e=>{
   const h=e.target.closest(".hab");
   if(h&&(e.key==="Enter"||e.key===" ")){e.preventDefault();toggleHabit(h.dataset.h);}

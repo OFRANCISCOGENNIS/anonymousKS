@@ -10,6 +10,7 @@ const G = require('./guardrails');
 const D = require('./dietGenerator');
 const W = require('./workoutGenerator');
 const A = require('./adaptation');
+const C = require('./coach');
 
 let passed = 0;
 function test(name, fn) {
@@ -339,6 +340,45 @@ test('meta na direção oposta da tendência → não alcançável', () => {
 });
 test('adaptation: determinismo', () => {
   deterministic(() => A.detectPlateau({ weighins: flat14d, adherencePct: 85, goal: 'fat_loss' }));
+});
+
+// ---------------------------------------------------------------------------
+console.log('coach.js');
+// ---------------------------------------------------------------------------
+test('estado saudável com sequência → mensagem "no rumo certo"', () => {
+  const msgs = C.selectCoachMessages({ streakDays: 5 });
+  assert.ok(msgs.some((m) => m.code === 'ON_TRACK'));
+});
+test('red flag tem prioridade máxima (aparece primeiro)', () => {
+  const msgs = C.selectCoachMessages({ redFlags: 1, waterPctToday: 20, streakDays: 3 });
+  assert.strictEqual(msgs[0].code, 'RED_FLAG');
+});
+test('água baixa gera lembrete com o percentual interpolado', () => {
+  const msgs = C.selectCoachMessages({ waterPctToday: 30 });
+  const w = msgs.find((m) => m.code === 'LOW_WATER');
+  assert.ok(w && w.body.includes('30%'));
+});
+test('marco de streak dispara só nos valores canônicos (7,14,30,60,100)', () => {
+  assert.ok(C.selectCoachMessages({ streakDays: 7 }).some((m) => m.code === 'STREAK_MILESTONE'));
+  assert.ok(!C.selectCoachMessages({ streakDays: 8 }).some((m) => m.code === 'STREAK_MILESTONE'));
+});
+test('perda rápida e platô nunca aparecem no mesmo estado, mas ambos vencem ON_TRACK', () => {
+  const rapid = C.selectCoachMessages({ rapidLoss: true, streakDays: 3 });
+  assert.strictEqual(rapid[0].code, 'RAPID_LOSS');
+  assert.ok(!rapid.some((m) => m.code === 'ON_TRACK'));
+});
+test('limite N retorna as mensagens mais urgentes', () => {
+  const msgs = C.selectCoachMessages({ redFlags: 1, waterPctToday: 10, sleepAvg7d: 5, streakDays: 3 }, 2);
+  assert.strictEqual(msgs.length, 2);
+  assert.strictEqual(msgs[0].code, 'RED_FLAG');
+});
+test('estado vazio não quebra e não inventa mensagem falsa', () => {
+  const msgs = C.selectCoachMessages({});
+  assert.ok(Array.isArray(msgs));
+  assert.ok(!msgs.some((m) => m.code === 'ON_TRACK')); // sem streak, não afirma progresso
+});
+test('coach: determinismo', () => {
+  deterministic(() => C.selectCoachMessages({ waterPctToday: 40, streakDays: 7, proteinGapPct: 20 }));
 });
 
 // ---------------------------------------------------------------------------
