@@ -296,14 +296,33 @@ h1.title{font-size:clamp(26px,3vw,34px);font-weight:800;letter-spacing:-.02em;ma
 .minibtn:hover{border-color:var(--accent);color:var(--accent)}
 .card h3{justify-content:flex-start}
 
-/* impressão: só a lista de compras, limpa */
+/* relatório de prontuário (oculto na tela; visível só na impressão) */
+#report{display:none}
+.rep{color:#111;font-size:12px;line-height:1.45;max-width:720px;margin:0 auto}
+.rep .rephead{border-bottom:2px solid #111;padding-bottom:8px;margin-bottom:14px;display:flex;justify-content:space-between;align-items:flex-end;flex-wrap:wrap;gap:6px}
+.rep h2{margin:0;font-size:20px}
+.rep h3{font-size:13px;text-transform:uppercase;letter-spacing:.04em;border-bottom:1px solid #bbb;padding-bottom:3px;margin:16px 0 8px}
+.rep table{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums}
+.rep td{padding:3px 6px;border-bottom:1px solid #eee}
+.rep td:last-child{text-align:right;font-weight:600}
+.rep .grid2{display:grid;grid-template-columns:1fr 1fr;gap:0 24px}
+.rep .repfoot{margin-top:18px;padding-top:8px;border-top:1px solid #bbb;color:#666;font-size:10px}
+.rep ul{margin:4px 0;padding-left:18px}
+
+/* impressão: dois modos — lista de compras OU prontuário completo */
 @media print{
-  .rail,.top,.profile,.footer,#guardslot{display:none!important}
-  .app{display:block}.main{padding:0;max-width:none}
   body{background:#fff;color:#000}
-  .grid{display:block}.card{box-shadow:none;border:none;padding:0}
-  .card:not(.printable){display:none!important}
-  .minibtn{display:none}
+  .rail,.top,.profile,.anamnese,.footer,#guardslot{display:none!important}
+  .app{display:block}.main{padding:0;max-width:none}
+  #views,#report{display:none!important}
+  .minibtn,.rmbtn{display:none!important}
+  /* modo lista de compras */
+  body.print-shop #views{display:block!important}
+  body.print-shop .grid{display:block}
+  body.print-shop .card{box-shadow:none;border:none;padding:0}
+  body.print-shop .card:not(.printable){display:none!important}
+  /* modo prontuário completo */
+  body.print-report #report{display:block!important}
 }
 
 .footer{margin-top:32px;padding-top:18px;border-top:1px solid var(--border);
@@ -340,6 +359,7 @@ h1.title{font-size:clamp(26px,3vw,34px);font-weight:800;letter-spacing:-.02em;ma
       <div class="toprt">
         <select class="themebtn" id="patientsel" aria-label="Paciente"></select>
         <button class="themebtn" id="addpatient" aria-label="Novo paciente">+ Paciente</button>
+        <button class="themebtn" id="exportPdf" aria-label="Exportar prontuário">⭳ Prontuário</button>
         <button class="themebtn" id="theme" aria-label="Alternar tema"><span id="themeic">◐</span><span id="themetx">Tema</span></button>
         <div class="avatar" id="avatar">RA</div>
       </div>
@@ -407,6 +427,7 @@ h1.title{font-size:clamp(26px,3vw,34px);font-weight:800;letter-spacing:-.02em;ma
     </section>
 
     <div id="views"></div>
+    <div id="report" aria-hidden="true"></div>
 
     <div class="footer">
       <span>Vitα · engine v1 · TACO / ISSN 2017 / ACSM / Helms 2014</span>
@@ -1048,6 +1069,41 @@ function render(){
     <div class="wtabs">${cmodes.map(([k,l])=>`<button data-cmode="${k}" class="${k===CALC.mode?"on":""}">${l}</button>`).join("")}</div>
     ${cbody}</div>`;
 
+  // ---- PRONTUÁRIO PARA EXPORTAÇÃO (impressão → PDF) ----
+  const GOALLBL={fat_loss:"Emagrecimento",hypertrophy:"Hipertrofia",maintenance:"Manutenção / saúde"}[p.goal]||p.goal;
+  const lowMic=micros.filter(x=>x.st==="low").map(x=>x.l);
+  const okMic=micros.filter(x=>x.st==="ok"||x.st==="high").length;
+  const dt=new Date();const dstr=String(dt.getDate()).padStart(2,"0")+"/"+String(dt.getMonth()+1).padStart(2,"0")+"/"+dt.getFullYear();
+  const row=(a,b)=>`<tr><td>${a}</td><td>${b}</td></tr>`;
+  const reportHtml=`<div class="rep">
+    <div class="rephead"><h2>Prontuário — ${_nm}</h2><div>${dstr} · ${GOALLBL} · ${p.sex==="M"?"masc.":"fem."}, ${p.age} anos</div></div>
+    <div class="grid2">
+    <div><h3>Avaliação corporal</h3><table>
+      ${row("Peso",p.weightKg+" kg")}${row("Altura",p.heightCm+" cm")}${row("IMC",bi+" ("+(bi<18.5?"abaixo":bi<25?"normal":bi<30?"sobrepeso":"obesidade")+")")}
+      ${row("%Gordura (informado)",p.bf+"%")}${row("RFM (cintura)",(rfmV??"—")+"%")}${row("FFMI",ff??"—")}${row("Massa magra",(p.bf>0?R(p.weightKg*(1-p.bf/100),1):"—")+" kg")}
+    </table></div>
+    <div><h3>Metas energéticas</h3><table>
+      ${row("TMB ("+bz.source+")",bz.value+" kcal")}${row("TDEE",td.value+" kcal")}${row("Meta calórica",m.kcal+" kcal")}
+      ${row("Proteína",m.protein+" g ("+R(m.protein/p.weightKg,1)+" g/kg)")}${row("Carboidrato",m.carb+" g")}${row("Gordura",m.fat+" g")}${row("Fibra",m.fiber+" g")}${row("Água",(wm/1000).toFixed(2)+" L")}
+    </table></div>
+    </div>
+    <h3>Plano alimentar do dia — ${WEEK_DAYS[todayIdx]}</h3>
+    ${dietBlocked?`<div>Estratégia ${stratName} contraindicada para a condição do paciente.</div>`:`<table>${plan.map(ms=>`<tr><td><b>${ms.s}</b> (${ms.t}) — ${ms.items.map(it=>it.n+" "+it.g+"g").join(", ")}</td><td>${ms.kcal} kcal · ${ms.p}g P</td></tr>`).join("")}</table>`}
+    <h3>Análise de precisão ${hasLog?"(consumo real)":"(plano)"}</h3><table>
+      ${row("Qualidade proteica (PDCAAS)",pq.score.toFixed(2)+(pq.comp?" · complementada":pq.lim?" · limitante: "+pq.lim:""))}
+      ${row("Carga glicêmica do dia",gload.gl+" ("+(gload.st==="low"?"baixa":gload.st==="medium"?"média":"alta")+")")}
+      ${row("Micronutrientes ok",okMic+"/"+micros.length)}
+      ${row("Abaixo de 70% da DRI",lowMic.length?lowMic.join(", "):"nenhum")}
+      ${hasLog?row("Aderência ao alvo hoje",adh.ad+"% ("+consumed.kcal+"/"+m.kcal+" kcal)"):""}
+    </table>
+    <h3>Treino — ${p.days}× por semana (${wp.map(d=>d.type).join(" / ")})</h3>
+    <table>${vaudit.map(v=>row(v.mu,v.sets+" séries/sem · "+({below:"abaixo do MEV",prod:"produtivo",high:"alto",over:"acima do MRV"}[v.st]))).join("")}</table>
+    <h3>Evolução do peso</h3>
+    ${usingReal?`<table>${realW.slice(-8).map(w=>row(w.d,w.kg+" kg"+(w.bf?" · "+w.bf+"% gord":""))).join("")}</table><div>Tendência: ${perWk>0?"+":""}${perWk} kg/semana (${status.t}).</div>`:`<div>Sem medições registradas — use "Registrar medição" para acompanhar a evolução real.</div>`}
+    <div class="repfoot">Documento educativo gerado por Vitα (motor determinístico, reprodutível). Não substitui avaliação médica ou nutricional presencial. Fórmulas e fontes: Mifflin-St Jeor, ISSN 2017, Morton 2018, Schoenfeld & Aragon 2018, IOM/DRI, Woolcott 2018.</div>
+  </div>`;
+  $("#report").innerHTML=reportHtml;
+
   const VIEWS={
     today:{title:"Hoje",sub:"Tudo abaixo é calculado por fórmula nomeada — mesmo input, mesmo output.",html:cardCoach+cardEnergy+cardMacros+cardBody+cardTrend+cardReady+cardMeals+cardWorkout},
     nutri:{title:"Nutrição",sub:"Meta calórica e macros pelo motor; plano montado por seleção na base de alimentos.",html:cardEnergy+cardMacros+cardMeals+cardBody},
@@ -1074,16 +1130,19 @@ document.querySelectorAll(".profile input,.profile select").forEach(el=>el.addEv
 $("#views").addEventListener("click",e=>{
   const w=e.target.closest("[data-w]");if(w){WEEKSEL=+w.dataset.w;render();return;}
   const h=e.target.closest(".hab");if(h){toggleHabit(h.dataset.h);return;}
-  if(e.target.closest("#exportShop")){window.print();return;}
+  if(e.target.closest("#exportShop")){printMode("print-shop");return;}
   if(e.target.closest("#logMeas")){logMeasurement();return;}
   if(e.target.closest("#addlog")){addLogItem($("#logfood").value,+$("#loggrams").value);return;}
   const rm=e.target.closest("[data-rmlog]");if(rm){removeLogItem(+rm.dataset.rmlog);return;}
   const cm=e.target.closest("[data-cmode]");if(cm){CALC.mode=cm.dataset.cmode;render();return;}
   const sw=e.target.closest("[data-swap]");if(sw){SWAP=SWAP===sw.dataset.swap?null:sw.dataset.swap;render();return;}
 });
-// troca de paciente + novo paciente
+// troca de paciente + novo paciente + exportar prontuário
 $("#patientsel").addEventListener("change",e=>{pSetActive(e.target.value);loadProfile();render();});
 $("#addpatient").addEventListener("click",()=>{pAdd();loadProfile();render();});
+$("#exportPdf").addEventListener("click",()=>printMode("print-report"));
+function printMode(cls){document.body.classList.add(cls);window.print();setTimeout(()=>document.body.classList.remove(cls),400);}
+if(window.matchMedia)window.matchMedia("print").addEventListener&&window.matchMedia("print").addEventListener("change",ev=>{if(!ev.matches)document.body.classList.remove("print-shop","print-report");});
 // inputs/selects das calculadoras — 'change' (não 'input') p/ não perder foco no re-render
 $("#views").addEventListener("change",e=>{const c=e.target.closest("[data-calc]");if(c){CALC[c.dataset.calc]=c.value;render();}});
 // chips multi-seleção da anamnese
