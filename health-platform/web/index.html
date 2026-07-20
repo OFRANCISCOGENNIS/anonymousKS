@@ -65,12 +65,13 @@ input,select{font-family:inherit}
   color:#fff;font-weight:800;font-size:20px;margin-bottom:14px;
   box-shadow:0 6px 18px -6px var(--accent);
 }
-.nav{display:flex;flex-direction:column;gap:4px;width:100%;align-items:center}
+.nav{display:flex;flex-direction:column;gap:3px;width:100%;align-items:center;flex:1;min-height:0;overflow-y:auto;overflow-x:visible;scrollbar-width:none}
+.nav::-webkit-scrollbar{width:0;height:0}
 .nav button{
-  width:48px;height:48px;border-radius:12px;border:0;background:transparent;
+  width:46px;height:44px;border-radius:11px;border:0;background:transparent;flex:0 0 auto;
   color:var(--muted);display:grid;place-items:center;transition:.18s;position:relative;
 }
-.nav button svg{width:22px;height:22px;stroke-width:1.8}
+.nav button svg{width:21px;height:21px;stroke-width:1.8}
 .nav button:hover{background:var(--surface-2);color:var(--text)}
 .nav button.on{background:color-mix(in srgb,var(--accent) 16%,transparent);color:var(--accent)}
 .nav button.on::before{content:"";position:absolute;left:-14px;width:3px;height:22px;border-radius:3px;background:var(--accent)}
@@ -999,7 +1000,9 @@ function loadProfile(){
   const pt=pActive();if(!pt)return;
   $("#pname").value=pt.name||"Paciente";
   const d=pt.profile||{};
-  const set=(id,v)=>{if(v!=null&&v!==""&&$("#"+id))$("#"+id).value=v;};
+  // aplica default quando o campo do paciente está vazio (evita herdar o perfil do paciente anterior)
+  const DEF={weight:"80",height:"180",age:"30",bf:"20",waist:"85",goal:"fat_loss",activity:"moderate",days:"4",strategy:"flexible"};
+  const set=(id,v)=>{if($("#"+id))$("#"+id).value=(v!=null&&v!=="")?v:DEF[id];};
   set("weight",d.weight);set("height",d.height);set("age",d.age);set("bf",d.bf);set("waist",d.waist);
   set("goal",d.goal);set("activity",d.activity);set("days",d.days);set("strategy",d.strategy);
   document.querySelectorAll("#sexseg button").forEach(b=>b.classList.toggle("on",b.dataset.sex===(d.sex||"M")));
