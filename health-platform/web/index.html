@@ -299,6 +299,15 @@ h1.title{font-size:clamp(26px,3vw,34px);font-weight:800;letter-spacing:-.02em;ma
 .anamq-t{font-size:13.5px;flex:1;min-width:180px}
 .anamseg{height:34px}.anamseg button{padding:0 14px}
 
+/* sessão ao vivo */
+.sesscard{border-color:color-mix(in srgb,var(--accent) 45%,var(--border))}
+.sessex b{font-size:20px;font-weight:800;letter-spacing:-.01em;display:block}
+.sessex span{font-family:var(--mono);font-size:12px;color:var(--muted)}
+.restbox{display:flex;align-items:center;gap:12px;margin-top:12px;padding:12px 14px;border-radius:var(--r-sm);background:var(--surface-2);border:1px solid var(--border)}
+.resttime{font-family:var(--mono);font-size:24px;font-weight:800;color:var(--accent)}
+.resttime.soon{color:var(--warn)}
+.resttime.done{color:var(--good);font-size:14px;font-weight:700}
+
 /* registro de treino */
 .wlogp .wsetrow{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
 .setchip{font-family:var(--mono);font-size:11px;background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:3px 8px}
@@ -1195,6 +1204,17 @@ const macroBar=(name,g,kcalShare,total,color,src)=>`
   <div class="src">${src}</div></div>`;
 
 let VIEW="today",WEEKSEL=(new Date().getDay()+6)%7,SWAP=null,WLOG=null,CHECKIN_TEXT="",EXFILTER="all",EXOPEN=null;
+/* sessão de treino ao vivo: dia do split, índice do exercício, fim do descanso */
+let SESH=null; // {day, ex, restUntil, started}
+let LASTWP=null; // snapshot do plano do último render (para os handlers da sessão)
+// ticker do descanso: atualiza só o texto do timer (sem re-render → inputs mantêm foco)
+setInterval(()=>{
+  const el=document.getElementById("resttimer");
+  if(!el||!SESH||!SESH.restUntil)return;
+  const left=Math.max(0,Math.ceil((SESH.restUntil-Date.now())/1000));
+  el.textContent=left>0?left+" s":"descanso concluído — próxima série!";
+  el.className="resttime "+(left>0?(left<=10?"soon":""):"done");
+},500);
 function dateStrAgo(n){const d=new Date();d.setDate(d.getDate()-n);return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");}
 function avgInWindow(arr,getD,getV,lo,hi){const vs=arr.filter(x=>{const d=getD(x);return d>=lo&&d<=hi;}).map(getV);return vs.length?vs.reduce((s,x)=>s+x,0)/vs.length:null;}
 let CALC={mode:"1rm",rmLoad:100,rmReps:5,rmTarget:8,hrRest:60,paceKm:5,paceMin:25,actType:"corrida_leve",actMin:30,cooper:2400};
@@ -1405,8 +1425,39 @@ function render(){
   };
   const cardWorkout=`<div class="card span-6"><h3>Treino gerado <span class="pill ${isDeload?"warn":"accent"}">${isDeload?"DELOAD":"Sem "+mw+"/"+per.mesoLen}</span>${wpr.barred.length?` <span class="pill warn">${wpr.barred.length} barrado${wpr.barred.length>1?"s":""}</span>`:""}</h3><div class="cap">split ${wp.map(d=>d.type.slice(0,3)).join("/")} · ${p.days}× semana · toque num exercício para registrar séries</div>
     <div class="wtabs" style="margin-bottom:12px"><button class="minibtn" id="mesoPrev">◀ semana</button><span class="pill ${isDeload?"warn":"good"}" style="align-self:center">${isDeload?"deload":"acúmulo "+(per.prog||0)+"%"}</span><button class="minibtn" id="mesoNext">semana ▶</button></div>
-    <div class="list">${wp.map(d=>`<div class="daytag">Dia ${d.day} · ${d.type}</div>${d.items.map(exItem).join("")}`).join("")}</div>
+    <div class="list">${wp.map((d,di)=>`<div class="daytag">Dia ${d.day} · ${d.type} <button class="minibtn" data-startsess="${di}" style="margin-left:8px">▶ Iniciar sessão</button></div>${d.items.map(exItem).join("")}`).join("")}</div>
     ${isDeload?`<div class="src" style="margin-top:12px">Semana de deload: metade das séries, 80% da carga, longe da falha. Recupera para o próximo mesociclo render mais.</div>`:wpr.barred.length?`<div class="src" style="margin-top:12px">Excluídos pela lesão: ${wpr.barred.map(e=>e.n).join(", ")}.</div>`:""}</div>`;
+
+  // ---- SESSÃO AO VIVO: exercício a exercício com timer de descanso ----
+  let cardSession="";
+  if(SESH&&wp[SESH.day]){
+    const sd=wp[SESH.day];const cur=sd.items[Math.min(SESH.ex,sd.items.length-1)];
+    const base=EX.find(e=>e.n===cur.n);
+    const todaySets=(wlogFor(cur.n).find(x=>x.d===todayKey())||{sets:[]}).sets;
+    const doneSets=todaySets.length;
+    const prog=Math.round((SESH.ex+Math.min(doneSets/cur.sets,1))/sd.items.length*100);
+    const nl2=nextLoadWeb(wlogFor(cur.n),cur.hi,base?!!base.comp:true);
+    const suggested=nl2.change==="increase"?nl2.next:(todaySets.length?todaySets[todaySets.length-1].l:null);
+    cardSession=`<div class="card span-6 sesscard"><h3>Sessão ao vivo · ${sd.type} <span class="pill accent">${SESH.ex+1}/${sd.items.length}</span> <button class="minibtn" id="sessEnd">Encerrar</button></h3>
+      <div class="track" style="margin-bottom:16px"><div class="fill" style="width:${prog}%;background:linear-gradient(90deg,var(--accent),var(--accent-2))"></div></div>
+      <div class="sessex"><b>${cur.n}</b><span>${cur.mu} · alvo ${cur.sets}×${cur.lo}–${cur.hi} · RIR ${cur.rir}${suggested?` · sugerido ${suggested} kg`:""}</span></div>
+      ${base&&base.cue?`<div class="src" style="margin:8px 0 12px">${base.cue}</div>`:""}
+      <div class="wsetrow" style="margin-bottom:10px">${todaySets.map(s=>`<span class="setchip">${s.r}×${s.l}kg${s.rir!=null?" · RIR "+s.rir:""}</span>`).join("")||'<span class="src">nenhuma série ainda</span>'}</div>
+      <div class="logadd">
+        <input class="wnum" data-swl="reps" type="number" placeholder="reps" min="1" aria-label="reps">
+        <input class="wnum" data-swl="load" type="number" placeholder="kg" min="0" step="0.5" value="${suggested||""}" aria-label="carga">
+        <input class="wnum" data-swl="rir" type="number" placeholder="RIR" min="0" aria-label="RIR">
+        <button class="minibtn" id="sessLog">✓ Série (+descanso)</button>
+      </div>
+      ${SESH.restUntil?`<div class="restbox"><span class="resttime" id="resttimer">…</span><button class="minibtn" id="sessSkipRest">pular descanso</button></div>`:""}
+      <div class="logadd" style="margin-top:12px">
+        <button class="minibtn" id="sessPrev" ${SESH.ex===0?"disabled":""}>◀ anterior</button>
+        <button class="minibtn" id="sessNext">${SESH.ex>=sd.items.length-1?"Concluir sessão ✓":"próximo exercício ▶"}</button>
+      </div>
+      <div class="src" style="margin-top:10px">Descanso alvo: ${cur.rest}s. ${doneSets>=cur.sets?"Séries-alvo batidas — avance.":`Faltam ${Math.max(0,cur.sets-doneSets)} série(s).`}</div></div>`;
+  }
+  const cardWorkoutMain=SESH?cardSession:cardWorkout;
+  LASTWP=wp;
 
   // ---- volume semanal vs landmarks MEV/MAV/MRV ----
   const wvol={};for(const d of wp)for(const it of d.items)wvol[it.mu]=(wvol[it.mu]||0)+it.sets;
@@ -1777,12 +1828,12 @@ function render(){
     <div class="src" style="font-size:12.5px;line-height:1.6">Cada resposta é uma regra codificada:<br>• <b>Dor torácica / gestação / DM1</b> → pausa a recomendação padrão.<br>• <b>2+ sinais alimentares</b> → orienta cuidado especializado.<br>• <b>Lesões</b> → filtram exercícios no treino.<br>• <b>DM1</b> → bloqueia dieta cetogênica.<br>• <b>Experiência</b> → ajusta a dificuldade dos exercícios.<br><br>Nada é diagnóstico — o sistema <b>educa, não diagnostica</b>.</div></div>`;
 
   const VIEWS={
-    today:{title:"Hoje",sub:"Tudo abaixo é calculado por fórmula nomeada — mesmo input, mesmo output.",html:cardCoach+cardEnergy+cardMacros+cardBody+cardTrend+cardAdapt+cardReady+cardMeals+cardWorkout},
+    today:{title:"Hoje",sub:"Tudo abaixo é calculado por fórmula nomeada — mesmo input, mesmo output.",html:cardCoach+cardEnergy+cardMacros+cardBody+cardTrend+cardAdapt+cardReady+cardMeals+cardWorkoutMain},
     nutri:{title:"Nutrição",sub:"Meta calórica e macros pelo motor; plano montado por seleção na base de alimentos.",html:cardEnergy+cardMacros+cardMeals+cardBody},
     week:{title:"Semana",sub:"7 dias com rotação determinística de fontes + lista de compras agregada.",html:cardWeek+cardShop},
     diario:{title:"Diário alimentar",sub:"Registre o consumo real; a Análise passa a usar o que foi comido, não o plano.",html:cardDiary+cardIntake},
     analise:{title:"Análise de precisão",sub:"Micronutrientes vs DRI, qualidade proteica (PDCAAS), leucina por refeição, carga glicêmica e lacunas com fontes alimentares.",html:cardMicros+cardProtQual+cardProtDist+cardGL+cardSupp+cardMacros},
-    train:{title:"Treino",sub:"Split por frequência, volume graduado por landmarks, base aeróbica e biblioteca de exercícios.",html:cardWorkout+cardVolume+cardZone2+cardExLib+cardReady+cardTrend},
+    train:{title:"Treino",sub:"Split por frequência, volume graduado por landmarks, base aeróbica e biblioteca de exercícios.",html:cardWorkoutMain+cardVolume+cardZone2+cardExLib+cardReady+cardTrend},
     calc:{title:"Calculadoras",sub:"1RM, zonas de FC, pace, gasto calórico e VO₂máx — todas determinísticas.",html:cardCalc+cardBody},
     labs:{title:"Exames",sub:"Comparação com faixas de referência + tendência entre exames — educativo, nunca prescreve.",html:cardLabs+cardLabSummary+cardLabTrend},
     habits:{title:"Hábitos",sub:"Checklist diário e sequência por regras determinísticas sobre o que você registra.",html:cardHabits+cardStreak+cardCoach},
@@ -1821,6 +1872,25 @@ $("#views").addEventListener("click",e=>{
   const ls=e.target.closest("[data-logset]");if(ls){const g=k=>{const el=document.querySelector('[data-wl="'+k+'"]');return el?el.value:"";};logSet(ls.dataset.logset,g("reps"),g("load"),g("rir"));return;}
   const us=e.target.closest("[data-undoset]");if(us){undoLastSet(us.dataset.undoset);return;}
   const wl=e.target.closest("[data-wlog]");if(wl){WLOG=WLOG===wl.dataset.wlog?null:wl.dataset.wlog;render();return;}
+  const ss=e.target.closest("[data-startsess]");if(ss){SESH={day:+ss.dataset.startsess,ex:0,restUntil:null,started:Date.now()};render();return;}
+  if(e.target.closest("#sessEnd")){SESH=null;render();return;}
+  if(e.target.closest("#sessSkipRest")){if(SESH)SESH.restUntil=null;render();return;}
+  if(e.target.closest("#sessPrev")){if(SESH&&SESH.ex>0){SESH.ex--;SESH.restUntil=null;render();}return;}
+  if(e.target.closest("#sessNext")){
+    if(SESH&&LASTWP&&LASTWP[SESH.day]){
+      if(SESH.ex>=LASTWP[SESH.day].items.length-1){SESH=null;alert("Sessão concluída — séries salvas no histórico. 💪");}
+      else{SESH.ex++;SESH.restUntil=null;}
+      render();
+    }return;}
+  if(e.target.closest("#sessLog")){
+    if(SESH&&LASTWP&&LASTWP[SESH.day]){
+      const cur=LASTWP[SESH.day].items[Math.min(SESH.ex,LASTWP[SESH.day].items.length-1)];
+      const g=k=>{const el=document.querySelector('[data-swl="'+k+'"]');return el?el.value:"";};
+      const r=+g("reps"),l=+g("load");
+      if(!(r>=1)||!(l>0)){alert("Preencha reps e carga.");return;}
+      SESH.restUntil=Date.now()+cur.rest*1000;
+      logSet(cur.n,r,l,g("rir")); // logSet re-renderiza; restUntil já está setado
+    }return;}
   const xf=e.target.closest("[data-exfilter]");if(xf){EXFILTER=xf.dataset.exfilter;render();return;}
   const xo=e.target.closest("[data-exopen]");if(xo){EXOPEN=EXOPEN===xo.dataset.exopen?null:xo.dataset.exopen;render();return;}
   const aa=e.target.closest("[data-applyadapt]");if(aa){applyAdapt(+aa.dataset.applyadapt,aa.dataset.adaptsrc);return;}
