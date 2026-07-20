@@ -255,6 +255,15 @@ h1.title{font-size:clamp(26px,3vw,34px);font-weight:800;letter-spacing:-.02em;ma
 .zlab{flex:1}.zlab b{font-size:13px;display:block}.zlab span{font-size:11px;color:var(--muted);font-family:var(--mono)}
 .zval{font-family:var(--mono);font-weight:700;font-size:14px}.zval small{color:var(--muted);font-weight:500}
 
+/* agenda do dia */
+.tl{display:flex;flex-direction:column}
+.tlrow{display:flex;align-items:flex-start;gap:12px;padding:10px 0;border-left:2px solid var(--border);margin-left:44px;padding-left:16px;position:relative}
+.tlrow .tlt{position:absolute;left:-44px;top:10px;font-family:var(--mono);font-size:11px;color:var(--muted);width:38px;text-align:right}
+.tlrow .tlic{font-size:16px;margin-left:-25px;background:var(--surface);border-radius:50%;z-index:1}
+.tlrow .tlc b{font-size:13.5px;display:block}
+.tlrow .tlc span{font-size:11.5px;color:var(--muted)}
+.tlrow.past{opacity:.5}
+
 /* evolução consolidada */
 .evogrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:14px}
 .evop{background:var(--surface-2);border:1px solid var(--border);border-radius:var(--r-sm);padding:14px}
@@ -381,6 +390,7 @@ h1.title{font-size:clamp(26px,3vw,34px);font-weight:800;letter-spacing:-.02em;ma
     <nav class="nav" id="nav">
       <button class="on" data-v="today" aria-label="Hoje"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="M9 22V12h6v10"/></svg><span class="railtip">Hoje</span></button>
       <button data-v="nutri" aria-label="Nutrição"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 2a7 7 0 0 0-7 7c0 5 7 13 7 13s7-8 7-13a7 7 0 0 0-7-7z"/><circle cx="12" cy="9" r="2.5"/></svg><span class="railtip">Nutrição</span></button>
+      <button data-v="agenda" aria-label="Agenda"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg><span class="railtip">Agenda</span></button>
       <button data-v="diario" aria-label="Diário"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M4 4h16v16H4z"/><path d="M8 4v16M4 9h4M4 14h4M12 9h5M12 13h5"/></svg><span class="railtip">Diário</span></button>
       <button data-v="week" aria-label="Semana"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="3" y="4" width="18" height="17" rx="2"/><path d="M3 9h18M8 2v4M16 2v4M7 13h3M14 13h3M7 17h3"/></svg><span class="railtip">Semana</span></button>
       <button data-v="train" aria-label="Treino"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M6.5 6.5l11 11M4 8l-2 2 3 3M20 16l2-2-3-3M8 4l-2 2M16 20l2-2"/></svg><span class="railtip">Treino</span></button>
@@ -1599,6 +1609,30 @@ function render(){
       <div class="tile"><div class="k">Cintura/quadril</div><div class="v tnum">${(lastM.waist&&lastM.hip)?R(lastM.waist/lastM.hip,2):"—"}</div><div class="meta">RCQ · risco cardiometab.</div></div>
     </div>`:`<div class="src">A %gordura por dobras (Jackson-Pollock) tem erro de ±3–4% — melhor que bioimpedância caseira quando bem medida. Sempre pelo mesmo avaliador e lado do corpo.</div>`}</div>`;
 
+  // ---- AGENDA DO DIA (cronograma por horário) ----
+  const evs=[];
+  if(!dietBlocked)plan.forEach(ms=>evs.push({t:ms.t,ic:"🍽️",tt:ms.s,dt:`${ms.kcal} kcal · ${ms.p} g proteína${ms.items.length?" · "+ms.items.map(i=>i.n).join(", "):""}`}));
+  // hidratação: distribui a meta em 5 tomadas fora dos picos de refeição
+  const wslots=["09:00","11:00","15:00","17:00","21:00"];const doseMl=Math.round(wm/wslots.length/50)*50;
+  wslots.forEach(t=>evs.push({t,ic:"💧",tt:"Água",dt:`~${doseMl} ml (meta ${(wm/1000).toFixed(2)} L/dia)`}));
+  // janela de treino + pós-treino (proteína)
+  const trainDay=wp[0];
+  if(p.days>0&&trainDay){evs.push({t:"18:00",ic:"🏋️",tt:"Janela de treino",dt:`${trainDay.type} · ${trainDay.items.length} exercícios · ${isDeload?"deload":"acúmulo"}`});
+    evs.push({t:"19:00",ic:"🥤",tt:"Pós-treino",dt:`Proteína aqui apoia a síntese — ~${Math.round(.4*p.weightKg)} g (0,4 g/kg, Schoenfeld & Aragon)`});}
+  evs.sort((a,b)=>a.t<b.t?-1:a.t>b.t?1:0);
+  const nowH=new Date().getHours();
+  const cardAgenda=`<div class="card span-8"><h3>Agenda de hoje · ${WEEK_DAYS[todayIdx]}</h3><div class="cap">cronograma de refeições, hidratação e treino · horários do plano</div>
+    <div class="tl">${evs.map(ev=>{const eh=+ev.t.slice(0,2);const past=eh<nowH;return`<div class="tlrow ${past?'past':''}"><span class="tlt tnum">${ev.t}</span><span class="tlic">${ev.ic}</span><div class="tlc"><b>${ev.tt}</b><span>${ev.dt}</span></div></div>`;}).join("")}</div>
+    <div class="src" style="margin-top:12px">Ajuste os horários à sua rotina — o que importa é a distribuição (proteína a cada 3–4 h, água ao longo do dia).</div></div>`;
+  const cardAgendaSum=`<div class="card span-4"><h3>Resumo do dia</h3><div class="cap">metas de hoje</div>
+    <div class="tiles">
+      <div class="tile"><div class="k">Calorias</div><div class="v tnum">${m.kcal}</div><div class="meta">alvo</div></div>
+      <div class="tile"><div class="k">Proteína</div><div class="v tnum">${m.protein}<small> g</small></div><div class="meta">${Math.round(.4*p.weightKg)} g/refeição</div></div>
+      <div class="tile"><div class="k">Água</div><div class="v tnum">${(wm/1000).toFixed(2)}<small> L</small></div><div class="meta">${wslots.length} tomadas</div></div>
+      <div class="tile"><div class="k">Refeições</div><div class="v tnum">${plan.length}</div><div class="meta">a cada 3–4 h</div></div>
+    </div>
+    <div class="src" style="margin-top:12px">Marque os hábitos do dia na aba Hábitos — a sequência conta com 3+ concluídos.</div></div>`;
+
   // ---- EVOLUÇÃO CONSOLIDADA (timeline multi-métrica de dados reais) ----
   const evoPanel=(label,series,unit,dir)=>{
     if(series.length<2)return `<div class="evop"><div class="evohd"><span class="evol">${label}</span></div><div class="src" style="padding:16px 0;text-align:center">Registre 2+ pontos</div></div>`;
@@ -1653,6 +1687,7 @@ function render(){
     calc:{title:"Calculadoras",sub:"1RM, zonas de FC, pace, gasto calórico e VO₂máx — todas determinísticas.",html:cardCalc+cardBody},
     labs:{title:"Exames",sub:"Comparação com faixas de referência + tendência entre exames — educativo, nunca prescreve.",html:cardLabs+cardLabSummary+cardLabTrend},
     habits:{title:"Hábitos",sub:"Checklist diário e sequência por regras determinísticas sobre o que você registra.",html:cardHabits+cardStreak+cardCoach},
+    agenda:{title:"Agenda do dia",sub:"Cronograma de refeições, hidratação e treino por horário — ajuste à sua rotina.",html:cardAgenda+cardAgendaSum},
     evolucao:{title:"Evolução",sub:"Linha do tempo de todas as métricas — peso, gordura, cintura, força e aderência num só lugar.",html:cardEvolution},
     metas:{title:"Metas & medidas",sub:"Alvos com previsão de data + circunferências e dobras com %gordura por Jackson-Pollock.",html:cardGoals+cardGoalsHelp+cardMeasures+cardMeasEvo},
     fotos:{title:"Fotos de evolução",sub:"Registro visual do progresso, comparação antes/depois. Tudo local — as imagens não saem do dispositivo.",html:cardPhotos+cardCompare},
