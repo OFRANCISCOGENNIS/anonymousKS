@@ -11,6 +11,7 @@ const D = require('./dietGenerator');
 const W = require('./workoutGenerator');
 const A = require('./adaptation');
 const C = require('./coach');
+const REC = require('./recovery');
 const NA = require('./nutritionAnalysis');
 
 let passed = 0;
@@ -570,6 +571,40 @@ test('nutritionAnalysis: determinismo', () => {
   deterministic(() => NA.analyzeMicros([{ food: F_BEANS, grams: 150 }, { food: F_RICE, grams: 100 }], 'M'));
   deterministic(() => NA.proteinQuality([{ food: F_RICE, grams: 200 }, { food: F_BEANS, grams: 200 }]));
   deterministic(() => NA.adherenceScore({ kcal: 1800, protein: 140 }, { kcal: 2000, protein: 160 }));
+});
+
+// ---------------------------------------------------------------------------
+console.log('recovery.js');
+// ---------------------------------------------------------------------------
+test('sem dados → score nulo', () => {
+  assert.strictEqual(REC.recoveryScore({}).score, null);
+});
+test('sono ótimo + FC na base + frescor ideal → recuperação alta', () => {
+  const r = REC.recoveryScore({ sleepH: 8, rhrLatest: 58, rhrBaseline: 58, daysSinceWorkout: 1 });
+  assert.ok(r.score >= 90, `esperava alto, veio ${r.score}`);
+  assert.strictEqual(r.zone, 'alta');
+});
+test('sono ruim derruba o score', () => {
+  const bom = REC.recoveryScore({ sleepH: 8 }).score;
+  const ruim = REC.recoveryScore({ sleepH: 4.5 }).score;
+  assert.ok(ruim < bom);
+});
+test('FC de repouso elevada penaliza (cada bpm −8)', () => {
+  const r = REC.recoveryScore({ rhrLatest: 63, rhrBaseline: 58 }); // +5 → 100-40=60
+  assert.strictEqual(r.components.find((c) => c.key === 'rhr').value, 60);
+});
+test('treinar perto da falha (RIR baixo) reduz frescor', () => {
+  const fresco = REC.recoveryScore({ daysSinceWorkout: 2, lastSessionAvgRir: 3 }).score;
+  const fatigado = REC.recoveryScore({ daysSinceWorkout: 2, lastSessionAvgRir: 0.5 }).score;
+  assert.ok(fatigado < fresco);
+});
+test('renormaliza pesos sobre componentes disponíveis (só sono = valor do sono)', () => {
+  const r = REC.recoveryScore({ sleepH: 8 });
+  assert.strictEqual(r.score, 100);
+  assert.strictEqual(r.components.length, 1);
+});
+test('recovery: determinismo', () => {
+  deterministic(() => REC.recoveryScore({ sleepH: 7, rhrLatest: 60, rhrBaseline: 57, daysSinceWorkout: 1, lastSessionAvgRir: 2 }));
 });
 
 // ---------------------------------------------------------------------------
