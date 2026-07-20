@@ -372,6 +372,7 @@ h1.title{font-size:clamp(26px,3vw,34px);font-weight:800;letter-spacing:-.02em;ma
       <button data-v="calc" aria-label="Calculadoras"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="4" y="2" width="16" height="20" rx="2"/><path d="M8 6h8M8 10h2M8 14h2M8 18h2M14 10h2v8h-2z"/></svg><span class="railtip">Calculadoras</span></button>
       <button data-v="labs" aria-label="Exames"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M10 2v7.5L4.5 19a2 2 0 0 0 1.7 3h11.6a2 2 0 0 0 1.7-3L14 9.5V2"/><path d="M8 2h8M7 15h10"/></svg><span class="railtip">Exames</span></button>
       <button data-v="habits" aria-label="Hábitos"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 3c1 3-2 4-2 7a4 4 0 0 0 8 0c0-1-.5-2-1-3 0 0 3 2 3 6a8 8 0 0 1-16 0c0-5 5-7 8-10z"/></svg><span class="railtip">Hábitos</span></button>
+      <button data-v="metas" aria-label="Metas"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1"/></svg><span class="railtip">Metas</span></button>
       <button data-v="fotos" aria-label="Fotos"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M3 7h4l2-3h6l2 3h4v13H3z"/><circle cx="12" cy="13" r="4"/></svg><span class="railtip">Fotos</span></button>
       <button data-v="devices" aria-label="Dispositivos"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="7" y="2" width="10" height="20" rx="3"/><path d="M11 6h2M12 16v.5"/></svg><span class="railtip">Dispositivos</span></button>
       <button data-v="anamnese" aria-label="Anamnese"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="5" y="3" width="14" height="18" rx="2"/><path d="M9 3h6v3H9zM8 11h8M8 15h5"/></svg><span class="railtip">Anamnese</span></button>
@@ -1012,6 +1013,18 @@ function adaptationSuggestion(st){
 }
 function applyAdapt(delta,src){pUpdate(p=>{p.kcalAdjustPct=Math.max(-30,Math.min((p.kcalAdjustPct||0)+delta,20));p.adaptlog=p.adaptlog||[];p.adaptlog.push({d:todayKey(),delta,src});});render();}
 function resetAdapt(){pUpdate(p=>{p.kcalAdjustPct=0;});render();}
+/* metas + previsão de data (ETA) por tendência, com faixa de incerteza */
+function goalEtaWeb(series,target){
+  if(series.length<2)return{reachable:false,reason:"Registre ao menos 2 medições para projetar."};
+  const t=trend(series);if(Math.abs(t.slope)<1e-9)return{reachable:false,reason:"Tendência estável — sem previsão.",cur:series[series.length-1].y};
+  const cur=series[series.length-1].y,days=(target-cur)/t.slope;
+  if(days<0)return{reachable:false,reason:"A tendência atual afasta da meta.",cur};
+  return{reachable:true,cur,etaDays:Math.round(days),range:Math.max(7,Math.round(days*.25)),conf:series.length>=14?"média":"baixa",slope:t.slope};
+}
+function addDaysStr(n){const d=new Date();d.setDate(d.getDate()+n);return String(d.getDate()).padStart(2,"0")+"/"+String(d.getMonth()+1).padStart(2,"0")+"/"+d.getFullYear();}
+function patientGoals(){const p=pActive();return(p&&p.goals)||{};}
+function setGoal(kind,patch){pUpdate(p=>{p.goals=p.goals||{};p.goals[kind]={...(p.goals[kind]||{}),...patch};});render();}
+function clearGoal(kind){pUpdate(p=>{if(p.goals)delete p.goals[kind];});render();}
 /* backup / portabilidade (LGPD): exporta e importa todos os pacientes em JSON */
 function exportBackup(){
   const data={app:"vita",v:1,exported:todayKey(),active:pActiveId(),patients:pAll()};
@@ -1450,6 +1463,37 @@ function render(){
   </div>`;
   $("#report").innerHTML=reportHtml;
 
+  // ---- METAS + ETA (previsão de data por tendência) ----
+  const goals=patientGoals();
+  const gW=goals.weight||{};
+  const wSeries=usingReal?realW.map((w,i)=>({x:i,y:w.kg})):[];
+  const wEta=(gW.target&&wSeries.length>=2)?goalEtaWeb(wSeries,+gW.target):null;
+  const wStart=wSeries.length?wSeries[0].y:null,wCur=wSeries.length?wSeries[wSeries.length-1].y:null;
+  const wProg=(gW.target&&wStart!=null&&wStart!==+gW.target)?Math.max(0,Math.min(100,Math.round((wStart-wCur)/(wStart-(+gW.target))*100))):null;
+  // meta de força: escolhe exercício com sessões registradas
+  const wlogKeys=Object.keys((_pt&&_pt.wlog)||{}).filter(k=>((_pt.wlog[k]||[]).length)>=1);
+  const gL=goals.lift||{};const liftEx=gL.exercise||wlogKeys[0]||"";
+  const liftSessions=((_pt&&_pt.wlog&&_pt.wlog[liftEx])||[]).map((se,i)=>({x:i,y:Math.max(...se.sets.map(s=>e1rm(s.l,s.r)||0))}));
+  const lEta=(gL.target&&liftSessions.length>=2)?goalEtaWeb(liftSessions,+gL.target):null;
+  const lCur=liftSessions.length?liftSessions[liftSessions.length-1].y:null;
+
+  const etaLine=(eta,deadline)=>{
+    if(!eta)return `<div class="src">Defina a meta e registre ≥2 medições para a previsão.</div>`;
+    if(!eta.reachable)return `<div class="src" style="color:var(--warn)">${eta.reason}</div>`;
+    const dl=deadline?new Date(deadline+"T00:00:00"):null;const etaMs=Date.now()+eta.etaDays*864e5;
+    const onTrack=dl?etaMs<=dl.getTime():null;
+    return `<div class="cores" style="margin-top:10px"><div class="k">Previsão</div><div class="v tnum" style="font-size:22px">${addDaysStr(eta.etaDays)}</div><div class="meta">± ${eta.range} dias · confiança ${eta.conf}${dl?` · <span style="color:${onTrack?'var(--good)':'var(--crit)'}">${onTrack?'dentro do prazo':'após o prazo'}</span>`:""}</div></div>`;
+  };
+  const cardGoals=`<div class="card span-7"><h3>Metas & previsão</h3><div class="cap">projeção por tendência (regressão) com faixa de incerteza · não é promessa</div>
+    <div class="daytag" style="margin-top:0">Peso</div>
+    <div class="logadd"><input class="wnum" style="width:110px" type="number" step="0.1" data-goal="weight.target" value="${gW.target||""}" placeholder="alvo kg"><input class="wnum" style="width:150px" type="date" data-goal="weight.deadline" value="${gW.deadline||""}">${gW.target?`<button class="minibtn" data-cleargoal="weight">limpar</button>`:""}</div>
+    ${gW.target?`<div class="trendhead" style="margin-top:6px"><div><div class="now tnum" style="font-size:26px">${wCur??"—"}<small> kg</small></div><div class="src">meta ${gW.target} kg · atual ${wCur??"—"}</div></div><div style="flex:1;min-width:140px">${wProg!=null?`<div class="track"><div class="fill" style="width:${wProg}%;background:var(--accent)"></div></div><div class="src" style="margin-top:5px">${wProg}% do caminho</div>`:""}</div></div>${etaLine(wEta,gW.deadline)}`:`<div class="src">Sem meta de peso definida.</div>`}
+    <div class="daytag" style="margin-top:18px">Força · 1RM estimado</div>
+    ${wlogKeys.length?`<div class="logadd"><select class="wnum" style="width:auto;min-width:160px" data-goal="lift.exercise">${wlogKeys.map(k=>`<option value="${k}" ${k===liftEx?"selected":""}>${k}</option>`).join("")}</select><input class="wnum" style="width:110px" type="number" step="0.5" data-goal="lift.target" value="${gL.target||""}" placeholder="alvo kg"><input class="wnum" style="width:150px" type="date" data-goal="lift.deadline" value="${gL.deadline||""}">${gL.target?`<button class="minibtn" data-cleargoal="lift">limpar</button>`:""}</div>
+    ${gL.target?`<div class="src" style="margin-top:6px">${liftEx}: atual ~<b>${lCur??"—"} kg</b> · meta ${gL.target} kg</div>${etaLine(lEta,gL.deadline)}`:`<div class="src">Defina alvo de 1RM para o exercício.</div>`}`:`<div class="src">Registre séries em Treino para habilitar metas de força.</div>`}</div>`;
+  const cardGoalsHelp=`<div class="card span-5"><h3>Como a previsão funciona</h3><div class="cap">honesta sobre incerteza</div>
+    <div class="src" style="font-size:12.5px;line-height:1.6">A data sai da <b>regressão linear</b> sobre suas medições reais, não de um dia isolado. A faixa <b>± dias</b> é a incerteza — quanto mais dados, mais estreita (confiança sobe para média com 14+ pontos).<br><br>Se a tendência atual <b>afasta</b> da meta, o sistema diz isso em vez de inventar uma data. Metas são projeção, não promessa — o ritmo muda com adesão, sono e treino.<br><br>Ritmo seguro: <b>0,25–1%</b> do peso/semana (Garthe 2011).</div></div>`;
+
   // ---- ANAMNESE GUIADA ----
   const an=anamnese();
   const anAnswered=Object.keys(an).filter(k=>{const v=an[k];return !(v===null||v===""||(Array.isArray(v)&&!v.length));}).length;
@@ -1475,6 +1519,7 @@ function render(){
     calc:{title:"Calculadoras",sub:"1RM, zonas de FC, pace, gasto calórico e VO₂máx — todas determinísticas.",html:cardCalc+cardBody},
     labs:{title:"Exames",sub:"Comparação com faixas de referência armazenadas — educativo, nunca prescreve.",html:cardLabs+cardLabSummary},
     habits:{title:"Hábitos",sub:"Checklist diário e sequência por regras determinísticas sobre o que você registra.",html:cardHabits+cardStreak+cardCoach},
+    metas:{title:"Metas & previsão",sub:"Defina alvos de peso e força; o sistema projeta quando você chega, com faixa de incerteza.",html:cardGoals+cardGoalsHelp},
     fotos:{title:"Fotos de evolução",sub:"Registro visual do progresso, comparação antes/depois. Tudo local — as imagens não saem do dispositivo.",html:cardPhotos+cardCompare},
     devices:{title:"Dispositivos",sub:"Importe passos, FC de repouso, sono e peso de wearables — alimenta hábitos, evolução e zonas de FC.",html:cardDevices+cardDevSummary},
     anamnese:{title:"Anamnese guiada",sub:"Questionário progressivo que preenche condições e dispara bandeiras de segurança em tempo real.",html:cardAnam+cardAnamHelp},
@@ -1511,6 +1556,7 @@ $("#views").addEventListener("click",e=>{
   const ab=e.target.closest("[data-anambool]");if(ab){setAnam(ab.dataset.anambool,ab.dataset.v==="1");return;}
   const am=e.target.closest("[data-anammulti]");if(am){toggleAnamMulti(am.dataset.anammulti,am.dataset.v);return;}
   const ac=e.target.closest("[data-anamchoice]");if(ac){setAnam(ac.dataset.anamchoice,anamnese()[ac.dataset.anamchoice]===ac.dataset.v?null:ac.dataset.v);return;}
+  const cg=e.target.closest("[data-cleargoal]");if(cg){clearGoal(cg.dataset.cleargoal);return;}
   const cm=e.target.closest("[data-cmode]");if(cm){CALC.mode=cm.dataset.cmode;render();return;}
   const sw=e.target.closest("[data-swap]");if(sw){SWAP=SWAP===sw.dataset.swap?null:sw.dataset.swap;render();return;}
 });
@@ -1526,6 +1572,7 @@ if(window.matchMedia)window.matchMedia("print").addEventListener&&window.matchMe
 $("#views").addEventListener("change",e=>{
   const c=e.target.closest("[data-calc]");if(c){CALC[c.dataset.calc]=c.value;render();return;}
   const anum=e.target.closest("[data-anamnum]");if(anum){setAnam(anum.dataset.anamnum,anum.value===""?null:+anum.value);return;}
+  const gl=e.target.closest("[data-goal]");if(gl){const[kind,field]=gl.dataset.goal.split(".");const isNum=(field==="target");setGoal(kind,{[field]:gl.value===""?undefined:(isNum?+gl.value:gl.value)});return;}
   const pf=e.target.closest("#photofile");if(pf&&pf.files&&pf.files[0]){handlePhotoFile(pf.files[0],($("#photopose")||{value:"frente"}).value);pf.value="";return;}
   const wf=e.target.closest("#wearfile");if(wf&&wf.files&&wf.files[0]){const fr=new FileReader();fr.onload=()=>importWearableText(fr.result);fr.readAsText(wf.files[0]);wf.value="";}
 });
