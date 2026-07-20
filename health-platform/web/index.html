@@ -255,6 +255,12 @@ h1.title{font-size:clamp(26px,3vw,34px);font-weight:800;letter-spacing:-.02em;ma
 .zlab{flex:1}.zlab b{font-size:13px;display:block}.zlab span{font-size:11px;color:var(--muted);font-family:var(--mono)}
 .zval{font-family:var(--mono);font-weight:700;font-size:14px}.zval small{color:var(--muted);font-weight:500}
 
+/* medidas corporais */
+.mgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:10px}
+.mfield{display:flex;flex-direction:column;gap:5px}
+.mfield label{font-family:var(--mono);font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:var(--faint)}
+.mfield .wnum{width:100%}
+
 /* anamnese guiada */
 .anamsec{margin-bottom:16px}
 .anamsec-t{font-family:var(--mono);font-size:10.5px;text-transform:uppercase;letter-spacing:.06em;color:var(--faint);margin-bottom:8px;padding-bottom:4px;border-bottom:1px solid var(--border)}
@@ -1025,6 +1031,12 @@ function addDaysStr(n){const d=new Date();d.setDate(d.getDate()+n);return String
 function patientGoals(){const p=pActive();return(p&&p.goals)||{};}
 function setGoal(kind,patch){pUpdate(p=>{p.goals=p.goals||{};p.goals[kind]={...(p.goals[kind]||{}),...patch};});render();}
 function clearGoal(kind){pUpdate(p=>{if(p.goals)delete p.goals[kind];});render();}
+/* medidas corporais: circunferências + dobras (Jackson-Pollock 3) */
+const SF_SITES={M:["Peitoral","Abdominal","Coxa"],F:["Tríceps","Supra-ilíaca","Coxa"]};
+function bodyFatJP3(sex,age,sum){if(!(sum>0))return null;const bd=sex==="M"?1.10938-0.0008267*sum+0.0000016*sum*sum-0.0002574*age:1.0994921-0.0009929*sum+0.0000023*sum*sum-0.0001392*age;return R(495/bd-450,1);}
+function patientMeasures(){const p=pActive();return(p&&p.measures)||[];}
+function addMeasure(entry){pUpdate(p=>{p.measures=p.measures||[];p.measures.push(entry);p.measures.sort((a,b)=>a.d<b.d?-1:a.d>b.d?1:0);});render();}
+function removeMeasure(i){pUpdate(p=>{if(p.measures)p.measures.splice(i,1);});render();}
 /* backup / portabilidade (LGPD): exporta e importa todos os pacientes em JSON */
 function exportBackup(){
   const data={app:"vita",v:1,exported:todayKey(),active:pActiveId(),patients:pAll()};
@@ -1494,6 +1506,26 @@ function render(){
   const cardGoalsHelp=`<div class="card span-5"><h3>Como a previsão funciona</h3><div class="cap">honesta sobre incerteza</div>
     <div class="src" style="font-size:12.5px;line-height:1.6">A data sai da <b>regressão linear</b> sobre suas medições reais, não de um dia isolado. A faixa <b>± dias</b> é a incerteza — quanto mais dados, mais estreita (confiança sobe para média com 14+ pontos).<br><br>Se a tendência atual <b>afasta</b> da meta, o sistema diz isso em vez de inventar uma data. Metas são projeção, não promessa — o ritmo muda com adesão, sono e treino.<br><br>Ritmo seguro: <b>0,25–1%</b> do peso/semana (Garthe 2011).</div></div>`;
 
+  // ---- MEDIDAS CORPORAIS (circunferências + dobras JP3) ----
+  const meas=patientMeasures();
+  const sfLabels=SF_SITES[p.sex]||SF_SITES.M;
+  const CIRC=[["waist","Cintura"],["arm","Braço"],["thigh","Coxa"],["hip","Quadril"]];
+  const lastM=meas.length?meas[meas.length-1]:null;
+  const firstM=meas.length?meas[0]:null;
+  const delta=(k)=>{if(!firstM||!lastM||firstM[k]==null||lastM[k]==null||meas.length<2)return null;return R(lastM[k]-firstM[k],1);};
+  const cardMeasures=`<div class="card span-7"><h3>Medidas corporais <span class="pill accent">${meas.length}</span></h3><div class="cap">circunferências (cm) + dobras (mm) · %gordura por Jackson-Pollock 3 (sexo ${p.sex})</div>
+    <div class="mgrid">
+      ${CIRC.map(([k,l])=>`<div class="mfield"><label>${l} · cm</label><input class="wnum" data-meas="${k}" type="number" step="0.1" placeholder="cm"></div>`).join("")}
+      ${sfLabels.map((l,i)=>`<div class="mfield"><label>${l} · mm</label><input class="wnum" data-meas="sf${i}" type="number" step="0.5" placeholder="mm"></div>`).join("")}
+    </div>
+    <button class="minibtn" id="addMeas" style="margin-top:10px">+ Registrar medição de hoje</button>
+    ${meas.length?`<div class="list" style="margin-top:12px">${meas.slice().reverse().map((mm,ri)=>{const i=meas.length-1-ri;return`<div class="li"><span class="idx tnum">${mm.d.slice(5)}</span><div class="nm"><b>${mm.bf!=null?mm.bf+"% gordura (JP3)":"circunferências"}</b><span>${CIRC.filter(([k])=>mm[k]!=null).map(([k,l])=>l.slice(0,3)+" "+mm[k]).join(" · ")||"—"}</span></div><div class="rt"></div><button class="rmbtn" data-rmmeas="${i}" aria-label="Remover">✕</button></div>`;}).join("")}</div>`:`<div class="src" style="margin-top:10px">Nenhuma medição. Preencha o que tiver (nem tudo é obrigatório) e registre.</div>`}</div>`;
+  const cardMeasEvo=`<div class="card span-5"><h3>Evolução das medidas</h3><div class="cap">${meas.length>=2?firstM.d+" → "+lastM.d:"registre 2+ medições"}</div>
+    ${meas.length>=2?`<div class="tiles">${CIRC.map(([k,l])=>{const d=delta(k);return`<div class="tile"><div class="k">${l}</div><div class="v tnum">${lastM[k]??"—"}<small> cm</small></div><div class="meta">${d!=null?(d>0?"+":"")+d+" cm":"—"}</div></div>`;}).join("")}
+      <div class="tile"><div class="k">%Gordura JP3</div><div class="v tnum">${lastM.bf??"—"}<small> %</small></div><div class="meta">${meas.length>=2&&firstM.bf!=null&&lastM.bf!=null?((lastM.bf-firstM.bf>0?"+":"")+R(lastM.bf-firstM.bf,1)+" pp"):"—"}</div></div>
+      <div class="tile"><div class="k">Cintura/quadril</div><div class="v tnum">${(lastM.waist&&lastM.hip)?R(lastM.waist/lastM.hip,2):"—"}</div><div class="meta">RCQ · risco cardiometab.</div></div>
+    </div>`:`<div class="src">A %gordura por dobras (Jackson-Pollock) tem erro de ±3–4% — melhor que bioimpedância caseira quando bem medida. Sempre pelo mesmo avaliador e lado do corpo.</div>`}</div>`;
+
   // ---- ANAMNESE GUIADA ----
   const an=anamnese();
   const anAnswered=Object.keys(an).filter(k=>{const v=an[k];return !(v===null||v===""||(Array.isArray(v)&&!v.length));}).length;
@@ -1519,7 +1551,7 @@ function render(){
     calc:{title:"Calculadoras",sub:"1RM, zonas de FC, pace, gasto calórico e VO₂máx — todas determinísticas.",html:cardCalc+cardBody},
     labs:{title:"Exames",sub:"Comparação com faixas de referência armazenadas — educativo, nunca prescreve.",html:cardLabs+cardLabSummary},
     habits:{title:"Hábitos",sub:"Checklist diário e sequência por regras determinísticas sobre o que você registra.",html:cardHabits+cardStreak+cardCoach},
-    metas:{title:"Metas & previsão",sub:"Defina alvos de peso e força; o sistema projeta quando você chega, com faixa de incerteza.",html:cardGoals+cardGoalsHelp},
+    metas:{title:"Metas & medidas",sub:"Alvos com previsão de data + circunferências e dobras com %gordura por Jackson-Pollock.",html:cardGoals+cardGoalsHelp+cardMeasures+cardMeasEvo},
     fotos:{title:"Fotos de evolução",sub:"Registro visual do progresso, comparação antes/depois. Tudo local — as imagens não saem do dispositivo.",html:cardPhotos+cardCompare},
     devices:{title:"Dispositivos",sub:"Importe passos, FC de repouso, sono e peso de wearables — alimenta hábitos, evolução e zonas de FC.",html:cardDevices+cardDevSummary},
     anamnese:{title:"Anamnese guiada",sub:"Questionário progressivo que preenche condições e dispara bandeiras de segurança em tempo real.",html:cardAnam+cardAnamHelp},
@@ -1557,6 +1589,15 @@ $("#views").addEventListener("click",e=>{
   const am=e.target.closest("[data-anammulti]");if(am){toggleAnamMulti(am.dataset.anammulti,am.dataset.v);return;}
   const ac=e.target.closest("[data-anamchoice]");if(ac){setAnam(ac.dataset.anamchoice,anamnese()[ac.dataset.anamchoice]===ac.dataset.v?null:ac.dataset.v);return;}
   const cg=e.target.closest("[data-cleargoal]");if(cg){clearGoal(cg.dataset.cleargoal);return;}
+  if(e.target.closest("#addMeas")){
+    const g=k=>{const el=document.querySelector('[data-meas="'+k+'"]');const v=el&&el.value!==""?+el.value:null;return v;};
+    const entry={d:todayKey()};["waist","arm","thigh","hip"].forEach(k=>{const v=g(k);if(v!=null)entry[k]=v;});
+    const sf=[g("sf0"),g("sf1"),g("sf2")];
+    if(sf.every(x=>x!=null&&x>0)){entry.sf=sf;entry.bf=bodyFatJP3(P().sex,P().age,sf[0]+sf[1]+sf[2]);}
+    if(Object.keys(entry).length<=1){alert("Preencha ao menos uma medida.");return;}
+    addMeasure(entry);return;
+  }
+  const rmm=e.target.closest("[data-rmmeas]");if(rmm){removeMeasure(+rmm.dataset.rmmeas);return;}
   const cm=e.target.closest("[data-cmode]");if(cm){CALC.mode=cm.dataset.cmode;render();return;}
   const sw=e.target.closest("[data-swap]");if(sw){SWAP=SWAP===sw.dataset.swap?null:sw.dataset.swap;render();return;}
 });

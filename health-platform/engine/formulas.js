@@ -76,6 +76,24 @@ function bodyFatRfm({ sex, heightCm, waistCm }) {
   return { value: round(value, 1), formula: 'RFM', source: 'Woolcott & Bergman 2018 (NHANES/DXA)', confidence: 'medium', errorMargin: '±~5% vs DXA' };
 }
 
+// %Gordura por dobras cutâneas — Jackson-Pollock + Siri.
+// JP3 homem: peito, abdômen, coxa | mulher: tríceps, supra-ilíaca, coxa.
+function bodyFatJacksonPollock3({ sex, age, sumMm }) {
+  if (!(sumMm > 0)) throw new Error('sumMm > 0');
+  const bd = sex === 'M'
+    ? 1.10938 - 0.0008267 * sumMm + 0.0000016 * sumMm * sumMm - 0.0002574 * age
+    : 1.0994921 - 0.0009929 * sumMm + 0.0000023 * sumMm * sumMm - 0.0001392 * age;
+  return { value: round(495 / bd - 450, 1), formula: 'JACKSON_POLLOCK_3', source: 'Jackson & Pollock 1978/1980 + Siri', confidence: 'medium', errorMargin: '±3-4%' };
+}
+// JP7: peito, axilar-média, tríceps, subescapular, abdômen, supra-ilíaca, coxa.
+function bodyFatJacksonPollock7({ sex, age, sumMm }) {
+  if (!(sumMm > 0)) throw new Error('sumMm > 0');
+  const bd = sex === 'M'
+    ? 1.112 - 0.00043499 * sumMm + 0.00000055 * sumMm * sumMm - 0.00028826 * age
+    : 1.097 - 0.00046971 * sumMm + 0.00000056 * sumMm * sumMm - 0.00012828 * age;
+  return { value: round(495 / bd - 450, 1), formula: 'JACKSON_POLLOCK_7', source: 'Jackson & Pollock 1978/1980 + Siri', confidence: 'medium', errorMargin: '±3%' };
+}
+
 // Meta semanal de Zona 2 (base aeróbica/mitocondrial) por objetivo.
 // San Millán: 150–200 min/sem saúde; mais para endurance. Sessões ≥45 min.
 function zone2Weekly({ goal }) {
@@ -218,7 +236,7 @@ function ffmi({ weightKg, heightCm, bodyFatPct }) {
 module.exports = {
   bmr, bmrMifflinStJeor, bmrKatchMcArdle, bmrHarrisBenedict,
   tdee, targetKcal, macros, waterMl,
-  bodyFatUsNavy, bodyFatRfm, zone2Weekly,
+  bodyFatUsNavy, bodyFatRfm, bodyFatJacksonPollock3, bodyFatJacksonPollock7, zone2Weekly,
   oneRepMaxEpley, oneRepMaxBrzycki, loadForReps,
   pacePerKm, activityKcal, vo2maxCooper,
   hrMaxTanaka, hrZonesKarvonen, bmi, ffmi,

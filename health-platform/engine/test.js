@@ -122,6 +122,24 @@ test('RFM mulher usa base 76 (12 pontos acima do homem p/ mesma proporção)', (
 test('RFM exige cintura', () => {
   assert.throws(() => F.bodyFatRfm({ sex: 'M', heightCm: 180 }));
 });
+test('Jackson-Pollock 3 dobras homem (soma 60mm, 30a) em faixa plausível', () => {
+  const r = F.bodyFatJacksonPollock3({ sex: 'M', age: 30, sumMm: 60 });
+  assert.ok(r.value > 15 && r.value < 22, `fora do esperado: ${r.value}`);
+  assert.strictEqual(r.formula, 'JACKSON_POLLOCK_3');
+});
+test('JP: mulher tem %gordura maior que homem p/ mesma soma/idade', () => {
+  const m = F.bodyFatJacksonPollock3({ sex: 'M', age: 30, sumMm: 60 }).value;
+  const f = F.bodyFatJacksonPollock3({ sex: 'F', age: 30, sumMm: 60 }).value;
+  assert.ok(f > m);
+});
+test('JP7 exige soma positiva', () => {
+  assert.throws(() => F.bodyFatJacksonPollock7({ sex: 'M', age: 30, sumMm: 0 }));
+});
+test('JP: mais dobras (soma maior) → mais gordura', () => {
+  const lo = F.bodyFatJacksonPollock3({ sex: 'M', age: 30, sumMm: 40 }).value;
+  const hi = F.bodyFatJacksonPollock3({ sex: 'M', age: 30, sumMm: 90 }).value;
+  assert.ok(hi > lo);
+});
 test('proteína por refeição = 0,4 g/kg (Schoenfeld)', () => {
   assert.strictEqual(F.macros(maleProfile).proteinPerMealG, 32); // 0,4×80
   assert.ok(F.macros(maleProfile).sources.perMeal.includes('Schoenfeld'));
