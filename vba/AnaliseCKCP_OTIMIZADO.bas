@@ -4487,16 +4487,18 @@ Prox:
         If Not (Round(dQ(ks(r)), 2) = 0 And Round(dV(ks(r)), 2) = 0) Then nKeep = nKeep + 1
     Next r
 
-    Dim outp() As Variant: ReDim outp(0 To nKeep, 1 To 14)
+    Dim outp() As Variant: ReDim outp(0 To nKeep, 1 To 16)
     outp(0, 1) = "PEP4NIVEL": outp(0, 2) = "PEP3": outp(0, 3) = "TIPO_PEP"
     outp(0, 4) = "COD_SERVICO": outp(0, 5) = "DESCRICAO_SERVICO"
     outp(0, 6) = "CLASSE_CUSTO"
     outp(0, 7) = "UND": outp(0, 8) = "QTD_ENTRADA": outp(0, 9) = "VALOR_MOEDA"
     outp(0, 10) = "CLS1": outp(0, 11) = "CLS2": outp(0, 12) = "CLS3"
     outp(0, 13) = "TIPO_APLICACAO": outp(0, 14) = "GRUPO_PERC"
+    outp(0, 15) = "ALERTA_VALOR": outp(0, 16) = "APROPRIACAO"
 
     ki = 0
-    Dim codSrvOut As String, und As String
+    Dim codSrvOut As String, und As String, taSrv As String, tpPep As String
+    Dim descOut As String, descU As String
     For r = 0 To dFirst.Count - 1
         k = ks(r): fi = dFirst(k)
         If Round(dQ(k), 2) = 0 And Round(dV(k), 2) = 0 Then GoTo PulaZero   ' QTD=0 e VALOR=0
@@ -4505,7 +4507,10 @@ Prox:
         codSrvOut = NormCod(dados(fi, cMaterial))
         outp(ki, 1) = pep: outp(ki, 2) = PEP3(pep): outp(ki, 3) = TipoPEPANEEL(pep)
         outp(ki, 4) = codSrvOut
-        outp(ki, 5) = DescServico(codSrvOut)
+        ' Descricao: catalogo embutido/externo; fallback TEXTO BREVE da base
+        descOut = DescServico(codSrvOut)
+        If descOut = "" Then descOut = Trim$(TextoCampo(fi, cTexto))
+        outp(ki, 5) = descOut
         outp(ki, 6) = ValorCampo(fi, cClasse)
         ' UND: unidade de medida (M, UN, M3...). Preferencia: coluna UML do
         ' proprio lancamento SAP; fallback: catalogo de servicos (UN).
@@ -4519,6 +4524,37 @@ Prox:
         outp(ki, 12) = SrvInfoLinha(fi, 2)    ' CLS3
         outp(ki, 13) = SrvInfoLinha(fi, 3)    ' TIPO_APLICACAO
         outp(ki, 14) = GrupoPerc(pep)
+
+        ' ALERTA_VALOR: automatiza o "CHECK DE VALOR DO SERVICO" do checklist
+        If Round(dV(k), 2) < 0 And Round(dQ(k), 2) < 0 Then
+            outp(ki, 15) = "VALOR E QTD NEGATIVOS"
+        ElseIf Round(dV(k), 2) < 0 Then
+            outp(ki, 15) = "VALOR NEGATIVO"
+        ElseIf Round(dQ(k), 2) < 0 Then
+            outp(ki, 15) = "QTD NEGATIVA"
+        Else
+            outp(ki, 15) = "OK"
+        End If
+
+        ' APROPRIACAO: automatiza o "CHECK DE APROPRIACAO CORRETA DE SERVICO".
+        ' 1) TIPO_APLICACAO do catalogo (ODI*/ODD*) vs tipo do PEP (.I/.D);
+        ' 2) fallback por palavra-chave na descricao (INST/RET/DESAT).
+        taSrv = UCase$(SrvInfoLinha(fi, 3))
+        tpPep = TipoPEPCodigo(pep)
+        descU = UCase$(SemAcento(descOut))
+        If Left$(taSrv, 3) = "ODI" And tpPep = "D" Then
+            outp(ki, 16) = "VERIFICAR: SERVICO ODI LANCADO NA ODD"
+        ElseIf Left$(taSrv, 3) = "ODD" And tpPep = "I" Then
+            outp(ki, 16) = "VERIFICAR: SERVICO ODD LANCADO NA ODI"
+        ElseIf tpPep = "I" And (Left$(descU, 4) = "RET " Or InStr(descU, "RETIRADA") > 0 _
+               Or InStr(descU, "DESATIV") > 0 Or InStr(descU, "DESMONT") > 0) Then
+            outp(ki, 16) = "VERIFICAR: RETIRADA/DESATIVACAO NA ODI"
+        ElseIf tpPep = "D" And (Left$(descU, 5) = "INST " Or InStr(descU, "INSTALACAO") > 0 _
+               Or InStr(descU, "IMPLANT") > 0) Then
+            outp(ki, 16) = "VERIFICAR: INSTALACAO NA ODD"
+        Else
+            outp(ki, 16) = "OK"
+        End If
 PulaZero:
     Next r
     EscreverAba "SERVICO", outp
@@ -4980,6 +5016,9 @@ Private Sub Gerar_Regras()
     s = s & "OBSERVACOES|Veredito do PEP3 (OBS2)|A coluna OBS2 repete em TODAS as linhas do PEP3 o motivo do veredito: APROVADO (nenhuma familia UC fora da margem) ou REPROVADO (com o motivo agregado)." & vbLf
     s = s & "FILTRAGEM|Linhas NULO ignoradas|Linhas com MAT = 0 e SRV = 0 (NULO) nao sao trazidas para a aba MATERIAL vs SERVICO." & vbLf
     s = s & "ABA SERVICO|Unidade de medida (UND)|Preferencia: UML do proprio lancamento SAP; se vazio, usa a unidade (UN) do catalogo SERVICOS_ATUAIS pelo COD_SERVICO." & vbLf
+    s = s & "ABA SERVICO|ALERTA_VALOR|Check automatico de valor do servico: VALOR e/ou QTD negativos sao sinalizados; caso contrario OK." & vbLf
+    s = s & "ABA SERVICO|APROPRIACAO|Check automatico de apropriacao: TIPO_APLICACAO ODI* lancado em PEP .D (ou ODD* em .I) -> VERIFICAR; fallback por palavra-chave (INST em ODD, RET/DESATIV em ODI)." & vbLf
+    s = s & "ABA SERVICO|Descricao com fallback|DESCRICAO_SERVICO usa o catalogo (embutido + SERVICOS_ATUAIS); se nao encontrado, usa o TEXTO BREVE do proprio lancamento SAP." & vbLf
 
     Dim linhas() As String: linhas = Split(s, vbLf)
     Dim i As Long, cnt As Long
@@ -5455,6 +5494,7 @@ Private Sub Gerar_ServicoSemMaterial()
     Dim dLanc As Object:  Set dLanc  = CreateObject("Scripting.Dictionary")  ' pep4|cod -> n lancamentos
     Dim dFam As Object:   Set dFam   = CreateObject("Scripting.Dictionary")  ' pep4|cod -> familia
     Dim dPep4K As Object: Set dPep4K = CreateObject("Scripting.Dictionary")  ' pep4|cod -> pep4
+    Dim dLinSM As Object: Set dLinSM = CreateObject("Scripting.Dictionary")  ' pep4|cod -> 1a linha (p/ TEXTO BREVE)
 
     Dim i As Long, pepSM As String, cls2SM As String, kSM As String, cod As String
 
@@ -5487,6 +5527,7 @@ P1:
         dLanc(kPepCod) = dLanc(kPepCod) + 1
         If Not dFam.Exists(kPepCod) Then dFam(kPepCod) = cls2SM
         If Not dPep4K.Exists(kPepCod) Then dPep4K(kPepCod) = pepSM
+        If Not dLinSM.Exists(kPepCod) Then dLinSM(kPepCod) = i
 P2:
     Next i
 
@@ -5527,7 +5568,11 @@ P2:
             outpSM(rrSM, 1) = PEP3(pep4v)
             outpSM(rrSM, 2) = pep4v
             outpSM(rrSM, 3) = cod
-            outpSM(rrSM, 4) = DescServico(cod)
+            ' Descricao: catalogo; fallback TEXTO BREVE do proprio lancamento
+            Dim descSM As String: descSM = DescServico(cod)
+            If descSM = "" And dLinSM.Exists(kvStr) Then _
+                descSM = Trim$(TextoCampo(CLng(dLinSM(kvStr)), cTexto))
+            outpSM(rrSM, 4) = descSM
             outpSM(rrSM, 5) = famX
             outpSM(rrSM, 6) = tipoSM
             outpSM(rrSM, 7) = Round(CDbl(dQ(kvStr)), 2)
@@ -6092,7 +6137,7 @@ Private Function CategoriaVeredito(ByVal v As String) As Long
     ElseIf InStr(v, "REPROVAD") > 0 Or v = "NAO ADERENTE" _
            Or InStr(v, "NEGATIV") > 0 Or InStr(v, "NAO CADASTR") > 0 _
            Or InStr(v, "ZERAD") > 0 Or InStr(v, "ABAIXO") > 0 _
-           Or InStr(v, "ACIMA") > 0 Then
+           Or InStr(v, "ACIMA") > 0 Or InStr(v, "VERIFICAR") > 0 Then
         CategoriaVeredito = 2
     ElseIf v = "NULO" Or v = "SEM UC" Then
         CategoriaVeredito = 3
@@ -6290,7 +6335,8 @@ End Function
 Private Function EhColunaVeredito(ByVal hh As String) As Boolean
     hh = UCase$(Trim$(hh))
     EhColunaVeredito = (InStr(hh, "STATUS") > 0 Or InStr(hh, "APROV") > 0 _
-        Or InStr(hh, "SITUACAO") > 0 Or hh = "OBS" Or InStr(hh, "ALERTA") > 0)
+        Or InStr(hh, "SITUACAO") > 0 Or hh = "OBS" Or InStr(hh, "ALERTA") > 0 _
+        Or InStr(hh, "APROPRIACAO") > 0)
 End Function
 
 ' Cor da guia por grupo funcional.

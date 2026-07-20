@@ -221,3 +221,14 @@ Versão atual: **7.987 linhas · 65 Subs · 72 Functions** (módulo `AnaliseCKCP
 - **Antes**: só ~90 famílias tinham TIPO (UC/COM/UAR) na tabela curada `dTipoCls`; ~1.162 famílias dos catálogos ATUAIS ficavam sem TIPO (resolvidas só pelo fallback de CLS3 em runtime, restrito ao MATERIAL vs SERVICO e ALERTAS).
 - **Agora**: `CarregarTipoClassifAuto` embute **804 famílias** com TIPO (UC/COM) derivado do **CLS3 dominante** do catálogo de materiais (maioria `MAT. UC` → UC, `MAT. COM` → COM). Classificação consistente em toda a cadeia (portfólio, serviço sem material, etc.), não só nos dois pontos com fallback.
 - **Prioridade preservada**: ordem de carga = curadas (`CarregarTipoClassif`) → auto (preenche lacunas, `AddTipoCls` não sobrepõe) → `FAM_UAR` (override explícito). Famílias só-`RISCO`/`OUTROS` (sem UC/COM) e ruído (`(ANE)`, `SUCATA`, `LICENCA`) ficam de fora.
+
+### Pós-merge #15 (branch reiniciada da main)
+
+- **OBS2 (MATERIAL vs SERVICO)**: motivo do veredito do PEP3 replicado em todas as linhas do PEP3 (aprovação com margem usada; reprova com motivo agregado).
+- **Aba SERVICO ampliada (16 colunas)**:
+  - `UND` (unidade de medida): UML do lançamento SAP; fallback coluna `UN` do catálogo (`dCatSrv` idx 5).
+  - `DESCRICAO_SERVICO` com fallback ao `TEXTO BREVE` da própria base (também em SERVICO SEM MATERIAL).
+  - `ALERTA_VALOR`: automatiza o "CHECK DE VALOR DO SERVICO" (VALOR/QTD negativos → sinalizado; senão OK).
+  - `APROPRIACAO`: automatiza o "CHECK DE APROPRIACAO CORRETA DE SERVICO" — `TIPO_APLICACAO` ODI* lançado em PEP `.D` (ou ODD* em `.I`) → `VERIFICAR`; fallback por palavra-chave (INST em ODD, RET/DESATIV/DESMONT em ODI). Colunas pintadas automaticamente (verde OK / vermelho VERIFICAR).
+- **CHECKLIST CKCP**: macro avulsa `GerarChecklistCKCP` (Alt+F8) cria aba com as 27 etapas do processo (STATUS via dropdown com cores, CORTE ID, % concluído automático). Não-destrutiva e fora do `GerarRelatorio`.
+- `EhColunaVeredito` reconhece `APROPRIACAO`; `CategoriaVeredito` reconhece `VERIFICAR` (vermelho).
