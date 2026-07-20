@@ -538,6 +538,8 @@ function findSubs(food,pool,limit=3){
 
 /* --- análise nutricional de precisão (micros vs DRI, PDCAAS, carga glicêmica) --- */
 const MTG={k:{M:3400,F:2600,l:"Potássio",u:"mg"},mg:{M:400,F:310,l:"Magnésio",u:"mg"},fe:{M:8,F:18,l:"Ferro",u:"mg"},zn:{M:11,F:8,l:"Zinco",u:"mg"},ca:{M:1000,F:1000,l:"Cálcio",u:"mg"},vc:{M:90,F:75,l:"Vitamina C",u:"mg"},va:{M:900,F:700,l:"Vitamina A",u:"µg"},o3:{M:1.6,F:1.1,l:"Ômega-3",u:"g"},na:{M:2300,F:2300,l:"Sódio",u:"mg",ceil:1}};
+// fontes alimentares mais ricas num micronutriente (por 100 g) — para orientação educativa
+function foodSourcesFor(k,limit){return [...FOODS].filter(f=>f.mi&&f.mi[k]>0).sort((a,b)=>(b.mi[k]||0)-(a.mi[k]||0)||a.n.localeCompare(b.n)).slice(0,limit||4);}
 function analyzeMicros(items,sex){
   const tot={};Object.keys(MTG).forEach(k=>tot[k]=0);
   for(const{food,g}of items){const mi=food.mi||{};Object.keys(MTG).forEach(k=>tot[k]+=(mi[k]||0)*g/100);}
@@ -1346,6 +1348,11 @@ function render(){
     <div class="cores"><div class="k">Carboidrato</div><div class="v tnum">${gload.ct}<small> g</small></div><div class="meta">total do dia</div></div></div>
     <div class="src" style="margin-top:12px"><span class="pill ${gload.st==="low"?"good":gload.st==="medium"?"warn":"crit"}">${gload.st==="low"?"resposta glicêmica suave":gload.st==="medium"?"moderada":"considere trocar fontes de alto IG"}</span></div></div>`;
 
+  // ---- suplementação educativa: lacunas de micros → fontes alimentares ----
+  const lowMic2=micros.filter(x=>x.st==="low");
+  const cardSupp=`<div class="card span-12"><h3>Lacunas de micronutrientes <span class="pill ${lowMic2.length?"warn":"good"}">${lowMic2.length?lowMic2.length+" abaixo de 70%":"nenhuma lacuna"}</span></h3><div class="cap">${anSrc} vs DRI · fontes alimentares ricas · educativo, nunca dose</div>
+    ${lowMic2.length?lowMic2.map(mi=>{const src=foodSourcesFor(mi.k,4);return`<div class="daytag">${mi.l} · ${mi.pct}% da meta (${mi.amount}/${mi.target} ${mi.u})</div><div class="wsetrow" style="margin-bottom:6px">${src.map(f=>`<span class="setchip">${f.n} — ${f.mi[mi.k]} ${mi.u}/100g</span>`).join("")}</div>`;}).join("")+`<div class="src" style="margin-top:12px">Priorize essas fontes nas próximas refeições. Se a lacuna persistir apesar da alimentação, discuta reposição com um médico ou nutricionista — <b>o sistema não sugere doses nem suplementos</b>.</div>`:`<div class="src">Todos os micronutrientes acompanhados estão em ≥70% da meta no ${anSrc}. Mantenha a variedade de alimentos.</div>`}</div>`;
+
   // ---- card do DIÁRIO ALIMENTAR (registrar + comparar consumido × alvo) ----
   const macroRow=(lab,cons,tgt,col)=>`<div class="macro"><div class="mh"><b>${lab}</b><span class="g mono tnum">${cons} / ${tgt} g</span></div><div class="track"><div class="fill" style="width:${Math.min(cons/Math.max(tgt,1)*100,100)}%;background:${col}"></div></div></div>`;
   const cardDiary=`<div class="card span-7"><h3>Diário de hoje <span class="pill ${hasLog?(adh.st==="high"?"good":adh.st==="ok"?"warn":"crit"):"accent"}">${hasLog?"aderência "+adh.ad+"%":"nada registrado"}</span></h3><div class="cap">registre o que comeu · comparado ao alvo do paciente</div>
@@ -1555,7 +1562,7 @@ function render(){
     nutri:{title:"Nutrição",sub:"Meta calórica e macros pelo motor; plano montado por seleção na base de alimentos.",html:cardEnergy+cardMacros+cardMeals+cardBody},
     week:{title:"Semana",sub:"7 dias com rotação determinística de fontes + lista de compras agregada.",html:cardWeek+cardShop},
     diario:{title:"Diário alimentar",sub:"Registre o consumo real; a Análise passa a usar o que foi comido, não o plano.",html:cardDiary+cardIntake},
-    analise:{title:"Análise de precisão",sub:"Micronutrientes vs DRI, qualidade proteica (PDCAAS), leucina por refeição e carga glicêmica.",html:cardMicros+cardProtQual+cardProtDist+cardGL+cardMacros},
+    analise:{title:"Análise de precisão",sub:"Micronutrientes vs DRI, qualidade proteica (PDCAAS), leucina por refeição, carga glicêmica e lacunas com fontes alimentares.",html:cardMicros+cardProtQual+cardProtDist+cardGL+cardSupp+cardMacros},
     train:{title:"Treino",sub:"Split por frequência, volume graduado por landmarks e base aeróbica em Zona 2.",html:cardWorkout+cardVolume+cardZone2+cardReady+cardTrend},
     calc:{title:"Calculadoras",sub:"1RM, zonas de FC, pace, gasto calórico e VO₂máx — todas determinísticas.",html:cardCalc+cardBody},
     labs:{title:"Exames",sub:"Comparação com faixas de referência armazenadas — educativo, nunca prescreve.",html:cardLabs+cardLabSummary},
