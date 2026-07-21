@@ -175,6 +175,9 @@ Sub GerarRelatorio()
     ' 3c') Carrega o catalogo de SERVICOS (CLS1/2/3, TIPO_APLIC, SEGMENTO + descricoes)
     gEtapa = "CarregarCatalogoServicos": CarregarCatalogoServicos
 
+    ' 3c'') Reclassificacao curada de servicos (sobrepoe o catalogo)
+    gEtapa = "CarregarReclassificacaoServicos": CarregarReclassificacaoServicos
+
     ' 3d) Carrega o catalogo de CLASSE DE CUSTO (CLS1/2/3 + TIPO_APLIC; marca RISCO)
     gEtapa = "CarregarCatalogoClasse": CarregarCatalogoClasse
 
@@ -1398,6 +1401,37 @@ Private Sub CarregarCatalogoServicos()
 SemCat:
     On Error Resume Next
     If Not wb Is Nothing Then wb.Close SaveChanges:=False
+End Sub
+
+' Overrides curados de reclassificacao CLS1/CLS2/CLS3 por COD_SERVICO
+' (RECLASSIFICA_SERVI_OS.xlsx). Roda DEPOIS do catalogo externo e SOBREPOE
+' a classificacao, preservando TIPO_APLIC/SEGMENTO/UND ja carregados.
+Private Sub CarregarReclassificacaoServicos()
+    ReclasSrv "5023000185", "SERVICO", "TRAFO", "MAO DE OBRA"
+    ReclasSrv "5023000184", "SERVICO", "TRAFO", "MAO DE OBRA"
+    ReclasSrv "5023000186", "SERVICO", "TRAFO", "MAO DE OBRA"
+    ReclasSrv "5024000086", "SERVICO", "CONEXAO", "MAO DE OBRA"
+    ReclasSrv "5024000085", "SERVICO", "CONEXAO", "MAO DE OBRA"
+    ReclasSrv "5023000187", "SERVICO", "REGULADOR", "MAO DE OBRA"
+    ReclasSrv "5025300385", "SERVICO", "ESPACADOR", "MAO DE OBRA"
+    ReclasSrv "5400099811", "SERVICO", "COND ISOLADO", "MAO DE OBRA"
+    ReclasSrv "5400099848", "SERVICO", "CONEXAO", "MAO DE OBRA"
+    ReclasSrv "5400099851", "SERVICO", "CONEXAO", "MAO DE OBRA"
+    ReclasSrv "5301800152", "SERVICO", "ALUGUEL GERADOR", "RISCO"
+End Sub
+
+Private Sub ReclasSrv(ByVal cod As String, ByVal c1 As String, _
+                      ByVal c2 As String, ByVal c3 As String)
+    If dCatSrv Is Nothing Then Set dCatSrv = CreateObject("Scripting.Dictionary")
+    Dim ta As String, seg As String, und As String, p() As String
+    cod = NormCod(cod)
+    If dCatSrv.Exists(cod) Then
+        p = Split(dCatSrv(cod), "|")
+        If UBound(p) >= 3 Then ta = p(3)
+        If UBound(p) >= 4 Then seg = p(4)
+        If UBound(p) >= 5 Then und = p(5)
+    End If
+    dCatSrv(cod) = c1 & "|" & c2 & "|" & c3 & "|" & ta & "|" & seg & "|" & und
 End Sub
 
 ' Devolve parte do catlogo de servio: 0=CLS1,1=CLS2,2=CLS3,3=TIPO_APLIC,4=SEGMENTO,5=UND
