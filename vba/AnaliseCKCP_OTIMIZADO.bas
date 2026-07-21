@@ -4512,11 +4512,26 @@ Private Sub Gerar_Servico()
     Set dV = CreateObject("Scripting.Dictionary")
     Set dFirst = CreateObject("Scripting.Dictionary")   ' chave -> indice da 1a linha
 
-    Dim i As Long, pep As String, codSrv As String, k As String
+    ' Qtd de CAVA (servico ESCAVACAO) e de POSTE por PEP4 -> regra de aderencia:
+    ' mais servico de cava do que poste no PEP marca a cava como NAO ADERENTE.
+    Dim dCava As Object:     Set dCava = CreateObject("Scripting.Dictionary")
+    Dim dPosteSrv As Object: Set dPosteSrv = CreateObject("Scripting.Dictionary")
+    Dim dPosteMat As Object: Set dPosteMat = CreateObject("Scripting.Dictionary")
+
+    Dim i As Long, pep As String, codSrv As String, k As String, famSv As String
     For i = 1 To UBound(dados, 1)
         pep = Trim$(CStr(dados(i, cPEP))): If pep = "" Then GoTo Prox
-        If EhMaterial(CStr(dados(i, cClassif))) Then GoTo Prox
+        If EhMaterial(CStr(dados(i, cClassif))) Then
+            ' poste (material) do PEP -> numero de postes
+            If NormClassif(FamiliaAlias(MatInfoLinha(i, 2))) = "POSTE RD" Then _
+                dPosteMat(pep) = dPosteMat(pep) + Abs(ToNum(dados(i, cQtd)))
+            GoTo Prox
+        End If
         codSrv = NormCod(dados(i, cMaterial))   ' codigo do servico (coluna Material)
+        ' acumula CAVA e POSTE (servico) por PEP (independe de ter COD_SERVICO)
+        famSv = NormClassif(FamiliaAlias(SrvInfoLinha(i, 1)))
+        If famSv = "ESCAVACAO" Then dCava(pep) = dCava(pep) + Abs(ToNum(dados(i, cQtd)))
+        If famSv = "POSTE RD" Then dPosteSrv(pep) = dPosteSrv(pep) + Abs(ToNum(dados(i, cQtd)))
         If codSrv = "" Or codSrv = "0" Then GoTo Prox   ' sem COD_SERVICO -> nao traz
         k = pep & "|" & codSrv
         If Not dFirst.Exists(k) Then dFirst(k) = i
@@ -4614,6 +4629,21 @@ Prox:
             outp(ki, 17) = IIf(Round(dQ(k), 2) > 0 Or Round(dV(k), 2) > 0, "NAO ADERENTE", "ADERENTE")
         Else
             outp(ki, 17) = IIf(Round(dQ(k), 2) < 0 Or Round(dV(k), 2) < 0, "NAO ADERENTE", "ADERENTE")
+        End If
+
+        ' Regra CAVA x POSTE: servico de CAVA (ESCAVACAO) com quantidade maior
+        ' que a de poste no PEP -> NAO ADERENTE (a cava nao e ligada ao poste,
+        ' apenas sinalizada). POSTE = qtd de servico de poste; se 0, usa o material.
+        If NormClassif(FamiliaAlias(SrvInfoLinha(fi, 1))) = "ESCAVACAO" Then
+            Dim qCava As Double, qPoste As Double
+            qCava = IIf(dCava.Exists(pep), CDbl(dCava(pep)), 0)
+            qPoste = IIf(dPosteSrv.Exists(pep), CDbl(dPosteSrv(pep)), 0)
+            If qPoste = 0 Then qPoste = IIf(dPosteMat.Exists(pep), CDbl(dPosteMat(pep)), 0)
+            If Round(qCava, 2) > Round(qPoste, 2) Then
+                outp(ki, 17) = "NAO ADERENTE"
+                outp(ki, 16) = "CAVA (" & Format$(qCava, "0.##") & ") > POSTE (" & _
+                               Format$(qPoste, "0.##") & ")"
+            End If
         End If
 PulaZero:
     Next r
@@ -5108,6 +5138,7 @@ Private Sub Gerar_Regras()
     s = s & "ABA SERVICO|APROPRIACAO|Check automatico de apropriacao: TIPO_APLICACAO ODI* lancado em PEP .D (ou ODD* em .I) -> VERIFICAR; fallback por palavra-chave (INST em ODD, RET/DESATIV em ODI)." & vbLf
     s = s & "ABA SERVICO|Descricao com fallback|DESCRICAO_SERVICO usa o catalogo (embutido + SERVICOS_ATUAIS); se nao encontrado, usa o TEXTO BREVE do proprio lancamento SAP." & vbLf
     s = s & "ABA SERVICO|ADERENCIA|QTD=0 com VALOR (+ ou -) -> NAO ADERENTE; ODD (.D) com QTD ou VALOR positivo -> NAO ADERENTE; ODI/ODM/ODS com QTD ou VALOR negativo -> NAO ADERENTE." & vbLf
+    s = s & "ABA SERVICO|CAVA x POSTE|Servico de CAVA (ESCAVACAO) com quantidade maior que a de poste no PEP -> NAO ADERENTE. A cava NAO e ligada ao poste (nao entra na MATERIAL vs SERVICO), apenas sinalizada. POSTE = qtd de servico de poste; se 0, usa a qtd de material poste." & vbLf
 
     Dim linhas() As String: linhas = Split(s, vbLf)
     Dim i As Long, cnt As Long
