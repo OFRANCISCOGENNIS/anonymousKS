@@ -512,6 +512,13 @@ h1.title{font-size:clamp(26px,3vw,34px);font-weight:800;letter-spacing:-.02em;ma
         </select>
       </div>
       <div class="field"><label>Dias treino</label><input id="days" type="number" value="4" min="1" max="6"></div>
+      <div class="field wide"><label>Nível de treino</label>
+        <select id="level">
+          <option value="0">Iniciante</option>
+          <option value="1" selected>Intermediário</option>
+          <option value="2">Avançado</option>
+        </select>
+      </div>
     </section>
 
     <section class="profile anamnese" aria-label="Anamnese" id="anamnese">
@@ -756,7 +763,9 @@ const FOODS=[
   {n:"Whey protein (pó)",c:"supplements",kcal:400,p:80,ch:8,f:6,t:["veg","gf","keto"],gi:15,pd:1,mi:{k:500,mg:60,fe:1,zn:1.5,ca:500,vc:0,va:0,o3:0,na:200}},
   {n:"Proteína vegana (pó)",c:"supplements",kcal:390,p:75,ch:10,f:5,t:["vegan","veg","gf","lf","keto"],gi:15,pd:.85,mi:{k:400,mg:100,fe:8,zn:3,ca:150,vc:0,va:0,o3:.5,na:350}},
 ];
-const MEALS=[{s:"Café da manhã",t:"07:00",pct:.25},{s:"Almoço",t:"12:00",pct:.35},{s:"Lanche",t:"16:00",pct:.15},{s:"Jantar",t:"20:00",pct:.25}];
+const MEALS=[{s:"Café da manhã",t:"07:00",pct:.25,type:"breakfast"},{s:"Almoço",t:"12:00",pct:.35,type:"main"},{s:"Lanche",t:"16:00",pct:.15,type:"snack"},{s:"Jantar",t:"20:00",pct:.25,type:"main"}];
+// categorias apropriadas por refeição — café/lanche não levam carne/peixe/feijão
+const SLOT_CATS={breakfast:["eggs","dairy","cereals","fruits","oils","tubers"],snack:["eggs","dairy","fruits","oils","cereals"],main:null};
 /* preço médio estimado por categoria (R$/kg, Brasil ~2024) — estimativa, não cotação */
 const PRICE_CAT={meats:38,fish:36,eggs:14,dairy:24,legumes:11,cereals:9,tubers:5,vegetables:9,fruits:8,oils:28,supplements:130};
 function foodCostBRL(food,grams){const pk=PRICE_CAT[food.c]||12;return pk*grams/1000;}
@@ -784,20 +793,26 @@ function eligibleFoods(strategy,allergies){
 function strategyAllowed(strategy,conditions){const s=STRATEGIES[strategy]||STRATEGIES.flexible;return !s.contra.some(c=>conditions.includes(c));}
 
 // rotate: dia N usa a N-ésima melhor fonte de cada ranking — variedade sem sorteio.
-function buildMeal(pool,tk,tp,rotate=0){
-  const prot=pool.filter(x=>x.p/Math.max(x.kcal,1)>.08&&x.p>=12).sort((a,b)=>b.p/b.kcal-a.p/a.kcal||a.n.localeCompare(b.n));
-  const carb=pool.filter(x=>x.ch>x.p&&x.ch>x.f&&x.kcal<200).sort((a,b)=>b.ch-a.ch||a.n.localeCompare(b.n));
-  const fat=pool.filter(x=>x.f/Math.max(x.kcal,1)>.05&&x.p/Math.max(x.kcal,1)<=.08).sort((a,b)=>b.f/b.kcal-a.f/a.kcal||a.n.localeCompare(b.n));
+// slot: café/lanche restringem categorias e liberam carbos densos (pão, aveia, tapioca).
+function buildMeal(pool,tk,tp,rotate=0,slot="main"){
+  let sp=SLOT_CATS[slot]?pool.filter(f=>SLOT_CATS[slot].includes(f.c)):pool;
+  if(sp.length<3)sp=pool; // fallback: dieta restritiva esvaziou o slot
+  const carbCap=(slot==="breakfast"||slot==="snack")?420:200; // café/lanche aceitam pão/aveia
+  const prot=sp.filter(x=>x.p/Math.max(x.kcal,1)>.08&&x.p>=12).sort((a,b)=>b.p/b.kcal-a.p/a.kcal||a.n.localeCompare(b.n));
+  const carb=sp.filter(x=>x.ch>x.p&&x.ch>x.f&&x.kcal<carbCap&&x.c!=="legumes"&&!(slot==="main"&&x.c==="fruits")).sort((a,b)=>b.ch-a.ch||a.n.localeCompare(b.n));
+  const fat=sp.filter(x=>x.f/Math.max(x.kcal,1)>.05&&x.p/Math.max(x.kcal,1)<=.08).sort((a,b)=>b.f/b.kcal-a.f/a.kcal||a.n.localeCompare(b.n));
   const pick=l=>l.length?l[rotate%l.length]:null;
   const items=[];let kc=0,pr=0;
   const add=(fd,g)=>{g=Math.round(g/5)*5;if(g<10)return;items.push({n:fd.n,g,kcal:Math.round(fd.kcal*g/100),p:Math.round(fd.p*g/100)});kc+=fd.kcal*g/100;pr+=fd.p*g/100;};
   const P=pick(prot),C=pick(carb),F=pick(fat);
   if(P)add(P,Math.min(tp*.85/P.p*100,300));
   if(C&&kc<tk)add(C,(tk-kc)*.8/C.kcal*100);
+  // almoço/jantar: adiciona feijão/leguminosa como acompanhamento clássico (arroz e feijão)
+  if(slot==="main"){const leg=sp.filter(x=>x.c==="legumes"&&x.ch>x.p&&x.n!==(C&&C.n)).sort((a,b)=>b.p-a.p||a.n.localeCompare(b.n));const L=leg.length?leg[rotate%leg.length]:null;if(L&&kc<tk*.9)add(L,Math.min((tk-kc)*.5/L.kcal*100,150));}
   if(F&&kc<tk*.95)add(F,Math.min((tk-kc)/F.kcal*100,30));
   return{items,kcal:Math.round(kc),p:Math.round(pr)};
 }
-function dayPlan(m,pool,dayIndex=0){return MEALS.map(ms=>({...ms,tk:Math.round(m.kcal*ms.pct),...buildMeal(pool,m.kcal*ms.pct,Math.min(Math.round(m.protein*ms.pct*1.15),40),dayIndex)}));}
+function dayPlan(m,pool,dayIndex=0){return MEALS.map(ms=>({...ms,tk:Math.round(m.kcal*ms.pct),...buildMeal(pool,m.kcal*ms.pct,Math.min(Math.round(m.protein*ms.pct*1.15),40),dayIndex,ms.type)}));}
 function weekPlan(m,pool){
   const days=WEEK_DAYS.map((label,i)=>({label,plan:dayPlan(m,pool,i)}));
   const grams=new Map();
@@ -1039,15 +1054,18 @@ const SPLITS={1:["full"],2:["full","full"],3:["full","full","full"],4:["upper","
 const DAYPAT={full:["squat","push_h","pull_h","hinge","push_v","core"],upper:["push_h","pull_h","push_v","pull_v"],lower:["squat","hinge","squat","core"],push:["push_h","push_v","push_h"],pull:["pull_v","pull_h","pull_v"],legs:["squat","hinge","squat","core"]};
 const GP={hypertrophy:{lo:6,hi:12,rc:150,ri:75},strength:{lo:3,hi:6,rc:180,ri:90},fat_loss:{lo:8,hi:15,rc:120,ri:60},maintenance:{lo:8,hi:15,rc:120,ri:60}};
 const DAYNAME={full:"Corpo inteiro",upper:"Superior",lower:"Inferior",push:"Empurrar",pull:"Puxar",legs:"Pernas"};
-// equipment: lista de equipamentos disponíveis; conditions: lesões (filtro).
-function workoutPlan(p,equipment,conditions){
-  const split=SPLITS[Math.min(Math.max(p.days,1),6)];const gp=GP[p.goal]||GP.maintenance;const sets=3;
+const LEVEL_SETS=[2,3,4]; // iniciante/intermediário/avançado: volume base por série
+// equipment: equipamentos; conditions: lesões; level: 0/1/2 (iniciante→avançado)
+function workoutPlan(p,equipment,conditions,level=1){
+  level=Math.max(0,Math.min(+level||0,2));
+  const split=SPLITS[Math.min(Math.max(p.days,1),6)];const gp=GP[p.goal]||GP.maintenance;const sets=LEVEL_SETS[level];
   const pool=EX.filter(e=>e.eq.some(x=>equipment.includes(x))&&!e.ctr.some(c=>conditions.includes(c)));
-  const usage=new Map();const excluded=[];
+  const usage=new Map();
   const plan=split.map((dt,i)=>{
     const pats=DAYPAT[dt];const items=[];
     for(const pat of pats){
-      const cands=pool.filter(e=>e.mp===pat).sort((a,b)=>b.comp-a.comp||(usage.get(a.c)||0)-(usage.get(b.c)||0)||a.c.localeCompare(b.c));
+      // preferir exercícios ≤ nível do usuário (iniciante evita avançados); recorre a mais difíceis só se o padrão ficaria vazio
+      const cands=pool.filter(e=>e.mp===pat).sort((a,b)=>((a.lv<=level?0:1)-(b.lv<=level?0:1))||b.comp-a.comp||(usage.get(a.c)||0)-(usage.get(b.c)||0)||a.c.localeCompare(b.c));
       if(!cands[0])continue;const e=cands[0];usage.set(e.c,(usage.get(e.c)||0)+1);
       items.push({n:e.n,mu:e.mu,sets,lo:gp.lo,hi:gp.hi,rest:e.comp?gp.rc:gp.ri});
     }
@@ -1081,7 +1099,7 @@ function saveProfile(){
     pt.profile={
       sex:document.querySelector("#sexseg .on").dataset.sex,
       weight:$("#weight").value,height:$("#height").value,age:$("#age").value,bf:$("#bf").value,waist:$("#waist").value,
-      goal:$("#goal").value,activity:$("#activity").value,days:$("#days").value,strategy:$("#strategy").value,
+      goal:$("#goal").value,activity:$("#activity").value,days:$("#days").value,strategy:$("#strategy").value,level:$("#level").value,
       allergies:chipsOn("allergies"),equipment:chipsOn("equipment"),injuries:chipsOn("injuries"),
     };
     pt.labs=LABVALS;
@@ -1092,10 +1110,10 @@ function loadProfile(){
   $("#pname").value=pt.name||"Paciente";
   const d=pt.profile||{};
   // aplica default quando o campo do paciente está vazio (evita herdar o perfil do paciente anterior)
-  const DEF={weight:"80",height:"180",age:"30",bf:"20",waist:"85",goal:"fat_loss",activity:"moderate",days:"4",strategy:"flexible"};
+  const DEF={weight:"80",height:"180",age:"30",bf:"20",waist:"85",goal:"fat_loss",activity:"moderate",days:"4",strategy:"flexible",level:"1"};
   const set=(id,v)=>{if($("#"+id))$("#"+id).value=(v!=null&&v!=="")?v:DEF[id];};
   set("weight",d.weight);set("height",d.height);set("age",d.age);set("bf",d.bf);set("waist",d.waist);
-  set("goal",d.goal);set("activity",d.activity);set("days",d.days);set("strategy",d.strategy);
+  set("goal",d.goal);set("activity",d.activity);set("days",d.days);set("strategy",d.strategy);set("level",d.level);
   document.querySelectorAll("#sexseg button").forEach(b=>b.classList.toggle("on",b.dataset.sex===(d.sex||"M")));
   const applyChips=(id,vals,def)=>{const v=vals||def||[];document.querySelectorAll("#"+id+" button").forEach(b=>b.classList.toggle("on",v.includes(b.dataset.v)));};
   applyChips("allergies",d.allergies,[]);
@@ -1119,7 +1137,7 @@ function P(){
   return{
     sex:document.querySelector("#sexseg .on").dataset.sex,
     weightKg:+$("#weight").value,heightCm:+$("#height").value,age:+$("#age").value,
-    bf:+$("#bf").value,waist:+$("#waist").value,goal:$("#goal").value,activity:$("#activity").value,days:+$("#days").value,
+    bf:+$("#bf").value,waist:+$("#waist").value,goal:$("#goal").value,activity:$("#activity").value,days:+$("#days").value,level:+$("#level").value,
     strategy:$("#strategy").value,
     allergies:chipsOn("allergies"),equipment:chipsOn("equipment"),
     conditions:mergedConditions(),
@@ -1473,7 +1491,7 @@ function render(){
     <div class="habgrid" id="habgrid">${HABITS.map(h=>`<div class="hab ${doneToday.includes(h.k)?"done":""}" data-h="${h.k}" role="button" tabindex="0" aria-pressed="${doneToday.includes(h.k)}"><span class="ic">${h.ic}</span><span class="hn">${h.n}</span><span class="chk">✓</span></div>`).join("")}</div>
     <div class="deltarow"><span>Água de hoje: <b>${(wm/1000).toFixed(2)} L</b> · Proteína: <b>${m.protein} g</b> · Passos: meta <b>8 000</b></span></div></div>`;
 
-  const wpr=workoutPlan(p,p.equipment.length?p.equipment:["bodyweight"],p.conditions);
+  const wpr=workoutPlan(p,p.equipment.length?p.equipment:["bodyweight"],p.conditions,p.level);
   // periodização: aplica multiplicador de séries do mesociclo (deload na última semana)
   const mw=(_pt&&_pt.mesoWeek)||1;const per=periodize(mw);
   const wp=wpr.plan.map(d=>({...d,items:d.items.map(it=>{const lm=VOL[it.mu]||{mrv:22};const teto=Math.max(1,Math.round(lm.mrv/3));return{...it,sets:Math.max(1,Math.min(Math.round(it.sets*per.setMult),teto)),rir:per.rir};})}));
@@ -1505,7 +1523,7 @@ function render(){
     }
     return`<div class="li swap ${open?'op':''}" data-wlog="${it.n}" role="button" tabindex="0" aria-expanded="${open}"><span class="idx tnum">${String(i+1).padStart(2,'0')}</span><div class="nm"><b>${it.n} <span class="swapic">✎</span></b><span>${it.mu}${hist.length?` · ${hist.length} sess.`:""}</span></div><div class="rt"><b class="tnum">${it.sets}×${it.lo}–${it.hi}</b> · RIR ${it.rir} · ${isDeload?Math.round(per.intMult*100)+"% carga":it.rest+"s"}${nl.change==="increase"?' <span class="pill good">↑</span>':""}</div></div>`+panel;
   };
-  const cardWorkout=`<div class="card span-6"><h3>Treino gerado <span class="pill ${isDeload?"warn":"accent"}">${isDeload?"DELOAD":"Sem "+mw+"/"+per.mesoLen}</span>${wpr.barred.length?` <span class="pill warn">${wpr.barred.length} barrado${wpr.barred.length>1?"s":""}</span>`:""}</h3><div class="cap">split ${wp.map(d=>d.type.slice(0,3)).join("/")} · ${p.days}× semana · toque num exercício para registrar séries</div>
+  const cardWorkout=`<div class="card span-6"><h3>Treino gerado <span class="pill ${isDeload?"warn":"accent"}">${isDeload?"DELOAD":"Sem "+mw+"/"+per.mesoLen}</span>${wpr.barred.length?` <span class="pill warn">${wpr.barred.length} barrado${wpr.barred.length>1?"s":""}</span>`:""}</h3><div class="cap">split ${wp.map(d=>d.type.slice(0,3)).join("/")} · ${p.days}× semana · ${LVLBL[Math.max(0,Math.min(p.level||0,2))]} (${LEVEL_SETS[Math.max(0,Math.min(p.level||0,2))]} séries base) · toque num exercício para registrar séries</div>
     <div class="wtabs" style="margin-bottom:12px"><button class="minibtn" id="mesoPrev">◀ semana</button><span class="pill ${isDeload?"warn":"good"}" style="align-self:center">${isDeload?"deload":"acúmulo "+(per.prog||0)+"%"}</span><button class="minibtn" id="mesoNext">semana ▶</button></div>
     <div class="list">${wp.map((d,di)=>`<div class="daytag">Dia ${d.day} · ${d.type} <button class="minibtn" data-startsess="${di}" style="margin-left:8px">▶ Iniciar sessão</button></div>${d.items.map(exItem).join("")}`).join("")}</div>
     ${isDeload?`<div class="src" style="margin-top:12px">Semana de deload: metade das séries, 80% da carga, longe da falha. Recupera para o próximo mesociclo render mais.</div>`:wpr.barred.length?`<div class="src" style="margin-top:12px">Excluídos pela lesão: ${wpr.barred.map(e=>e.n).join(", ")}.</div>`:""}</div>`;
