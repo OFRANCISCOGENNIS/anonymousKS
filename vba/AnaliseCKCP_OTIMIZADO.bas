@@ -3345,7 +3345,13 @@ Private Sub CarregarEquivSrvMat()
         "TENSIONAR=COND PROT;" & _
         "ESTRUTURA=CRUZETA;" & _
         "ESTRUT MT RSB=CRUZETA;" & _
-        "ESTRUT RDC=ESPACADOR LOSAG"
+        "ESTRUT RDC=ESPACADOR LOSAG;" & _
+        "ESTRUT MT S/CRUZ=CRUZETA;" & _
+        "CONECTOR=RAMAL;" & _
+        "DESLIG E RELIG RM=RAMAL;" & _
+        "ACES P/TRAFO=TRAFO;" & _
+        "ACES P/RELIG=RELIGADOR;" & _
+        "ESCAVACAO=POSTE RD"
     Dim extra As String: extra = CfgTxt("EQUIV_SRV_MAT", "")
     If extra <> "" Then s = s & ";" & extra
 
@@ -3366,10 +3372,14 @@ End Sub
 Private Sub CarregarSrvPuro()
     Set dSrvPuro = CreateObject("Scripting.Dictionary")
     Dim s As String
-    s = "PODA;ESCAVACAO;CIVIL;BASE CONC;FUNDACAO;DEMOLIR;MEIO AMBIENTE;" & _
+    ' Obs.: ESCAVACAO NAO e mais servico puro -> ligada ao POSTE (dFamEquiv).
+    s = "PODA;CIVIL;BASE CONC;FUNDACAO;DEMOLIR;MEIO AMBIENTE;" & _
         "ESTUDO AMBIENTAL;PROJETO;FRETE/TRANSP;TRANSPORTE;DESLOCAMENTO;" & _
         "MOBILIZAR;DESMOBILIZAR;ATV DRT;DISPONIBILIDADE;DISPON_STC;" & _
-        "ATEND EMERGENCIA;ABRIR ACESSO/FAIXA_SERV;PUBLICIDADE;TURMA LV"
+        "ATEND EMERGENCIA;ABRIR ACESSO/FAIXA_SERV;PUBLICIDADE;TURMA LV;" & _
+        "ALUGUEL GERADOR;CAIXA ALVENARIA;CAIXA DE PASSAGEM;CALCADA;" & _
+        "CAMARA ABRIGADA;CANO GALV;CANO GALVAN;HOSPEDAGEM;INSPECAO;IP;" & _
+        "RECOMP PAVIMENTO;RESTAURAR PASSEIO;TAMPA_CONCRETO;TAXA DNIT;ENTULHOS/LODO"
     Dim extra As String: extra = CfgTxt("SRV_PURO", "")
     If extra <> "" Then s = s & ";" & extra
 
