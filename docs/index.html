@@ -598,7 +598,7 @@ function hrZonesFull(age,rest){const hrMax=Math.round(208-0.7*age);const z=(lo,h
 function rfm(sex,heightCm,waistCm){if(!(waistCm>0))return null;return R((sex==="M"?64:76)-20*(heightCm/waistCm),1);}
 function zone2Weekly(goal){const endur=["performance","running","cycling"].includes(goal);return{min:endur?240:150,max:endur?400:200,sessionMin:45};}
 /* landmarks MEV/MAV/MRV por músculo (Israetel/RP + Pelland 2024) */
-const VOL={"Quadríceps":{mev:8,mav:16,mrv:20},"Posteriores":{mev:6,mav:14,mrv:18},"Glúteos":{mev:4,mav:12,mrv:16},"Peito":{mev:8,mav:16,mrv:22},"Ombros":{mev:8,mav:18,mrv:26},"Costas":{mev:10,mav:18,mrv:25},"Dorsais":{mev:10,mav:18,mrv:25},"Core":{mev:6,mav:16,mrv:25}};
+const VOL={"Quadríceps":{mev:8,mav:16,mrv:20},"Posteriores":{mev:6,mav:14,mrv:18},"Glúteos":{mev:4,mav:12,mrv:16},"Peito":{mev:8,mav:16,mrv:22},"Ombros":{mev:8,mav:18,mrv:26},"Costas":{mev:10,mav:18,mrv:25},"Dorsais":{mev:10,mav:18,mrv:25},"Core":{mev:6,mav:16,mrv:25},"Bíceps":{mev:6,mav:14,mrv:20},"Tríceps":{mev:6,mav:14,mrv:18},"Panturrilha":{mev:8,mav:16,mrv:22}};
 function classifyVol(mu,sets){const lm=VOL[mu]||{mev:8,mav:16,mrv:22};let st;if(sets<lm.mev)st="below";else if(sets<=lm.mav)st="prod";else if(sets<=lm.mrv)st="high";else st="over";return{mu,sets,st,...lm};}
 /* periodização em mesociclo: acúmulo rampa volume/RIR, última semana = deload */
 function periodize(week,mesoLen=5){const w=Math.max(1,Math.min(week,mesoLen));
@@ -1052,12 +1052,36 @@ const EX=[
   {c:"SEATED_ROW",n:"Remada sentada",mu:"Costas",mp:"pull_h",eq:["machine","cable"],lv:0,comp:1,ctr:[],cue:"Peito aberto, coluna neutra. Puxe até o abdômen levando os cotovelos para trás, aperte as escápulas; controle a volta sem curvar."},
   {c:"LAT_PULLDOWN",n:"Puxada na frente",mu:"Dorsais",mp:"pull_v",eq:["cable","machine"],lv:0,comp:1,ctr:[],cue:"Pegada um pouco mais aberta que os ombros. Puxe a barra até a clavícula levando os cotovelos para baixo e para trás, sem balançar o tronco."},
   {c:"PLANK",n:"Prancha",mu:"Core",mp:"core",eq:["bodyweight"],lv:0,comp:0,ctr:[],cue:"Antebraços e pontas dos pés no chão, corpo reto da cabeça ao calcanhar. Contraia abdômen e glúteo; não deixe o quadril cair nem subir."},
+  {c:"FRONT_SQUAT",n:"Agachamento frontal",mu:"Quadríceps",mp:"squat",eq:["barbell"],lv:2,comp:1,ctr:["knee","wrist"],cue:"Barra sobre os deltoides frontais, cotovelos altos. Desça ereto até coxas paralelas, tronco vertical; suba empurrando o chão."},
+  {c:"BULGARIAN",n:"Agachamento búlgaro",mu:"Quadríceps",mp:"squat",eq:["dumbbell","bodyweight"],lv:1,comp:1,ctr:["knee"],cue:"Pé de trás elevado no banco, halteres ao lado. Desça na perna da frente até a coxa paralela, joelho sobre o pé; suba pela perna da frente."},
+  {c:"WALK_LUNGE",n:"Afundo",mu:"Quadríceps",mp:"squat",eq:["dumbbell","bodyweight"],lv:0,comp:1,ctr:["knee"],cue:"Passo à frente, desça até o joelho de trás quase tocar o chão, tronco ereto; empurre pelo calcanhar da frente para o próximo passo."},
+  {c:"CONV_DEADLIFT",n:"Levantamento terra",mu:"Posteriores",mp:"hinge",eq:["barbell"],lv:2,comp:1,ctr:["lumbar"],cue:"Barra sobre o meio do pé, coluna neutra, peito alto. Estenda quadril e joelhos juntos mantendo a barra rente ao corpo; trave o glúteo no topo sem hiperestender."},
+  {c:"LEG_CURL",n:"Mesa flexora",mu:"Posteriores",mp:"ham",eq:["machine"],lv:0,comp:0,ctr:[],cue:"Deitado, tornozelos no rolo. Flexione os joelhos levando o calcanhar ao glúteo, quadril apoiado; controle a volta sem soltar de vez."},
+  {c:"LEG_EXT",n:"Cadeira extensora",mu:"Quadríceps",mp:"quad",eq:["machine"],lv:0,comp:0,ctr:["knee"],cue:"Sentado, rolo sobre os tornozelos. Estenda os joelhos até quase travar, contraia o quadríceps 1s; desça controlando."},
+  {c:"STAND_CALF",n:"Panturrilha em pé",mu:"Panturrilha",mp:"calf",eq:["machine","bodyweight"],lv:0,comp:0,ctr:[],cue:"Ponta dos pés na plataforma, joelhos estendidos. Suba o máximo na ponta dos pés, pause 1s no topo; desça alongando bem o calcanhar."},
+  {c:"SEAT_CALF",n:"Panturrilha sentado",mu:"Panturrilha",mp:"calf",eq:["machine"],lv:0,comp:0,ctr:[],cue:"Joelhos sob a almofada, ponta dos pés na plataforma. Eleve os calcanhares ao máximo e desça alongando — foco no sóleo."},
+  {c:"INCLINE_DB",n:"Supino inclinado com halteres",mu:"Peito",mp:"push_h",eq:["dumbbell"],lv:1,comp:1,ctr:["shoulder"],cue:"Banco a 30°, escápulas retraídas. Desça os halteres na linha da parte alta do peito, cotovelos ~45°; empurre até quase estender."},
+  {c:"DIP",n:"Paralelas (mergulho)",mu:"Peito",mp:"push_h",eq:["bodyweight"],lv:1,comp:1,ctr:["shoulder"],cue:"Corpo levemente inclinado à frente nas paralelas. Desça até os ombros na linha dos cotovelos; empurre até estender sem travar."},
+  {c:"BB_ROW",n:"Remada curvada",mu:"Costas",mp:"pull_h",eq:["barbell"],lv:1,comp:1,ctr:["lumbar"],cue:"Tronco inclinado ~45°, coluna neutra. Puxe a barra ao abdômen levando os cotovelos para trás; controle a descida sem arredondar as costas."},
+  {c:"PULL_UP",n:"Barra fixa (pronada)",mu:"Dorsais",mp:"pull_v",eq:["bodyweight"],lv:1,comp:1,ctr:["shoulder"],cue:"Pegada pronada além dos ombros. Puxe o peito à barra levando os cotovelos para baixo, escápulas deprimidas; desça controlando por inteiro."},
+  {c:"CHIN_UP",n:"Barra fixa (supinada)",mu:"Dorsais",mp:"pull_v",eq:["bodyweight"],lv:1,comp:1,ctr:["shoulder"],cue:"Pegada supinada na largura dos ombros. Puxe até o queixo passar a barra; controle a descida — recruta bem o bíceps."},
+  {c:"LAT_RAISE",n:"Elevação lateral",mu:"Ombros",mp:"sdelt",eq:["dumbbell","cable"],lv:0,comp:0,ctr:[],cue:"Halteres ao lado, leve inclinação do tronco. Eleve pelos cotovelos até a linha dos ombros, mindinho levemente acima; desça devagar."},
+  {c:"REAR_FLY",n:"Crucifixo invertido",mu:"Ombros",mp:"rdelt",eq:["dumbbell","cable"],lv:0,comp:0,ctr:[],cue:"Tronco inclinado à frente, cotovelos levemente flexionados. Abra os braços pelos cotovelos apertando as escápulas; foco no deltoide posterior."},
+  {c:"FACE_PULL",n:"Face pull",mu:"Ombros",mp:"rdelt",eq:["cable"],lv:0,comp:0,ctr:[],cue:"Corda na altura do rosto. Puxe em direção à testa abrindo os cotovelos e girando os punhos para trás; ótimo para postura e ombro."},
+  {c:"BB_CURL",n:"Rosca direta",mu:"Bíceps",mp:"biceps",eq:["barbell"],lv:0,comp:0,ctr:["wrist"],cue:"Cotovelos junto ao tronco. Flexione levando a barra ao peito sem balançar; desça controlando até estender o cotovelo."},
+  {c:"DB_CURL",n:"Rosca alternada",mu:"Bíceps",mp:"biceps",eq:["dumbbell"],lv:0,comp:0,ctr:[],cue:"Halteres ao lado, palmas à frente. Flexione um braço de cada vez sem mover o cotovelo; contraia no topo e desça devagar."},
+  {c:"HAMMER_CURL",n:"Rosca martelo",mu:"Bíceps",mp:"biceps",eq:["dumbbell"],lv:0,comp:0,ctr:[],cue:"Pegada neutra (palmas frente a frente). Flexione mantendo os punhos firmes — recruta braquial e antebraço."},
+  {c:"PUSHDOWN",n:"Tríceps na polia",mu:"Tríceps",mp:"triceps",eq:["cable"],lv:0,comp:0,ctr:[],cue:"Cotovelos colados ao tronco. Estenda os cotovelos até o fim, contraia o tríceps; deixe subir controlando sem abrir os cotovelos."},
+  {c:"OH_EXT",n:"Tríceps francês",mu:"Tríceps",mp:"triceps",eq:["dumbbell"],lv:0,comp:0,ctr:["shoulder"],cue:"Halter acima da cabeça, cotovelos apontados para cima. Desça atrás da nuca flexionando só o cotovelo; estenda até o topo — alonga a cabeça longa."},
+  {c:"CRUNCH",n:"Abdominal supra",mu:"Core",mp:"core",eq:["bodyweight"],lv:0,comp:0,ctr:[],cue:"Deitado, joelhos flexionados. Enrole a coluna aproximando as costelas da bacia expirando; desça controlando sem apoiar a cabeça de vez."},
+  {c:"HANG_RAISE",n:"Elevação de pernas na barra",mu:"Core",mp:"core",eq:["bodyweight"],lv:1,comp:0,ctr:["shoulder"],cue:"Pendurado na barra, sem balanço. Eleve os joelhos/pernas enrolando a bacia para cima; desça devagar controlando a lombar."},
 ];
 const EQLBL={barbell:"Barra",dumbbell:"Halteres",machine:"Máquina",cable:"Polia",bodyweight:"Peso corporal",kettlebell:"Kettlebell"};
 const LVLBL=["Iniciante","Intermediário","Avançado"];
 const SPLITS={1:["full"],2:["full","full"],3:["full","full","full"],4:["upper","lower","upper","lower"],5:["push","pull","legs","upper","lower"],6:["push","pull","legs","push","pull","legs"]};
-const DAYPAT={full:["squat","push_h","pull_h","hinge","push_v","core"],upper:["push_h","pull_h","push_v","pull_v"],lower:["squat","hinge","squat","core"],push:["push_h","push_v","push_h"],pull:["pull_v","pull_h","pull_v"],legs:["squat","hinge","squat","core"]};
-const GP={hypertrophy:{lo:6,hi:12,rc:150,ri:75},strength:{lo:3,hi:6,rc:180,ri:90},fat_loss:{lo:8,hi:15,rc:120,ri:60},maintenance:{lo:8,hi:15,rc:120,ri:60}};
+const DAYPAT={full:["squat","push_h","pull_h","hinge","push_v","core"],upper:["push_h","pull_h","push_v","pull_v","sdelt","triceps","biceps"],lower:["squat","hinge","quad","ham","calf","core"],push:["push_h","push_v","push_h","sdelt","triceps"],pull:["pull_v","pull_h","pull_v","rdelt","biceps"],legs:["squat","hinge","quad","ham","calf","core"]};
+// lo/hi: faixa de reps composto; ilo/ihi: isolado (reps mais altas). rc: descanso composto; ri: isolado.
+const GP={hypertrophy:{lo:6,hi:12,ilo:10,ihi:15,rc:150,ri:75},strength:{lo:3,hi:6,ilo:8,ihi:12,rc:180,ri:90},fat_loss:{lo:8,hi:15,ilo:12,ihi:20,rc:120,ri:60},maintenance:{lo:8,hi:15,ilo:10,ihi:15,rc:120,ri:60}};
 const DAYNAME={full:"Corpo inteiro",upper:"Superior",lower:"Inferior",push:"Empurrar",pull:"Puxar",legs:"Pernas"};
 const LEVEL_SETS=[2,3,4]; // iniciante/intermediário/avançado: volume base por série
 // equipment: equipamentos; conditions: lesões; level: 0/1/2 (iniciante→avançado)
@@ -1072,7 +1096,8 @@ function workoutPlan(p,equipment,conditions,level=1){
       // preferir exercícios ≤ nível do usuário (iniciante evita avançados); recorre a mais difíceis só se o padrão ficaria vazio
       const cands=pool.filter(e=>e.mp===pat).sort((a,b)=>((a.lv<=level?0:1)-(b.lv<=level?0:1))||b.comp-a.comp||(usage.get(a.c)||0)-(usage.get(b.c)||0)||a.c.localeCompare(b.c));
       if(!cands[0])continue;const e=cands[0];usage.set(e.c,(usage.get(e.c)||0)+1);
-      items.push({n:e.n,mu:e.mu,sets,lo:gp.lo,hi:gp.hi,rest:e.comp?gp.rc:gp.ri});
+      const iso=!e.comp;const lo=iso?(gp.ilo||gp.lo):gp.lo,hi=iso?(gp.ihi||gp.hi):gp.hi;
+      items.push({n:e.n,mu:e.mu,sets,lo,hi,rest:e.comp?gp.rc:gp.ri});
     }
     return{day:i+1,type:DAYNAME[dt],items};
   });
@@ -1531,6 +1556,7 @@ function render(){
   const cardWorkout=`<div class="card span-6"><h3>Treino gerado <span class="pill ${isDeload?"warn":"accent"}">${isDeload?"DELOAD":"Sem "+mw+"/"+per.mesoLen}</span>${wpr.barred.length?` <span class="pill warn">${wpr.barred.length} barrado${wpr.barred.length>1?"s":""}</span>`:""}</h3><div class="cap">split ${wp.map(d=>d.type.slice(0,3)).join("/")} · ${p.days}× semana · ${LVLBL[Math.max(0,Math.min(p.level||0,2))]} (${LEVEL_SETS[Math.max(0,Math.min(p.level||0,2))]} séries base) · toque num exercício para registrar séries</div>
     <div class="wtabs" style="margin-bottom:12px"><button class="minibtn" id="mesoPrev">◀ semana</button><span class="pill ${isDeload?"warn":"good"}" style="align-self:center">${isDeload?"deload":"acúmulo "+(per.prog||0)+"%"}</span><button class="minibtn" id="mesoNext">semana ▶</button></div>
     <div class="list">${wp.map((d,di)=>`<div class="daytag">Dia ${d.day} · ${d.type} <button class="minibtn" data-startsess="${di}" style="margin-left:8px">▶ Iniciar sessão</button></div>${d.items.map(exItem).join("")}`).join("")}</div>
+    <div class="src" style="margin-top:12px"><b>Aquecimento:</b> 2–3 séries de aproximação no 1º composto (~50%, 70%, 85% da carga de trabalho, poucas reps) — não contam como volume. · <b>Cadência:</b> excêntrica ~2 s controlada, concêntrica explosiva. · <b>Proximidade da falha:</b> pare a ${per.rir} rep(s) da falha (RIR ${per.rir}); a faixa 0–3 RIR concentra o estímulo hipertrófico (Refalo 2024; Schoenfeld). · <b>Descanso:</b> 2–3 min nos compostos preserva volume e carga (Schoenfeld 2016).</div>
     ${isDeload?`<div class="src" style="margin-top:12px">Semana de deload: metade das séries, 80% da carga, longe da falha. Recupera para o próximo mesociclo render mais.</div>`:wpr.barred.length?`<div class="src" style="margin-top:12px">Excluídos pela lesão: ${wpr.barred.map(e=>e.n).join(", ")}.</div>`:""}</div>`;
 
   // ---- hidratação: contador rápido de copos ----
@@ -1958,7 +1984,7 @@ function render(){
     week:{title:"Semana",sub:"7 dias com rotação determinística de fontes + lista de compras agregada.",html:cardWeek+cardShop},
     diario:{title:"Diário alimentar",sub:"Registre o consumo real; a Análise passa a usar o que foi comido, não o plano.",html:cardDiary+cardIntake},
     analise:{title:"Análise de precisão",sub:"Micronutrientes vs DRI, qualidade proteica (PDCAAS), leucina por refeição, carga glicêmica e lacunas com fontes alimentares.",html:cardMicros+cardProtQual+cardProtDist+cardGL+cardSupp+cardMacros},
-    train:{title:"Treino",sub:"Split por frequência, volume graduado por landmarks, base aeróbica e biblioteca de exercícios.",html:cardWorkoutMain+cardVolume+cardZone2+cardExLib+cardReady+cardTrend},
+    train:{title:"Treino",sub:"Split por frequência com isolamento direto de braços/panturrilha, volume graduado por landmarks, base aeróbica e biblioteca de exercícios.",html:cardWorkoutMain+cardVolume+cardZone2+cardExLib+cardReady+cardTrend},
     calc:{title:"Calculadoras",sub:"1RM, zonas de FC, pace, gasto calórico e VO₂máx — todas determinísticas.",html:cardCalc+cardBody},
     labs:{title:"Exames",sub:"Comparação com faixas de referência + tendência entre exames — educativo, nunca prescreve.",html:cardLabs+cardLabSummary+cardLabTrend},
     habits:{title:"Hábitos",sub:"Checklist diário, sequência, conquistas e nível — tudo por regras determinísticas.",html:cardHabits+cardWater+cardStreak+cardGami+cardCoach},
