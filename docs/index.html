@@ -187,6 +187,13 @@ body.focusmode .focusexit{display:inline-flex}
 .chk-ex.done .ck{background:var(--good);border-color:var(--good);color:#fff}
 .chk-ex .cx{flex:1;min-width:0;font-size:13px}
 .chk-ex .cx small{display:block;font-family:var(--mono);font-size:10px;color:var(--muted)}
+/* câmera ao vivo */
+.camwrap{display:flex;flex-direction:column;gap:12px;align-items:center;background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:16px;box-shadow:0 24px 80px rgba(0,0,0,.5)}
+.camview{position:relative;width:min(88vw,440px);border-radius:12px;overflow:hidden;background:#000}
+.camview video{width:100%;display:block}
+.camguide{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
+.camhint{font-size:12px;color:var(--muted);max-width:420px;text-align:center;line-height:1.5}
+.camrow{display:flex;gap:10px}
 .favbtn{color:var(--faint);font-size:15px}
 .favbtn.on{color:#F1C40F}
 [draggable="true"]{cursor:grab}
@@ -786,6 +793,16 @@ h1.title{font-size:clamp(26px,3vw,34px);font-weight:800;letter-spacing:-.02em;ma
 </div>
 <div class="overlay" id="tourOv" role="dialog" aria-modal="true" aria-label="Boas-vindas">
   <div class="appear" id="tourPanel" style="width:min(380px,92vw)"></div>
+</div>
+<div class="overlay" id="camOv" role="dialog" aria-modal="true" aria-label="Câmera">
+  <div class="camwrap">
+    <div class="camview">
+      <video id="camvideo" playsinline autoplay muted></video>
+      <svg class="camguide" viewBox="0 0 100 100" preserveAspectRatio="xMidYMid meet" aria-hidden="true"><circle cx="50" cy="50" r="38" fill="none" stroke="rgba(255,255,255,.85)" stroke-width="1.2" stroke-dasharray="3 2"/><line x1="50" y1="8" x2="50" y2="16" stroke="rgba(255,255,255,.6)"/><line x1="50" y1="84" x2="50" y2="92" stroke="rgba(255,255,255,.6)"/><line x1="8" y1="50" x2="16" y2="50" stroke="rgba(255,255,255,.6)"/><line x1="84" y1="50" x2="92" y2="50" stroke="rgba(255,255,255,.6)"/></svg>
+    </div>
+    <div class="camhint">Enquadre o prato inteiro dentro do círculo, de cima, a ~40 cm — isso padroniza a estimativa de porção.</div>
+    <div class="camrow"><button class="minibtn" id="camShotBtn" style="margin:0;background:var(--accent);color:#fff;border-color:var(--accent)">📸 Capturar</button><button class="minibtn" id="camClose" style="margin:0">Fechar</button></div>
+  </div>
 </div>
 <div id="toast" class="toast" role="status" aria-live="polite"></div>
 <button class="themebtn focusexit" id="focusExit" aria-label="Sair do modo foco">✕ Sair do foco</button>
@@ -1655,6 +1672,23 @@ function handleMealPhoto(file){
   };img.src=fr.result;};
   fr.readAsDataURL(file);
 }
+async function openCam(){
+  try{
+    CAMSTREAM=await navigator.mediaDevices.getUserMedia({video:{facingMode:"environment"}});
+    const v=document.getElementById("camvideo");if(v){v.srcObject=CAMSTREAM;if(v.play)v.play();}
+    openOv("#camOv");
+  }catch(e){toast("Câmera indisponível aqui — use o botão 📷 Fotografar (abre a câmera nativa).");}
+}
+function closeCam(){if(CAMSTREAM){CAMSTREAM.getTracks().forEach(t=>t.stop());CAMSTREAM=null;}closeOv();}
+function camShot(){
+  const v=document.getElementById("camvideo");if(!v||!v.videoWidth)return;
+  const w=360,h=Math.round(v.videoHeight*w/v.videoWidth);
+  const c=document.createElement("canvas");c.width=w;c.height=h;
+  c.getContext("2d").drawImage(v,0,0,w,h);
+  const data=c.toDataURL("image/jpeg",.6);
+  pUpdate(p=>{p.mealPhotos=p.mealPhotos||[];p.mealPhotos.push({d:todayKey(),ts:Date.now(),img:data,items:[],sent:false});if(p.mealPhotos.length>24)p.mealPhotos=p.mealPhotos.slice(-24);});
+  closeCam();histLog("nutrição","foto de refeição (câmera ao vivo)");toast("Foto capturada — identifique os alimentos 👇");render();
+}
 function mealPhotoAdd(i,n,g){if(!n||!(g>0))return;pUpdate(p=>{if(p.mealPhotos&&p.mealPhotos[i])p.mealPhotos[i].items.push({n,g:Math.round(g)});});render();}
 function mealPhotoSend(i){
   const mp=mealPhotos()[i];if(!mp||mp.sent||!mp.items.length)return;
@@ -1769,7 +1803,23 @@ const macroBar=(name,g,kcalShare,total,color,src)=>`
 let VIEW="dash",WEEKSEL=(new Date().getDay()+6)%7,SWAP=null,WLOG=null,CHECKIN_TEXT="",EXFILTER="all",EXOPEN=null;
 let DCMP=7,DRANGE=90; // dashboard: janela de comparação (dias) e de gráfico (dias)
 let _lastRV=null; // última view renderizada (dispara animação de entrada na troca)
-let LAST_SHARE=null,DRAGST=null; // snapshot p/ imagem de conquista · estado do drag&drop
+let LAST_SHARE=null,DRAGST=null,CAMSTREAM=null; // imagem de conquista · drag&drop · câmera ao vivo
+/* medidas caseiras (porções de referência — TACO/IBGE) para estimar quantidade rápido e bem */
+const MEASURES={
+  meats:[["1 filé P",80],["1 filé M",120],["1 filé G",180],["1 coxa",65]],
+  fish:[["1 filé M",120],["1 posta",150],["1 lata (escorrida)",120]],
+  eggs:[["1 unidade",50],["2 unidades",100],["3 unidades",150]],
+  dairy:[["1 copo 200 ml",200],["1 fatia queijo",30],["1 pote iogurte",170]],
+  legumes:[["1 concha",80],["1 concha cheia",120],["2 conchas",160]],
+  cereals:[["1 col. sopa",25],["1 escumadeira",90],["1 xíc. cozida",160]],
+  tubers:[["1 unidade P",90],["1 unidade M",150],["1 col. sopa purê",45]],
+  vegetables:[["1 pires",50],["1 prato raso",100],["1 folha grande",20]],
+  fruits:[["1 unidade P",80],["1 unidade M",120],["1 fatia",100]],
+  oils:[["1 col. chá",5],["1 col. sopa",12],["1 punhado",30]],
+  supplements:[["1 dose (scoop)",30],["meia dose",15]],
+};
+function measChipsPhoto(i,cat){return (MEASURES[cat]||[]).map(([l,g])=>`<button class="setchip" data-mpm="${i}:${g}" style="cursor:pointer">${l} · ${g} g</button>`).join("");}
+function measChipsDiary(cat){return (MEASURES[cat]||[]).map(([l,g])=>`<button class="setchip" data-qmeas="${g}" style="cursor:pointer">${l} · ${g} g</button>`).join("");}
 /* sessão de treino ao vivo: dia do split, índice do exercício, fim do descanso */
 let SESH=null; // {day, ex, restUntil, started}
 let LASTWP=null; // snapshot do plano do último render (para os handlers da sessão)
@@ -2119,6 +2169,7 @@ function render(){
       <input id="loggrams" type="number" value="100" min="5" step="5" aria-label="gramas">
       <button class="minibtn" id="addlog">+ Adicionar</button>
     </div>
+    <div class="wsetrow" id="measchips" style="margin:6px 0 2px">${measChipsDiary("meats")}</div>
     ${favs().food.length?`<div class="src" style="margin:8px 0 2px">⭐ Favoritos — toque para adicionar 100 g</div><div class="wsetrow" style="margin-bottom:8px">${favs().food.map(fn=>`<button class="setchip" data-quickfood="${fn}" style="cursor:pointer">${fn} +</button>`).join("")}</div>`:""}
     <div class="list">${tlog.length?tlog.map((e,i)=>{const fd=FOODS.find(f=>f.n===e.n);const kc=fd?Math.round(fd.kcal*e.g/100):0;const pr=fd?Math.round(fd.p*e.g/100):0;const isF=favs().food.includes(e.n);return`<div class="li"><span class="idx tnum">${String(i+1).padStart(2,'0')}</span><div class="nm"><b>${e.n}</b><span>${e.g} g</span></div><div class="rt"><b class="tnum">${kc}</b> kcal · ${pr}g P</div><button class="rmbtn favbtn ${isF?"on":""}" data-favfood="${e.n}" aria-label="favorito">${isF?"★":"☆"}</button><button class="rmbtn" data-rmlog="${i}" aria-label="Remover">✕</button></div>`;}).join(""):`<div class="src" style="padding:8px 0">Nenhum item hoje. Adicione acima — a aba Análise passa a usar o consumo real.</div>`}</div></div>`;
   // ---- FOTO DA REFEIÇÃO: câmera + identificação assistida + macros/micros por refeição ----
@@ -2133,7 +2184,8 @@ function render(){
     return `<div class="daytag" style="margin-top:14px">Refeição de ${String(hora.getHours()).padStart(2,"0")}:${String(hora.getMinutes()).padStart(2,"0")} ${mp.sent?'<span class="pill good">no diário ✓</span>':""} <button class="rmbtn" data-mpdel="${i}" style="margin-left:auto" aria-label="Excluir foto">✕</button></div>
     <div class="demorow"><img src="${mp.img}" alt="foto da refeição" style="width:150px;border-radius:10px;border:1px solid var(--border)">
       <div style="flex:1;min-width:220px">
-        <div class="logadd" style="margin-bottom:8px"><select data-mpsel="${i}">${foodOptions}</select><input class="wnum" data-mpg="${i}" type="number" value="100" min="5" step="5" aria-label="gramas"><button class="minibtn" data-mpadd="${i}">+ Identificar</button></div>
+        <div class="logadd" style="margin-bottom:6px"><select data-mpsel="${i}">${foodOptions}</select><input class="wnum" data-mpg="${i}" type="number" value="100" min="5" step="5" aria-label="gramas"><button class="minibtn" data-mpadd="${i}">+ Identificar</button></div>
+        <div class="wsetrow" data-mpmeas="${i}" style="margin-bottom:8px">${measChipsPhoto(i,"meats")}</div>
         ${mp.items.length?mp.items.map((e2,j)=>{const fd=FOODS.find(f=>f.n===e2.n);return `<div class="subrow"><b>${e2.n}</b><span class="tnum">${e2.g} g</span><span class="tnum" style="color:var(--muted)">${fd?Math.round(fd.kcal*e2.g/100):0} kcal</span><button class="rmbtn" data-mprm="${i}:${j}" aria-label="Remover">✕</button></div>`;}).join(""):`<div class="src">Identifique os alimentos do prato — o motor calcula tudo pela tabela.</div>`}
         ${mp.items.length?`<div class="src" style="margin-top:8px"><b>Total da refeição:</b> ${tot.kcal} kcal · P ${tot.p} g · C ${tot.c} g · G ${tot.f} g</div>
         ${micTop.length?`<div class="wsetrow" style="margin-top:6px">${micTop.map(mo=>`<span class="setchip">${mo.l}: ${mo.amount} ${mo.u} (${mo.pct}% do dia)</span>`).join("")}</div>`:""}
@@ -2141,7 +2193,7 @@ function render(){
       </div></div>`;
   }).join("");
   const cardMealPhoto=`<div class="card span-12"><h3>📷 Foto da refeição <span class="pill accent">${mpsAll.filter(x=>x.d===todayKey()).length} hoje</span></h3><div class="cap">abra a câmera, fotografe o prato e identifique os alimentos — macros e micros calculados na hora pela tabela (determinístico, sem IA de imagem; a foto nunca sai do dispositivo)</div>
-    <label class="minibtn" style="margin:0;cursor:pointer;display:inline-flex">📷 Fotografar refeição<input type="file" accept="image/*" capture="environment" id="mealphoto" style="display:none"></label>
+    <div class="logadd" style="margin:0"><button class="minibtn" id="camOpen" style="margin:0">📹 Câmera ao vivo (com guia de porção)</button><label class="minibtn" style="margin:0;cursor:pointer;display:inline-flex">📷 Foto / galeria<input type="file" accept="image/*" capture="environment" id="mealphoto" style="display:none"></label></div>
     ${mealPhotoPanel||'<div class="src" style="margin-top:10px">Nenhuma foto hoje. No celular, o botão abre direto a câmera traseira.</div>'}</div>`;
 
   const cardIntake=`<div class="card span-5"><h3>Consumido × alvo</h3><div class="cap">${hasLog?"aderência calórica + proteica":"registre no diário para comparar"}</div>
@@ -3075,6 +3127,9 @@ $("#views").addEventListener("click",e=>{
   const mpr=e.target.closest("[data-mprm]");if(mpr){const[i,j]=mpr.dataset.mprm.split(":");pUpdate(p=>{if(p.mealPhotos&&p.mealPhotos[+i])p.mealPhotos[+i].items.splice(+j,1);});render();return;}
   const mpd=e.target.closest("[data-mpdel]");if(mpd){let rm=null;const i=+mpd.dataset.mpdel;pUpdate(p=>{if(p.mealPhotos)rm=p.mealPhotos.splice(i,1)[0];});render();if(rm)toast("Foto removida",()=>{pUpdate(p=>{p.mealPhotos=p.mealPhotos||[];p.mealPhotos.splice(i,0,rm);});render();});return;}
   const mps2=e.target.closest("[data-mpsend]");if(mps2){mealPhotoSend(+mps2.dataset.mpsend);return;}
+  if(e.target.closest("#camOpen")){openCam();return;}
+  const mpm=e.target.closest("[data-mpm]");if(mpm){const[i,g]=mpm.dataset.mpm.split(":");const inp=document.querySelector('[data-mpg="'+i+'"]');if(inp)inp.value=g;return;}
+  const qm=e.target.closest("[data-qmeas]");if(qm){const inp=document.querySelector("#loggrams");if(inp)inp.value=qm.dataset.qmeas;return;}
   if(e.target.closest("#shareAchv")){if(LAST_SHARE)shareAchievement(LAST_SHARE);return;}
   const dk=e.target.closest("[data-dkpi]");if(dk){if(dk.dataset.dkpi){VIEW=dk.dataset.dkpi;$("#nav").querySelectorAll("button").forEach(x=>x.classList.toggle("on",x.dataset.v===VIEW));}render();return;}
   const dcp=e.target.closest("[data-dcmp]");if(dcp){DCMP=+dcp.dataset.dcmp;render();return;}
@@ -3160,6 +3215,8 @@ $("#views").addEventListener("change",e=>{
   const pf=e.target.closest("#photofile");if(pf&&pf.files&&pf.files[0]){handlePhotoFile(pf.files[0],($("#photopose")||{value:"frente"}).value);pf.value="";return;}
   const wf=e.target.closest("#wearfile");if(wf&&wf.files&&wf.files[0]){const fr=new FileReader();fr.onload=()=>importWearableText(fr.result);fr.readAsText(wf.files[0]);wf.value="";return;}
   const mpf=e.target.closest("#mealphoto");if(mpf&&mpf.files&&mpf.files[0]){handleMealPhoto(mpf.files[0]);mpf.value="";return;}
+  const msl=e.target.closest("[data-mpsel]");if(msl){const f=FOODS.find(x=>x.n===msl.value);const box=document.querySelector('[data-mpmeas="'+msl.dataset.mpsel+'"]');if(box&&f)box.innerHTML=measChipsPhoto(msl.dataset.mpsel,f.c);return;}
+  const lgf=e.target.closest("#logfood");if(lgf){const f=FOODS.find(x=>x.n===lgf.value);const box=document.querySelector("#measchips");if(box&&f)box.innerHTML=measChipsDiary(f.c);return;}
 });
 // drag & drop: exercícios do treino (mesmo dia) + cards do dashboard
 $("#views").addEventListener("dragstart",e=>{
@@ -3312,7 +3369,7 @@ function renderCmd(q){const list=CMDK_IDX||[];let items;
 function paintCmd(){const R=$("#cmdkRes");if(!R)return;if(!CMDK.items.length){R.innerHTML='<div class="grp">Sem resultados</div>';return;}let html="",lg="";CMDK.items.forEach((it,i)=>{if(it.grp!==lg){html+=`<div class="grp">${it.grp}</div>`;lg=it.grp;}html+=`<div class="ri ${i===CMDK.sel?"sel":""}" data-cmdi="${i}"><span class="ric">${it.ic}</span><span class="rt"><b>${it.title}</b><span>${it.sub}</span></span><kbd>↵</kbd></div>`;});R.innerHTML=html;}
 function runCmd(i){const it=CMDK.items[i];if(!it)return;closeOv();try{it.run();}catch(e){}}
 function openOv(sel){const o=$(sel);if(o&&o.classList)o.classList.add("open");}
-function closeOv(){const os=document.querySelectorAll(".overlay");[].forEach.call(os,o=>o.classList&&o.classList.remove("open"));}
+function closeOv(){if(typeof CAMSTREAM!=="undefined"&&CAMSTREAM){CAMSTREAM.getTracks().forEach(t=>t.stop());CAMSTREAM=null;}const os=document.querySelectorAll(".overlay");[].forEach.call(os,o=>o.classList&&o.classList.remove("open"));}
 $("#cmdkBtn")&&$("#cmdkBtn").addEventListener("click",()=>openCmd());
 (function(){const ci=$("#cmdkInput");if(ci){ci.addEventListener("input",e=>renderCmd(e.target.value));ci.addEventListener("keydown",e=>{if(e.key==="ArrowDown"){e.preventDefault();CMDK.sel=Math.min(CMDK.sel+1,CMDK.items.length-1);paintCmd();}else if(e.key==="ArrowUp"){e.preventDefault();CMDK.sel=Math.max(CMDK.sel-1,0);paintCmd();}else if(e.key==="Enter"){e.preventDefault();runCmd(CMDK.sel);}});}
 const rr=$("#cmdkRes");if(rr)rr.addEventListener("click",e=>{const r=e.target.closest("[data-cmdi]");if(r)runCmd(+r.dataset.cmdi);});
@@ -3335,6 +3392,7 @@ if(document.addEventListener)document.addEventListener("keydown",e=>{
 try{if(typeof navigator!=="undefined"&&navigator.serviceWorker&&navigator.serviceWorker.register){navigator.serviceWorker.register("sw.js").catch(()=>{});}}catch(e){}
 
 $("#focusExit")&&$("#focusExit").addEventListener("click",()=>toggleFocus());
+(function(){const s=document.getElementById?document.getElementById("camShotBtn"):null;if(s)s.addEventListener("click",camShot);const c=document.getElementById?document.getElementById("camClose"):null;if(c)c.addEventListener("click",closeCam);})();
 
 /* onboarding interativo (primeira abertura) */
 const TOUR=[
