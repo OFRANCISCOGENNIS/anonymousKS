@@ -3349,7 +3349,6 @@ Private Sub CarregarEquivSrvMat()
         "ESTRUT MT S/CRUZ=CRUZETA;" & _
         "CONECTOR=RAMAL;" & _
         "DESLIG E RELIG RM=RAMAL;" & _
-        "ACES P/TRAFO=TRAFO;" & _
         "ACES P/RELIG=RELIGADOR;" & _
         "ESCAVACAO=POSTE RD"
     Dim extra As String: extra = CfgTxt("EQUIV_SRV_MAT", "")
