@@ -6510,6 +6510,7 @@ Private Sub FormatarVisualAba(ws As Worksheet, ByVal nome As String, _
         corpo.Font.Name = "Segoe UI"
         corpo.Font.Size = 9
         corpo.VerticalAlignment = xlCenter
+        corpo.Font.Color = RGB(51, 63, 72)      ' texto grafite (menos duro que preto)
 
         ' Zebra por coluna, pulando colunas de veredito/alerta (as cores
         ' semanticas dessas colunas devem prevalecer sobre a zebra).
@@ -6534,9 +6535,19 @@ Private Sub FormatarVisualAba(ws As Worksheet, ByVal nome As String, _
                 End With
                 On Error GoTo 0
             End If
-            ' Formato numerico
+            ' Formato numerico + alinhamento por tipo de coluna
             Dim fmt As String: fmt = FormatoColuna(hh)
-            If fmt <> "" Then ws.Range(ws.Cells(2, jc), ws.Cells(nR, jc)).NumberFormat = fmt
+            Dim colRg As Range: Set colRg = ws.Range(ws.Cells(2, jc), ws.Cells(nR, jc))
+            If fmt <> "" Then colRg.NumberFormat = fmt
+            If EhColunaVeredito(hh) Then
+                colRg.HorizontalAlignment = xlCenter
+            ElseIf fmt <> "" Then
+                colRg.HorizontalAlignment = xlRight    ' numeros alinhados a direita
+                colRg.IndentLevel = 1
+            Else
+                colRg.HorizontalAlignment = xlLeft
+                colRg.IndentLevel = 1
+            End If
 
             ' Data bars sutis em colunas de valor (leitura rapida de magnitude)
             If fmt = "#,##0.00" And (InStr(hh, "VALOR") > 0 Or InStr(hh, "DIF") > 0 _
@@ -6557,6 +6568,19 @@ Private Sub FormatarVisualAba(ws As Worksheet, ByVal nome As String, _
             .Weight = xlHairline
             .Color = corBorda
         End With
+        ' Linhas horizontais um pouco mais visiveis (leitura por linha)
+        corpo.Borders(xlInsideHorizontal).Color = RGB(232, 236, 239)
+
+        ' 1a coluna em destaque (chave/PEP): negrito e cor institucional
+        With ws.Range(ws.Cells(2, 1), ws.Cells(nR, 1))
+            .Font.Bold = True
+            .Font.Color = RGB(0, 75, 46)
+        End With
+
+        ' Altura de linha uniforme (visual mais limpo que o default variavel)
+        On Error Resume Next
+        ws.Range(ws.Cells(2, 1), ws.Cells(nR, 1)).EntireRow.RowHeight = 18
+        On Error GoTo 0
 
         ' Contorno da tabela (fecha o bloco visualmente)
         On Error Resume Next
@@ -6570,11 +6594,15 @@ Private Sub FormatarVisualAba(ws As Worksheet, ByVal nome As String, _
     Dim amostraR As Long: amostraR = nR
     If amostraR > 200 Then amostraR = 200
     ws.Range(ws.Cells(1, 1), ws.Cells(amostraR, nC)).Columns.AutoFit
-    ' Teto de largura para colunas de texto longo
+    ' Teto e piso de largura (evita colunas espremidas ou largas demais)
     For jc = 1 To nC
         If ws.Columns(jc).ColumnWidth > 45 Then ws.Columns(jc).ColumnWidth = 45
+        If ws.Columns(jc).ColumnWidth < 9 Then ws.Columns(jc).ColumnWidth = 9
     Next jc
-    AplicarFreeze ws, celFreeze
+    ' Congela cabecalho + 1a coluna quando o freeze padrao (A2) e usado
+    Dim fCong As String: fCong = celFreeze
+    If UCase$(fCong) = "A2" And nC > 3 Then fCong = "B2"
+    AplicarFreeze ws, fCong
 End Sub
 
 ' Ordena as guias por fluxo de leitura (gerencial -> detalhe -> apoio)
