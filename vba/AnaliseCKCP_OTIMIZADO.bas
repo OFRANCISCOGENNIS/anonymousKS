@@ -4490,7 +4490,7 @@ Prox:
         If Not (Round(dQ(ks(r)), 2) = 0 And Round(dV(ks(r)), 2) = 0) Then nKeep = nKeep + 1
     Next r
 
-    Dim outp() As Variant: ReDim outp(0 To nKeep, 1 To 16)
+    Dim outp() As Variant: ReDim outp(0 To nKeep, 1 To 17)
     outp(0, 1) = "PEP4NIVEL": outp(0, 2) = "PEP3": outp(0, 3) = "TIPO_PEP"
     outp(0, 4) = "COD_SERVICO": outp(0, 5) = "DESCRICAO_SERVICO"
     outp(0, 6) = "CLASSE_CUSTO"
@@ -4498,6 +4498,7 @@ Prox:
     outp(0, 10) = "CLS1": outp(0, 11) = "CLS2": outp(0, 12) = "CLS3"
     outp(0, 13) = "TIPO_APLICACAO": outp(0, 14) = "GRUPO_PERC"
     outp(0, 15) = "ALERTA_VALOR": outp(0, 16) = "APROPRIACAO"
+    outp(0, 17) = "ADERENCIA"
 
     ki = 0
     Dim codSrvOut As String, und As String, taSrv As String, tpPep As String
@@ -4557,6 +4558,18 @@ Prox:
             outp(ki, 16) = "VERIFICAR: INSTALACAO NA ODD"
         Else
             outp(ki, 16) = "OK"
+        End If
+
+        ' ADERENCIA (mesma regra da aba MATERIAL):
+        '   1) QTD=0 com VALOR (positivo ou negativo)     -> NAO ADERENTE
+        '   2) ODD (.D): QTD ou VALOR positivo            -> NAO ADERENTE
+        '   3) ODI/ODM/ODS: QTD ou VALOR negativo         -> NAO ADERENTE
+        If Round(dQ(k), 2) = 0 And Round(dV(k), 2) <> 0 Then
+            outp(ki, 17) = "NAO ADERENTE"
+        ElseIf tpPep = "D" Then
+            outp(ki, 17) = IIf(Round(dQ(k), 2) > 0 Or Round(dV(k), 2) > 0, "NAO ADERENTE", "ADERENTE")
+        Else
+            outp(ki, 17) = IIf(Round(dQ(k), 2) < 0 Or Round(dV(k), 2) < 0, "NAO ADERENTE", "ADERENTE")
         End If
 PulaZero:
     Next r
@@ -5030,6 +5043,7 @@ Private Sub Gerar_Regras()
     s = s & "ABA SERVICO|ALERTA_VALOR|Check automatico de valor do servico: VALOR e/ou QTD negativos sao sinalizados; caso contrario OK." & vbLf
     s = s & "ABA SERVICO|APROPRIACAO|Check automatico de apropriacao: TIPO_APLICACAO ODI* lancado em PEP .D (ou ODD* em .I) -> VERIFICAR; fallback por palavra-chave (INST em ODD, RET/DESATIV em ODI)." & vbLf
     s = s & "ABA SERVICO|Descricao com fallback|DESCRICAO_SERVICO usa o catalogo (embutido + SERVICOS_ATUAIS); se nao encontrado, usa o TEXTO BREVE do proprio lancamento SAP." & vbLf
+    s = s & "ABA SERVICO|ADERENCIA|QTD=0 com VALOR (+ ou -) -> NAO ADERENTE; ODD (.D) com QTD ou VALOR positivo -> NAO ADERENTE; ODI/ODM/ODS com QTD ou VALOR negativo -> NAO ADERENTE." & vbLf
 
     Dim linhas() As String: linhas = Split(s, vbLf)
     Dim i As Long, cnt As Long
@@ -6347,7 +6361,7 @@ Private Function EhColunaVeredito(ByVal hh As String) As Boolean
     hh = UCase$(Trim$(hh))
     EhColunaVeredito = (InStr(hh, "STATUS") > 0 Or InStr(hh, "APROV") > 0 _
         Or InStr(hh, "SITUACAO") > 0 Or hh = "OBS" Or InStr(hh, "ALERTA") > 0 _
-        Or InStr(hh, "APROPRIACAO") > 0)
+        Or InStr(hh, "APROPRIACAO") > 0 Or hh = "ADERENCIA")
 End Function
 
 ' Cor da guia por grupo funcional.
