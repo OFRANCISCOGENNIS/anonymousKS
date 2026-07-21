@@ -5806,6 +5806,45 @@ ProxPO:
         outpPO(rPO + 1, 20) = classPO
     Next rPO
     EscreverAba "PORTFOLIO OBRA", outpPO
+
+    ' --- Realce semantico pos-formatacao (CLASSIFICACAO_OBRA e DIF_ATV) -------
+    Dim wsPO As Worksheet
+    On Error Resume Next
+    Set wsPO = ActiveWorkbook.Worksheets("PORTFOLIO OBRA")
+    On Error GoTo 0
+    If Not wsPO Is Nothing And nPO > 0 Then
+        Dim rp As Long, clsTxt As String, bgc As Long, fgc As Long, difc As Double
+        For rp = 2 To nPO + 1
+            ' col 20 = CLASSIFICACAO_OBRA -> badge por perfil
+            clsTxt = UCase$(Trim$(CStr(wsPO.Cells(rp, 20).Value)))
+            Select Case True
+                Case InStr(clsTxt, "UC INTENSIVA") > 0
+                    bgc = RGB(198, 239, 206): fgc = RGB(0, 97, 0)       ' verde
+                Case InStr(clsTxt, "BALANCEADA") > 0
+                    bgc = RGB(214, 236, 238): fgc = RGB(11, 107, 115)   ' teal
+                Case InStr(clsTxt, "CA INTENSIVA") > 0
+                    bgc = RGB(234, 224, 244): fgc = RGB(96, 50, 150)    ' roxo
+                Case InStr(clsTxt, "MOP ELEVADO") > 0
+                    bgc = RGB(253, 233, 217): fgc = RGB(180, 95, 6)     ' laranja (atencao)
+                Case InStr(clsTxt, "SEM VALOR") > 0
+                    bgc = RGB(230, 232, 235): fgc = RGB(89, 89, 89)     ' cinza
+                Case Else
+                    bgc = RGB(255, 242, 204): fgc = RGB(140, 90, 0)
+            End Select
+            With wsPO.Cells(rp, 20)
+                .Interior.Color = bgc: .Font.Color = fgc
+                .Font.Bold = True: .HorizontalAlignment = xlCenter
+            End With
+            ' col 19 = DIF_ATV -> vermelho (fora do previsto) / verde (ok ~0)
+            difc = ToNum(wsPO.Cells(rp, 19).Value)
+            If Abs(difc) > 0.005 Then
+                wsPO.Cells(rp, 19).Font.Color = RGB(156, 0, 6)
+                wsPO.Cells(rp, 19).Font.Bold = True
+            Else
+                wsPO.Cells(rp, 19).Font.Color = RGB(0, 97, 0)
+            End If
+        Next rp
+    End If
 End Sub
 
 
@@ -6556,6 +6595,19 @@ Private Sub FormatarVisualAba(ws As Worksheet, ByVal nome As String, _
                 With ws.Range(ws.Cells(2, jc), ws.Cells(nR, jc)).FormatConditions.AddDatabar
                     .BarColor.Color = RGB(99, 190, 123)
                     .BarFillType = xlDataBarFillGradient
+                    .ShowValue = True
+                End With
+                On Error GoTo 0
+            End If
+
+            ' Data bars em colunas de percentual (0..100) - leitura de proporcao
+            If fmt = "0.0" And InStr(hh, "PERC") > 0 And Not EhColunaVeredito(hh) Then
+                On Error Resume Next
+                With ws.Range(ws.Cells(2, jc), ws.Cells(nR, jc)).FormatConditions.AddDatabar
+                    .BarColor.Color = RGB(91, 155, 213)
+                    .BarFillType = xlDataBarFillGradient
+                    .MinPoint.Modify newtype:=xlConditionValueNumber, newvalue:=0
+                    .MaxPoint.Modify newtype:=xlConditionValueNumber, newvalue:=100
                     .ShowValue = True
                 End With
                 On Error GoTo 0
