@@ -1,5 +1,9 @@
-<title>Vitα — Cockpit de Saúde Determinístico</title>
+<title>Vitα — Plataforma de Saúde, Performance e Nutrição</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="Vitα: plataforma determinística de saúde, performance e nutrição — dieta, treino, exames, evolução e acompanhamento de pacientes. Cada número com fórmula nomeada e fonte.">
+<meta name="application-name" content="Vitα">
+<meta name="theme-color" content="#0B0E14">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%23FF6A45'/%3E%3Cstop offset='1' stop-color='%237B61FF'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='100' height='100' rx='24' fill='url(%23g)'/%3E%3Ctext x='50' y='72' font-size='60' font-family='Arial,sans-serif' font-weight='800' fill='white' text-anchor='middle'%3EVα%3C/text%3E%3C/svg%3E">
 <style>
 /* ============================ TOKENS ============================ */
 :root{
@@ -62,7 +66,7 @@ input,select{font-family:inherit}
 .brand{
   width:40px;height:40px;border-radius:12px;display:grid;place-items:center;
   background:linear-gradient(135deg,var(--accent),var(--accent-2));
-  color:#fff;font-weight:800;font-size:20px;margin-bottom:14px;
+  color:#fff;font-weight:800;font-size:17px;letter-spacing:-.02em;margin-bottom:14px;
   box-shadow:0 6px 18px -6px var(--accent);
 }
 .nav{display:flex;flex-direction:column;gap:3px;width:100%;align-items:center;flex:1;min-height:0;overflow-y:auto;overflow-x:visible;scrollbar-width:none}
@@ -439,7 +443,7 @@ h1.title{font-size:clamp(26px,3vw,34px);font-weight:800;letter-spacing:-.02em;ma
 
 <div class="app">
   <aside class="rail">
-    <div class="brand">V</div>
+    <div class="brand" title="Vitα">Vα</div>
     <nav class="nav" id="nav">
       <button data-v="pacientes" aria-label="Pacientes"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="9" cy="8" r="3"/><path d="M3 20c0-3.3 2.7-5 6-5s6 1.7 6 5"/><path d="M16 6a3 3 0 0 1 0 6M18 20c0-2.5-1-4-3-4.5"/></svg><span class="railtip">Pacientes</span></button>
       <button class="on" data-v="today" aria-label="Hoje"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="M9 22V12h6v10"/></svg><span class="railtip">Hoje</span></button>
@@ -464,7 +468,7 @@ h1.title{font-size:clamp(26px,3vw,34px);font-weight:800;letter-spacing:-.02em;ma
   <main class="main">
     <header class="top">
       <div>
-        <p class="eyebrow" id="eyebrow">Cockpit · Motor Determinístico</p>
+        <p class="eyebrow" id="eyebrow">Vitα · Motor Determinístico</p>
         <h1 class="title" id="viewtitle">Hoje</h1>
         <div class="sub" id="viewsub">Tudo abaixo é calculado por fórmula nomeada — mesmo input, mesmo output.</div>
       </div>
