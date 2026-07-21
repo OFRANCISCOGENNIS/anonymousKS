@@ -799,7 +799,7 @@ function buildMeal(pool,tk,tp,rotate=0,slot="main"){
   if(sp.length<3)sp=pool; // fallback: dieta restritiva esvaziou o slot
   const carbCap=(slot==="breakfast"||slot==="snack")?420:200; // café/lanche aceitam pão/aveia
   const prot=sp.filter(x=>x.p/Math.max(x.kcal,1)>.08&&x.p>=12).sort((a,b)=>b.p/b.kcal-a.p/a.kcal||a.n.localeCompare(b.n));
-  const carb=sp.filter(x=>x.ch>x.p&&x.ch>x.f&&x.kcal<carbCap&&x.c!=="legumes"&&!(slot==="main"&&x.c==="fruits")).sort((a,b)=>b.ch-a.ch||a.n.localeCompare(b.n));
+  const carb=sp.filter(x=>x.ch>x.p&&x.ch>x.f&&x.kcal<carbCap&&x.c!=="legumes"&&x.c!=="vegetables"&&!(slot==="main"&&x.c==="fruits")).sort((a,b)=>b.ch-a.ch||a.n.localeCompare(b.n));
   const fat=sp.filter(x=>x.f/Math.max(x.kcal,1)>.05&&x.p/Math.max(x.kcal,1)<=.08).sort((a,b)=>b.f/b.kcal-a.f/a.kcal||a.n.localeCompare(b.n));
   const pick=l=>l.length?l[rotate%l.length]:null;
   const items=[];let kc=0,pr=0;
@@ -807,8 +807,13 @@ function buildMeal(pool,tk,tp,rotate=0,slot="main"){
   const P=pick(prot),C=pick(carb),F=pick(fat);
   if(P)add(P,Math.min(tp*.85/P.p*100,300));
   if(C&&kc<tk)add(C,(tk-kc)*.8/C.kcal*100);
-  // almoço/jantar: adiciona feijão/leguminosa como acompanhamento clássico (arroz e feijão)
-  if(slot==="main"){const leg=sp.filter(x=>x.c==="legumes"&&x.ch>x.p&&x.n!==(C&&C.n)).sort((a,b)=>b.p-a.p||a.n.localeCompare(b.n));const L=leg.length?leg[rotate%leg.length]:null;if(L&&kc<tk*.9)add(L,Math.min((tk-kc)*.5/L.kcal*100,150));}
+  // almoço/jantar: metade do prato em vegetais (Harvard Plate) + feijão (arroz e feijão)
+  if(slot==="main"){
+    const veg=sp.filter(x=>x.c==="vegetables").sort((a,b)=>(b.mi?b.mi.k:0)-(a.mi?a.mi.k:0)||a.n.localeCompare(b.n));const V=veg.length?veg[rotate%veg.length]:null;if(V)add(V,150);
+    const leg=sp.filter(x=>x.c==="legumes"&&x.ch>x.p&&x.n!==(C&&C.n)).sort((a,b)=>b.p-a.p||a.n.localeCompare(b.n));const L=leg.length?leg[rotate%leg.length]:null;if(L&&kc<tk*.9)add(L,Math.min((tk-kc)*.5/L.kcal*100,150));
+  }
+  // café/lanche: uma fruta (fibra + micronutrientes), se o carbo principal não for fruta
+  if(slot==="breakfast"||slot==="snack"){const fr=sp.filter(x=>x.c==="fruits"&&x.n!==(C&&C.n)).sort((a,b)=>b.ch-a.ch||a.n.localeCompare(b.n));const FR=fr.length?fr[rotate%fr.length]:null;if(FR)add(FR,Math.min(Math.max((tk-kc)*.4/FR.kcal*100,80),160));}
   if(F&&kc<tk*.95)add(F,Math.min((tk-kc)/F.kcal*100,30));
   return{items,kcal:Math.round(kc),p:Math.round(pr)};
 }
