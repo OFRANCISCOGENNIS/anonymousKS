@@ -3349,8 +3349,7 @@ Private Sub CarregarEquivSrvMat()
         "ESTRUT MT S/CRUZ=CRUZETA;" & _
         "CONECTOR=RAMAL;" & _
         "DESLIG E RELIG RM=RAMAL;" & _
-        "ACES P/RELIG=RELIGADOR;" & _
-        "ESCAVACAO=POSTE RD"
+        "ACES P/RELIG=RELIGADOR"
     Dim extra As String: extra = CfgTxt("EQUIV_SRV_MAT", "")
     If extra <> "" Then s = s & ";" & extra
 
@@ -3371,8 +3370,9 @@ End Sub
 Private Sub CarregarSrvPuro()
     Set dSrvPuro = CreateObject("Scripting.Dictionary")
     Dim s As String
-    ' Obs.: ESCAVACAO NAO e mais servico puro -> ligada ao POSTE (dFamEquiv).
-    s = "PODA;CIVIL;BASE CONC;FUNDACAO;DEMOLIR;MEIO AMBIENTE;" & _
+    ' ESCAVACAO e servico puro: na MATERIAL vs SERVICO, a qtd de servico do
+    ' POSTE so vem de servicos classificados como POSTE RD / MAO DE OBRA.
+    s = "PODA;ESCAVACAO;CIVIL;BASE CONC;FUNDACAO;DEMOLIR;MEIO AMBIENTE;" & _
         "ESTUDO AMBIENTAL;PROJETO;FRETE/TRANSP;TRANSPORTE;DESLOCAMENTO;" & _
         "MOBILIZAR;DESMOBILIZAR;ATV DRT;DISPONIBILIDADE;DISPON_STC;" & _
         "ATEND EMERGENCIA;ABRIR ACESSO/FAIXA_SERV;PUBLICIDADE;TURMA LV;" & _
