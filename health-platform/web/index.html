@@ -485,7 +485,7 @@ h1.title{font-size:clamp(26px,3vw,34px);font-weight:800;letter-spacing:-.02em;ma
 
     <div id="guardslot"></div>
 
-    <section class="profile" aria-label="Seu perfil">
+    <section class="profile" id="profilestrip" aria-label="Seu perfil">
       <div class="field wide"><label>Nome do paciente</label><input id="pname" type="text" value="Paciente 1" maxlength="40"></div>
       <div class="field"><label>Sexo</label>
         <div class="seg" id="sexseg"><button data-sex="M" class="on">M</button><button data-sex="F">F</button></div>
@@ -1969,6 +1969,11 @@ function render(){
   const v=VIEWS[VIEW];
   $("#viewtitle").textContent=v.title;$("#viewsub").textContent=v.sub;
   $("#views").className="grid";$("#views").innerHTML=v.html;
+  // faixa de perfil e anamnese: só na aba Hoje (configuração)
+  const cfgVisible=VIEW==="today";
+  const ps=$("#profilestrip"),an2=$("#anamnese");
+  if(ps)ps.style.display=cfgVisible?"":"none";
+  if(an2)an2.style.display=cfgVisible?"":"none";
   saveProfile(); // persiste perfil + anamnese + exames a cada mudança
   // mantém o seletor de pacientes do header em dia (nome ao vivo)
   const sel=$("#patientsel");if(sel)sel.innerHTML=pAll().map(x=>`<option value="${x.id}" ${x.id===pActiveId()?"selected":""}>${x.name}</option>`).join("");
