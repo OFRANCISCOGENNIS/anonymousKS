@@ -1956,6 +1956,9 @@ const MEASURES={
   oils:[["1 col. chá",5],["1 col. sopa",12],["1 punhado",30]],
   supplements:[["1 dose (scoop)",30],["meia dose",15]],
 };
+// peso médio de 1 unidade/porção caseira por alimento (TACO/IBGE) → "≈ 3 ovos"
+const UNIT_G={"Ovo cozido":[50,"ovo","ovos"],"Pão francês":[50,"pão","pães"],"Banana prata":[120,"banana","bananas"],"Maçã com casca":[130,"maçã","maçãs"],"Laranja pera":[180,"laranja","laranjas"],"Manga palmer":[300,"manga","mangas"],"Kiwi":[75,"kiwi","kiwis"],"Mamão papaia":[300,"mamão","mamões"],"Abacate":[200,"abacate","abacates"],"Tilápia grelhada":[120,"filé","filés"],"Salmão grelhado":[130,"posta","postas"],"Sardinha assada":[35,"sardinha","sardinhas"],"Merluza assada":[130,"filé","filés"],"Frango grelhado":[120,"filé","filés"],"Coxa de frango assada":[65,"coxa","coxas"],"Patinho grelhado":[120,"bife","bifes"],"Alcatra grelhada":[120,"bife","bifes"],"Batata-doce":[150,"unidade","unidades"],"Mandioca cozida":[120,"pedaço","pedaços"],"Queijo minas":[30,"fatia","fatias"],"Tofu firme":[80,"fatia","fatias"]};
+function porcaoTxt(nome,g){const u=UNIT_G[nome];if(!u)return g+" g";const n=g/u[0];const r=n>=2?Math.round(n):Math.round(n*2)/2;if(r<0.5)return g+" g";const rot=r===1?u[1]:u[2];const nn=Number.isInteger(r)?r:r.toString().replace(".",",");return `≈ ${nn} ${rot} · ${g} g`;}
 function measChipsPhoto(i,cat){return (MEASURES[cat]||[]).map(([l,g])=>`<button class="setchip" data-mpm="${i}:${g}" style="cursor:pointer">${l} · ${g} g</button>`).join("");}
 function measChipsDiary(cat){return (MEASURES[cat]||[]).map(([l,g])=>`<button class="setchip" data-qmeas="${g}" style="cursor:pointer">${l} · ${g} g</button>`).join("");}
 /* sessão de treino ao vivo: dia do split, índice do exercício, fim do descanso */
@@ -2074,8 +2077,8 @@ function render(){
     const food=FOODS.find(f=>f.n===it.n);
     const open=SWAP===it.n;
     const subs=open&&food?findSubs(food,pool):[];
-    return `<div class="li swap ${open?'op':''}" data-swap="${it.n}" role="button" tabindex="0" aria-expanded="${open}"><span class="idx tnum">${String(i+1).padStart(2,'0')}</span><div class="nm"><b>${it.n} <span class="swapic">⇄</span></b><span>${it.g} g</span></div><div class="rt"><b class="tnum">${it.kcal}</b> kcal · ${it.p}g P</div></div>`+
-      (open?`<div class="subs">${subs.length?`<div class="subttl">Substituições isocalóricas (${it.g} g de ${it.n} ≈)</div>${subs.map(s=>`<div class="subrow"><b>${s.n}</b><span class="tnum">${s.g} g</span><span class="pill ${s.sim>.9?'good':s.sim>.8?'accent':'warn'}">${Math.round(s.sim*100)}% match</span></div>`).join("")}`:`<div class="src">Sem substituto próximo na base filtrada.</div>`}</div>`:"");
+    return `<div class="li swap ${open?'op':''}" data-swap="${it.n}" role="button" tabindex="0" aria-expanded="${open}"><span class="idx tnum">${String(i+1).padStart(2,'0')}</span><div class="nm"><b>${it.n} <span class="swapic">⇄</span></b><span>${porcaoTxt(it.n,it.g)}</span></div><div class="rt"><b class="tnum">${it.kcal}</b> kcal · ${it.p}g P</div></div>`+
+      (open?`<div class="subs">${subs.length?`<div class="subttl">Não tem ${it.n}? Troque por (mesma caloria):</div>${subs.map(s=>`<div class="subrow"><b>${s.n}</b><span class="tnum">${porcaoTxt(s.n,s.g)}</span><span class="pill ${s.sim>.9?'good':s.sim>.8?'accent':'warn'}">${Math.round(s.sim*100)}% equivalente</span></div>`).join("")}`:`<div class="src">Sem substituto próximo na base filtrada.</div>`}</div>`:"");
   };
   const cardMeals=`<div class="card span-6"><h3>Plano alimentar · ${WEEK_DAYS[todayIdx]} ${blockedBadge}</h3><div class="cap">${dietBlocked?`dieta ${stratName} contraindicada para a condição selecionada`:`${stratName} · ${totKcal} kcal · ${totP} g proteína · toque num item para trocar`}</div>
     ${dietBlocked?`<div class="src" style="font-size:13px;color:var(--crit)">O motor recusa gerar um plano com estratégia contraindicada. Escolha outra dieta ou remova a condição.</div>`:`<div class="list">${plan.map(ms=>`<div class="daytag">${ms.s} · ${ms.t} · alvo ${ms.tk} kcal</div>${ms.items.map(mealItem).join("")}`).join("")}</div>`}</div>`;
@@ -2087,7 +2090,7 @@ function render(){
   const cardWeek=`<div class="card span-7"><h3>Cardápio da semana</h3><div class="cap">7 dias · rotação determinística de fontes · sem repetição monótona</div>
     <div class="wtabs" id="wtabs">${wk.days.map((d,i)=>`<button data-w="${i}" class="${i===WEEKSEL?'on':''}">${d.label.slice(0,3)}</button>`).join("")}</div>
     <div class="daytag" style="margin-top:0">${wd.label} · ${wdKcal} kcal · ${wdP} g proteína</div>
-    <div class="list">${wd.plan.map(ms=>`<div class="daytag">${ms.s} · ${ms.t}</div>${ms.items.map((it,i)=>`<div class="li"><span class="idx tnum">${String(i+1).padStart(2,'0')}</span><div class="nm"><b>${it.n}</b><span>${it.g} g</span></div><div class="rt"><b class="tnum">${it.kcal}</b> kcal · ${it.p}g P</div></div>`).join("")}`).join("")}</div></div>`;
+    <div class="list">${wd.plan.map(ms=>`<div class="daytag">${ms.s} · ${ms.t}</div>${ms.items.map((it,i)=>`<div class="li"><span class="idx tnum">${String(i+1).padStart(2,'0')}</span><div class="nm"><b>${it.n}</b><span>${porcaoTxt(it.n,it.g)}</span></div><div class="rt"><b class="tnum">${it.kcal}</b> kcal · ${it.p}g P</div></div>`).join("")}`).join("")}</div></div>`;
   // custo estimado por item (categoria) e total da semana
   const shopCost=wk.shop.map(it=>{const f=FOODS.find(x=>x.n===it.n);return{...it,brl:f?foodCostBRL(f,it.g):0};});
   const weekCost=shopCost.reduce((s,x)=>s+x.brl,0),dayCost=weekCost/7;
@@ -3202,6 +3205,30 @@ function render(){
     ${CHECKUP.map(c=>{const done=c.code&&LABVALS[c.code]!=null&&LABVALS[c.code]!=="";return `<div class="chk-ex ${done?"done":""}"><span class="ck">✓</span><span class="cx">${c.n}<small>${c.why}${c.code?"":" · registre o resultado com seu médico"}</small></span>${done?'<span class="pill good">registrado</span>':'<span class="pill">pendente</span>'}</div>`;}).join("")}
     <div class="src" style="margin-top:12px">Lista educativa baseada em recomendações para praticantes de musculação (check-up ${chkPer}; CK/hormônios em treino intenso — Sancet, Fleming, SBPC). <b>Quem pede e interpreta exames é sempre o médico.</b></div></div>`;
 
+  // ---- CHECKLIST DAS METAS DO DIA (verificação automática por dados reais + hábitos) ----
+  const _tk=todayKey();
+  const trainedToday=Object.values(DWL).some(a=>a.some(s=>s.d===_tk));
+  const stepsChk=(DWe[_tk]&&DWe[_tk].steps)||0;
+  const habToday=(loadHab()[_tk])||[];
+  const goalsActive=SG.filter(g=>g.status==="active");
+  const CHECK=[
+    {ic:"🍽️",t:"Registrar refeições",done:hasLog,det:hasLog?consumed.kcal+" kcal lançados":"nada no diário ainda"},
+    {ic:"🔥",t:"Bater as calorias (±10%)",done:hasLog&&Math.abs(consumed.kcal-m.kcal)/m.kcal<=0.1,det:hasLog?consumed.kcal+" / "+m.kcal+" kcal":"registre o diário"},
+    {ic:"🥩",t:"Meta de proteína",done:hasLog&&consumed.p>=m.protein*0.9,det:hasLog?consumed.p+" / "+m.protein+" g":"registre o diário"},
+    {ic:"💧",t:"Meta de água",done:waterMlToday>=wm,det:(waterMlToday/1000).toFixed(2)+" / "+(wm/1000).toFixed(2)+" L"},
+    {ic:"🏋️",t:"Treinar",done:trainedToday||p.days<7,det:trainedToday?"treino registrado":"planeje conforme seus dias"},
+    {ic:"👟",t:"Passos (8.000)",done:stepsChk>=8000,det:stepsChk?stepsChk.toLocaleString('pt-BR')+" passos":"sem wearable hoje"},
+    {ic:"⚖️",t:"Pesar-se (semanal)",done:DWI.some(w=>w.d>=dateStrAgo(6)),det:DWI.length?"última "+DWI[DWI.length-1].d.slice(5):"nenhuma pesagem"},
+  ];
+  const habDefsChk=[["water","Água"],["protein","Proteína"],["train","Treino"],["sleep","Sono"],["read","Leitura"],["stretch","Alongamento"]];
+  habDefsChk.forEach(([k,l])=>{if(habToday.includes(k)&&!CHECK.some(c=>c.t.toLowerCase().includes(l.toLowerCase())))CHECK.push({ic:"✅",t:"Hábito: "+l,done:true,det:"marcado hoje"});});
+  goalsActive.slice(0,4).forEach(g=>{const gs=goalStats(g);CHECK.push({ic:"🎯",t:g.title,done:gs.reached,det:gs.pct+"% concluído"+(gs.remain!=null?" · faltam "+gs.remain+" "+g.unit:"")});});
+  const chkDoneN=CHECK.filter(c=>c.done).length,chkPct=Math.round(chkDoneN/CHECK.length*100);
+  const cardDayCheck=`<div class="card span-12"><h3>✅ Checklist das metas de hoje <span class="pill ${chkPct>=100?"good":chkPct>=60?"accent":"warn"}">${chkDoneN}/${CHECK.length} · ${chkPct}%</span></h3><div class="cap">verificação automática pelos seus dados reais + metas ativas — veja num relance se concluiu tudo</div>
+    <div class="track" style="margin:6px 0 12px"><div class="fill" style="width:${chkPct}%;background:${chkPct>=100?'var(--good)':'linear-gradient(90deg,var(--accent),var(--accent-2))'}"></div></div>
+    ${CHECK.map(c=>`<div class="chk-ex ${c.done?"done":""}"><span class="ck">✓</span><span class="cx">${c.ic} ${c.t}<small>${c.det}</small></span>${c.done?'<span class="pill good">ok</span>':'<span class="pill">pendente</span>'}</div>`).join("")}
+    <div class="src" style="margin-top:12px">${chkPct>=100?"🎉 Dia completo! Todas as metas de hoje concluídas.":`Faltam <b>${CHECK.length-chkDoneN}</b> item(ns) para fechar o dia.`}</div></div>`;
+
   // ================= PRIVACIDADE & PROTEÇÃO DE DADOS =================
   const sec=secGet();
   const bcl=document.body&&document.body.classList;if(bcl&&bcl.toggle)bcl.toggle("privmode",!!sec.priv);
@@ -3244,6 +3271,29 @@ function render(){
     </div>
     <div class="src" style="margin-top:12px">Creatina monoidratada e cafeína são os suplementos com evidência mais consistente (ISSN). O total proteico do dia importa mais que o horário exato (Schoenfeld & Aragon). Em cutting, proteína alta preserva massa magra (Helms 2014). <b>Nada aqui é prescrição — é o consenso científico, para discutir com seu nutricionista.</b></div></div>`;
 
+  // ---- SUPLEMENTAÇÃO OPCIONAL: sugestão determinística por lacunas do paciente ----
+  const supActive=(_pt&&_pt.supps)||[];
+  const proteinHard=m.protein>=p.weightKg*1.8;
+  const lowFish=(()=>{let n=0;Object.values(DWL);const fl=(_pt&&_pt.foodlog)||{};Object.values(fl).forEach(items=>items.forEach(e=>{const f=FOODS.find(x=>x.n===e.n);if(f&&f.c==="fish")n++;}));return n<2;})();
+  const vitDlow=LABVALS.VIT_D!=null&&LABVALS.VIT_D!==""&&+LABVALS.VIT_D<30;
+  const b12low=(LABVALS.B12!=null&&LABVALS.B12!==""&&+LABVALS.B12<200);
+  const SUPPS=[
+    {k:"whey",n:"Whey protein",ic:"🥛",dose:"1 dose (~30 g) = ~24 g proteína",why:proteinHard?"sua meta proteica é alta — o whey ajuda a fechar a conta com praticidade":"opção prática para bater a proteína nos dias corridos",rec:proteinHard,evid:"forte"},
+    {k:"creatina",n:"Creatina monoidratada",ic:"⚡",dose:"3–5 g/dia, todo dia (inclusive descanso)",why:"força, potência e ganho de massa — o suplemento com melhor evidência",rec:["hypertrophy","maintenance"].includes(p.goal),evid:"forte"},
+    {k:"cafeina",n:"Cafeína (pré-treino)",ic:"☕",dose:Math.round(p.weightKg*3)+"–"+Math.round(p.weightKg*6)+" mg, 30–60 min antes",why:"desempenho e foco no treino (3–6 mg/kg)",rec:false,evid:"forte"},
+    {k:"omega3",n:"Ômega-3 (EPA/DHA)",ic:"🐟",dose:"1–2 g EPA+DHA/dia",why:lowFish?"você registrou pouco peixe — o ômega-3 cobre a lacuna anti-inflamatória":"apoio à recuperação e saúde cardiovascular",rec:lowFish,evid:"moderada"},
+    {k:"vitd",n:"Vitamina D3",ic:"☀️",dose:"com médico (dose conforme exame)",why:vitDlow?"seu exame de vitamina D está abaixo de 30 ng/mL":"comum em quem treina indoor / pouca exposição solar",rec:vitDlow,evid:"moderada"},
+    {k:"b12",n:"Vitamina B12",ic:"🌱",dose:"com médico — essencial em dieta vegana",why:b12low?"seu exame de B12 está baixo":"dietas vegetarianas/veganas costumam precisar de reposição",rec:b12low||(_pt&&(_pt.anamnese||{}).diet==="vegan"),evid:"moderada"},
+  ];
+  const EVCOL={forte:"good",moderada:"warn"};
+  const cardSupps=`<div class="card span-12"><h3>Suplementação <span class="pill accent">opcional</span></h3><div class="cap">tudo opcional · ligue o que fizer sentido pra você · sugestões por regra a partir do seu objetivo, dieta e exames — nunca obrigatório, nunca prescrição</div>
+    <div class="statg" style="margin-top:10px">${SUPPS.map(s=>{const on=supActive.includes(s.k);return `<div class="stat" style="border-color:${on?'color-mix(in srgb,var(--accent) 45%,var(--border))':'var(--border)'}">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:6px"><div class="sl" style="text-transform:none;font-size:12px;color:var(--text);font-weight:700">${s.ic} ${s.n}</div>${s.rec?'<span class="pill good" style="font-size:8px">sugerido</span>':""}</div>
+      <div class="src" style="margin:5px 0;font-size:11px">${s.dose}<br><span style="color:var(--muted)">${s.why}</span></div>
+      <div style="display:flex;justify-content:space-between;align-items:center"><span class="pill ${EVCOL[s.evid]}" style="font-size:8.5px">evidência ${s.evid}</span><button class="minibtn" data-suptg="${s.k}" style="margin:0;padding:4px 10px;${on?'background:var(--accent);color:#fff;border-color:var(--accent)':''}">${on?"✓ no meu plano":"+ adicionar"}</button></div>
+    </div>`;}).join("")}</div>
+    <div class="src" style="margin-top:12px">${supActive.length?`No seu plano: <b>${SUPPS.filter(s=>supActive.includes(s.k)).map(s=>s.n).join(", ")}</b>. `:""}Suplemento não substitui comida — priorize a dieta. Doses de vitaminas e qualquer reposição devem ser definidas por médico/nutricionista com base em exames. <b>Este quadro é educativo.</b></div></div>`;
+
   // dashboard reordenável por arrastar-e-soltar (ordem salva no dispositivo)
   const DASH_CARDS=[["hero",cardDHero],["kpis",cardKpis],["weight",cardDWeight],["comp",cardDComp],["vol",cardDVol],["nut",cardDNut],["sleep",cardDSleep],["cmp",cardDCompare],["goals",cardDGoals],["stats",cardDStats],["ins",cardDInsights]];
   let dashOrd=[];try{dashOrd=JSON.parse(localStorage.getItem("vita.dashOrder")||"[]");}catch(e){}
@@ -3255,17 +3305,17 @@ function render(){
     objetivos:{title:"Metas inteligentes",sub:"Objetivos SMART com subtarefas automáticas, prioridade, prazos, barra de progresso, previsão de conclusão, conquistas e recomendações — determinístico.",html:cardGoalNew+cardGoalActive+cardGoalOther+cardGoalStats+cardGoalAch},
     game:{title:"Gamificação",sub:"XP por ação real, níveis nomeados, medalhas por raridade, desafios semanais, evento sazonal e ranking pessoal — regras determinísticas.",html:cardGameHero+cardGameEvent+cardGameChall+cardGameRank+cardGameMedals},
     privacidade:{title:"Privacidade & Proteção",sub:"PIN, biometria do aparelho, backup criptografado AES-256, modo privacidade, LGPD e monitoramento — tudo local, nada sai do dispositivo.",html:cardSecLock+cardSecBackup+cardSecPriv+cardSecLog+cardSecAI},
-    today:{title:"Hoje",sub:"Tudo abaixo é calculado por fórmula nomeada — mesmo input, mesmo output.",html:cardCoach+cardEnergy+cardMacros+cardBody+cardTrend+cardAdapt+cardReady+cardWater+cardMeals+cardWorkoutMain},
-    nutri:{title:"Nutrição",sub:"Meta calórica e macros pelo motor; plano montado por seleção na base de alimentos.",html:cardEnergy+cardMacros+cardMeals+cardEvid+cardBody},
+    today:{title:"Hoje",sub:"Tudo abaixo é calculado por fórmula nomeada — mesmo input, mesmo output.",html:cardCoach+cardDayCheck+cardEnergy+cardMacros+cardBody+cardTrend+cardAdapt+cardReady+cardWater+cardMeals+cardWorkoutMain},
+    nutri:{title:"Nutrição",sub:"Meta calórica e macros pelo motor; plano montado por seleção na base de alimentos.",html:cardEnergy+cardMacros+cardMeals+cardSupps+cardEvid+cardBody},
     week:{title:"Semana",sub:"7 dias com rotação determinística de fontes + lista de compras agregada.",html:cardWeek+cardShop},
     diario:{title:"Diário alimentar",sub:"Fotografe a refeição ou registre o consumo real; a Análise passa a usar o que foi comido, não o plano.",html:cardMealPhoto+cardDiary+cardIntake},
-    analise:{title:"Análise de precisão",sub:"Micronutrientes vs DRI, qualidade proteica (PDCAAS), leucina por refeição, carga glicêmica e lacunas com fontes alimentares.",html:cardMicros+cardProtQual+cardProtDist+cardGL+cardSupp+cardEvid+cardMacros},
+    analise:{title:"Análise de precisão",sub:"Micronutrientes vs DRI, qualidade proteica (PDCAAS), leucina por refeição, carga glicêmica e lacunas com fontes alimentares.",html:cardMicros+cardProtQual+cardProtDist+cardGL+cardSupp+cardSupps+cardEvid+cardMacros},
     train:{title:"Treino",sub:"Split por frequência com isolamento direto de braços/panturrilha, volume graduado por landmarks, base aeróbica e biblioteca de exercícios.",html:cardWorkoutMain+cardVolume+cardZone2+cardExLib+cardReady+cardTrend},
     calc:{title:"Calculadoras",sub:"1RM, zonas de FC, pace, gasto calórico e VO₂máx — todas determinísticas.",html:cardCalc+cardBody},
     labs:{title:"Exames",sub:"Comparação com faixas de referência + tendência entre exames — educativo, nunca prescreve.",html:cardCheckup+cardLabs+cardLabSummary+cardLabTrend},
     habits:{title:"Hábitos",sub:"Checklist diário, sequência, conquistas e nível — tudo por regras determinísticas.",html:cardHabits+cardWater+cardStreak+cardGami+cardCoach},
     pacientes:{title:"Pacientes",sub:"Visão do profissional: todos os pacientes, quem precisa de atenção primeiro.",html:cardRoster+cardNotes},
-    agenda:{title:"Agenda do dia",sub:"Cronograma de refeições, hidratação e treino por horário — ajuste à sua rotina.",html:cardAgenda+cardAgendaSum},
+    agenda:{title:"Agenda do dia",sub:"Checklist das metas do dia + cronograma de refeições, hidratação e treino por horário.",html:cardDayCheck+cardAgenda+cardAgendaSum},
     evolucao:{title:"Evolução",sub:"Check-in semanal, linha do tempo de todas as métricas, histórico de ações e exportação CSV.",html:cardCheckin+cardEvolution+cardHistory+cardExport},
     metas:{title:"Metas & medidas",sub:"Alvos com previsão de data + circunferências e dobras com %gordura por Jackson-Pollock.",html:cardGoals+cardGoalsHelp+cardMeasures+cardMeasEvo},
     fotos:{title:"Fotos de evolução",sub:"Registro visual do progresso, comparação antes/depois. Tudo local — as imagens não saem do dispositivo.",html:cardPhotos+cardCompare},
@@ -3296,6 +3346,7 @@ $("#views").addEventListener("click",e=>{
   const fx=e.target.closest("[data-favex]");if(fx){toggleFav("ex",fx.dataset.favex);return;}
   const ff=e.target.closest("[data-favfood]");if(ff){toggleFav("food",ff.dataset.favfood);return;}
   const qf=e.target.closest("[data-quickfood]");if(qf){addLogItem(qf.dataset.quickfood,100);return;}
+  const sup=e.target.closest("[data-suptg]");if(sup){const k=sup.dataset.suptg;pUpdate(p=>{p.supps=p.supps||[];const i=p.supps.indexOf(k);i>=0?p.supps.splice(i,1):p.supps.push(k);});render();return;}
   const cv=e.target.closest("[data-csv]");if(cv){exportCsv(cv.dataset.csv);return;}
   const mpa=e.target.closest("[data-mpadd]");if(mpa){const i=mpa.dataset.mpadd;const sel=document.querySelector('[data-mpsel="'+i+'"]'),gr=document.querySelector('[data-mpg="'+i+'"]');if(sel&&gr)mealPhotoAdd(+i,sel.value,+gr.value);return;}
   const mpr=e.target.closest("[data-mprm]");if(mpr){const[i,j]=mpr.dataset.mprm.split(":");pUpdate(p=>{if(p.mealPhotos&&p.mealPhotos[+i])p.mealPhotos[+i].items.splice(+j,1);});render();return;}
