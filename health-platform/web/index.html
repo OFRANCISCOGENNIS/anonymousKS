@@ -3421,6 +3421,8 @@ function render(){
   const ps=$("#profilestrip"),an2=$("#anamnese");
   if(ps)ps.style.display=cfgVisible?"":"none";
   if(an2)an2.style.display=cfgVisible?"":"none";
+  // barra de ações do topo (buscar, paciente, prontuário, backup, aparência, tema): só na aba Pacientes
+  const _topbar=document.querySelector(".toprt");if(_topbar&&_topbar.style)_topbar.style.display=VIEW==="pacientes"?"":"none";
   saveProfile(); // persiste perfil + anamnese + exames a cada mudança
   // mantém o seletor de pacientes do header em dia (nome ao vivo)
   const sel=$("#patientsel");if(sel)sel.innerHTML=pAll().map(x=>`<option value="${x.id}" ${x.id===pActiveId()?"selected":""}>${x.name}</option>`).join("");
