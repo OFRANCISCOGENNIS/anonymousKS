@@ -7,6 +7,7 @@
  */
 import { useEffect, useState } from 'react';
 import { API_URL } from '@/lib/api';
+import { DEMO_MODE, mockRequest } from '@/lib/mock';
 import { Skeleton } from '@/components/ui';
 import { PlatformDonut, SpendRevenueChart } from '@/components/charts';
 import { brl, num, pct, ratio, PLATFORM_LABEL } from '@/lib/format';
@@ -26,9 +27,11 @@ export default function SharedReportPage({ params }: { params: { token: string }
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    fetch(`${API_URL}/reports/shared/${params.token}`)
-      .then((r) => r.json())
-      .then((d) => (d.error ? setError(d.error) : setData(d)))
+    const load = DEMO_MODE
+      ? mockRequest<SharedData>('GET', `/reports/shared/${params.token}`)
+      : fetch(`${API_URL}/reports/shared/${params.token}`).then((r) => r.json());
+    Promise.resolve(load)
+      .then((d) => ((d as any).error ? setError((d as any).error) : setData(d as SharedData)))
       .catch(() => setError('Não foi possível carregar o relatório.'));
   }, [params.token]);
 

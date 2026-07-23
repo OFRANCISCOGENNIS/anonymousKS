@@ -13,7 +13,16 @@ Todas as suas campanhas do **Google Ads**, **Meta Ads** (Facebook/Instagram) e *
 | IA | Claude (Anthropic) — diagnósticos, chat, criativos; fallback heurístico sem chave |
 | Infra | Docker Compose (web, api, worker, redis, postgres) |
 
-## Subir tudo com um comando
+## 🚀 Publicar sem backend (o jeito mais fácil)
+
+Quer só ver o app no ar com um link público, sem configurar API/banco/Redis? O
+frontend roda em **modo demonstração** com um "backend embutido no navegador"
+(`apps/web/lib/mock.ts`) — publique só a pasta `apps/web` na **Vercel** com
+`NEXT_PUBLIC_DEMO_MODE=true` (já configurado no `vercel.json`). Passo a passo em
+**[`DEPLOY_SEM_BACKEND.md`](DEPLOY_SEM_BACKEND.md)**. Para o backend real depois,
+veja `DEPLOY_RAILWAY.md` / `DEPLOY.md`.
+
+## Subir tudo com um comando (backend completo)
 
 ```bash
 cd trafegoai

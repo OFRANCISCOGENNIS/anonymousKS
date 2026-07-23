@@ -4,8 +4,13 @@
  * Cliente HTTP da API. Token JWT vem do store (persistido em localStorage);
  * dados sensíveis nunca trafegam em URL (LGPD) — filtros são apenas ids/datas.
  * Cache leve em memória (TTL 60s) para leituras repetidas do dashboard.
+ *
+ * MODO DEMONSTRAÇÃO: quando DEMO_MODE (sem backend real), as chamadas são
+ * atendidas pelo "backend no navegador" (lib/mock.ts) em vez de fetch. Isso
+ * permite publicar só o frontend (Vercel/Netlify) sem API/DB/Redis.
  */
 import { useAuthStore } from './store';
+import { DEMO_MODE, mockRequest } from './mock';
 
 export const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000';
 
@@ -25,6 +30,16 @@ async function request<T>(path: string, init?: RequestInit & { noCache?: boolean
     const hit = cache.get(key);
     if (hit && Date.now() - hit.at < TTL_MS) return hit.data as T;
   }
+
+  // Modo demonstração: responde localmente, sem rede.
+  if (DEMO_MODE) {
+    const body = init?.body ? JSON.parse(init.body as string) : undefined;
+    const data = await mockRequest<T>(method, path, body);
+    if (method === 'GET') cache.set(key, { at: Date.now(), data });
+    else cache.clear();
+    return data;
+  }
+
   const token = useAuthStore.getState().token;
   const res = await fetch(`${API_URL}${path}`, {
     ...init,

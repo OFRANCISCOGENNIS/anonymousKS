@@ -45,6 +45,7 @@ export function NotificationBell() {
     if (!org?.id) return;
     joinOrg(org.id);
     const socket = getSocket();
+    if (!socket) return; // modo demo: sem WebSocket
     const onNotif = (n: RealtimeNotification) => {
       setToast(n);
       setUnread((u) => u + 1);
